@@ -46,6 +46,8 @@
     const { data, error } = await sb.from('docs').select('data,updated_at').eq('coll', 'warmups').eq('id', 'current').maybeSingle();
     if (error) { overlay('<b style="font-size:20px">No se pudieron cargar los datos</b><span>' + esc(error.message) + '</span>'); return; }
     if (data) { W.data = data.data || {}; remoteAt = Date.parse(data.updated_at); }
+    // la página debe estar entera (el bloque del panel está más abajo que este archivo)
+    if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
     // ejecuta el panel (su código está en un bloque de texto para no arrancar antes de tener los datos)
     const s = document.createElement('script'); s.textContent = document.getElementById('main-app').textContent; document.body.appendChild(s);
     hookSend();

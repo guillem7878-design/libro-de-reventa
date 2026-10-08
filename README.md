@@ -9,6 +9,9 @@ en el móvil y en el ordenador, con los datos sincronizados en tiempo real entre
 - **Instalable:** PWA con icono propio, pantalla completa y funcionamiento básico sin conexión (para consultar; apuntar necesita conexión).
 - **Avisos:** venta apuntada desde otro dispositivo y stock bajo.
 
+**Web publicada:** https://guillem7878-design.github.io/libro-de-reventa/ (GitHub Pages, rama `main`).
+Cada `git push` a `main` la actualiza en un minuto.
+
 No hay paso de compilación: son archivos estáticos.
 
 ## 1. Crear la base de datos (5 minutos, gratis)

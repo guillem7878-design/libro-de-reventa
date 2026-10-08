@@ -1188,7 +1188,7 @@ function movList() {
 const warmChip = (a, sm) => `<span class="wb ${a.warm ? 'ok' : 'no'}${sm ? ' sm' : ''}">${a.warm ? 'Calentada' : 'Sin calentar'}</span>`;
 function vMoviles() {
   const mr = monthR(0), accs = accounts();
-  let h = `<header class="top"><h1>Móviles</h1><button class="btn btn-main btn-sm" data-action="newAccount">${G.plus}Móvil</button></header>`;
+  let h = `<header class="top"><h1>Móviles</h1><div style="display:flex;gap:8px"><button class="btn btn-soft btn-sm" data-action="sx-warm">Calentar</button><button class="btn btn-main btn-sm" data-action="newAccount">${G.plus}Móvil</button></div></header>`;
   if (!loadedAll() || S.error) return h + loading();
   if (!accs.length) return h + empty(G.phone, 'Sin móviles', 'Añade uno con su IBAN.', '<button class="btn btn-main btn-sm" data-action="newAccount">Añadir móvil</button>');
   h += `<div class="seg" data-k="accf" role="group" aria-label="Filtrar"><button data-action="accFilter" data-v="all" aria-pressed="${S.accFilter === 'all'}">Todos</button><button data-action="accFilter" data-v="warm" aria-pressed="${S.accFilter === 'warm'}">Calentadas</button><button data-action="accFilter" data-v="cold" aria-pressed="${S.accFilter === 'cold'}">Sin calentar</button></div>`;
@@ -1216,6 +1216,11 @@ function ibanAt(a, date) {
   if (!a) return '';
   const b = (a.blocks || []).slice().sort((x, y) => (x.date || '').localeCompare(y.date || '')).find(x => date && date <= x.date);
   return b ? b.iban : a.iban;
+}
+function warmupCard(a) {
+  const w = a.warmup; if (!w) return "";
+  const rows = [["Alta", w.inicio ? fmtDate(w.inicio) : "—"], ["Días completados", w.diasHechos ?? "—"], ["Valoraciones", w.valoraciones != null ? w.valoraciones + (w.media ? " · media " + String(w.media).replace(".", ",") : "") : "—"], ["Índice de confianza", w.indice != null ? String(w.indice).replace(".", ",") + " / 5" : "—"], ["Artículos de calentamiento", w.articulos ?? "—"]];
+  return `<div class="sec-h"><h2>Calentamiento</h2><span>${w.enviado ? "Enviado " + fmtDate(w.enviado) : ""}</span></div><div class="facts">${rows.map(([k, v]) => `<div class="fact"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>`;
 }
 const diasTxt = n => n === null ? '' : n === 0 ? 'Menos de un día' : n + (n === 1 ? ' día' : ' días');
 function gensCard(a) {
@@ -1295,6 +1300,7 @@ function vMovil(id) {
     h += `<div class="sec-h"><h2>Ventas</h2><span>${ss.length}</span></div><div class="list">${lst.slice(0, 8).map(s => moveRow({ k: s.status === 'devuelta' ? 'dev' : 'venta', x: s })).join('')}</div>`;
     if (lst.length > 8) h += `<button class="btn btn-soft btn-block" data-action="accAllMovs" data-id="${id}">Ver todas las ventas</button>`;
   }
+  h += warmupCard(a);
   h += gensCard(a);
   const pub = S.products.filter(p => p.account === id && units(p) > 0);
   if (pub.length) h += `<div class="sec-h"><h2>Publicado ahora</h2><span>${pub.length}</span></div><div class="plist">${pub.map(productRow).join('')}</div>`;

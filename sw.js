@@ -1,5 +1,5 @@
 /* Service worker del Libro de Reventa: abre la app sin conexión y muestra avisos. */
-const VERSION = 'reventa-v1';
+const VERSION = 'reventa-v2';
 const CORE = ['./', 'index.html', 'config.js', 'sync.js', 'manifest.webmanifest', 'vendor/supabase.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -16,7 +16,7 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return res; })
-      .catch(() => caches.match(req).then(r => r || caches.match('index.html')))
+      .catch(() => caches.match(req).then(r => r || (new URL(req.url).pathname === new URL('./', self.registration.scope).pathname ? caches.match('index.html') : Response.error())))
   );
 });
 

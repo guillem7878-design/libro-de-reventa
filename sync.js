@@ -219,6 +219,7 @@
       const p = Notification.permission;
       h += row('sx-notif', IC.bell, 'Avisos', p === 'denied' ? 'Bloqueados en el navegador' : notifOn() ? 'Activados · toca para desactivar' : 'Ventas desde otro dispositivo y stock bajo');
     }
+    h += row('sx-warm', IC.phone, 'Calentar una cuenta', 'Plan de 31 días · al terminar la envías a Móviles');
     h += row('sx-backup', IC.down, 'Copia de seguridad', 'Descarga todos tus datos en un archivo');
     h += row('sx-import', IC.up, 'Importar copia', 'Sube un archivo de copia de seguridad');
     h += row('sx-out', IC.out, 'Cerrar sesión', esc(email));
@@ -236,6 +237,7 @@
         else if (Notification.permission === 'denied') window.toast('Actívalos en los ajustes del navegador para este sitio');
         else { const p = await Notification.requestPermission(); if (p === 'granted') { LS.set('notif', '1'); window.toast('Avisos activados'); showNote('Avisos activados', 'Te avisaremos de ventas y stock bajo.', 'hola'); } }
         if (window.moreSheet) window.moreSheet(); break; }
+      case 'sx-warm': location.href = 'calentador/'; break;
       case 'sx-backup': exportBackup(); break;
       case 'sx-import': importBackup(); break;
       case 'sx-out': await sb.auth.signOut(); location.reload(); break;
@@ -254,6 +256,8 @@
     sb.channel('docs-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, onRealtime).subscribe();
     // al volver a la app tras un rato, recarga por si se perdió algún evento
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - (window.__hiddenAt || Date.now()) > 30000) COLLS.forEach(c => { loaded[c] = false; loading[c] = null; cache[c] = new Map(); if (subs[c].length) loadColl(c).catch(() => {}); }); else if (document.visibilityState === 'hidden') window.__hiddenAt = Date.now(); });
+    // enlace directo ?movil=<id> (desde el panel de calentamiento)
+    { const m = /[?&]movil=([\w-]+)/.exec(location.search); if (m) { const t = setInterval(() => { if (window.loadedAll && window.loadedAll() && window.openAccount && window.S.accounts.some(a => a.id === m[1])) { clearInterval(t); window.S.quick = false; window.openAccount(m[1]); } }, 250); setTimeout(() => clearInterval(t), 10000); } }
     // acceso directo ?accion=venta
     if (/accion=venta/.test(location.search)) { const t = setInterval(() => { if (window.loadedAll && window.loadedAll() && window.saleForm) { clearInterval(t); window.S.quick = false; window.saleForm(); } }, 250); setTimeout(() => clearInterval(t), 10000); }
     return db;

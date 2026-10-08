@@ -51,6 +51,17 @@ Entra con el mismo correo y contraseña en todos los dispositivos.
 En `migracion/datos-claude.json` está la copia de los datos del artifact de Claude.
 En la app: **Ajustes › Importar copia** y elige ese archivo. Incluye ejemplos; bórralos con el aviso naranja «Borrar» que sale arriba.
 
+## Calentar una cuenta (31 días)
+
+El panel de calentamiento (el del agente de reventa de Adidas Samba) vive dentro de la app, en `calentador/`.
+Se abre desde **Móviles › Calentar** o **Ajustes › Calentar una cuenta**.
+
+- Plan día a día, índice de confianza, roadmap, artículos, valoraciones e incidencias.
+- Se guarda en tu Supabase (documento `warmups/current`), así que lo ves igual en el móvil y en el ordenador. Usa la misma sesión que la app.
+- **Enviar a la app:** cuando la cuenta esté calentada, pulsa el botón. Crea el móvil en **Móviles** como *Calentada*, con su IBAN si lo pones, y guarda el resumen (alta, días, valoraciones, media e índice). Si aún no cumple todas las comprobaciones, te lo avisa antes de enviar.
+- **Calentar otra cuenta** guarda la anterior en el historial y empieza de cero.
+- Si tenías datos en el panel antiguo (guardados en tu navegador), en **Registro › Restaurar copia** puedes subir la copia que descargaste de allí.
+
 ## Avisos
 
 - Funcionan con la app abierta o en segundo plano (ordenador con la app instalada, móvil con la app instalada).

@@ -12,11 +12,23 @@
   /* ---------- Aviso a pantalla completa (errores de acceso) ---------- */
   function overlay(html) {
     let o = document.getElementById('wsGate');
-    if (!o) { o = document.createElement('div'); o.id = 'wsGate'; o.style.cssText = 'position:fixed;inset:0;z-index:300;background:#f6f3ec;color:#0f2c36;display:flex;align-items:center;justify-content:center;padding:24px;font:15px/1.5 "Plus Jakarta Sans",system-ui,sans-serif'; document.body.appendChild(o); }
+    if (!o) { o = document.createElement('div'); o.id = 'wsGate'; o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg);color:var(--ink);display:flex;align-items:center;justify-content:center;padding:24px;font:15px/1.5 var(--font),system-ui,sans-serif'; document.body.appendChild(o); }
     o.innerHTML = `<div style="max-width:380px;display:flex;flex-direction:column;gap:12px">${html}</div>`; return o;
   }
-  const toastEl = () => { let t = document.getElementById('wsToast'); if (!t) { t = document.createElement('div'); t.id = 'wsToast'; t.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f2c36;color:#fff;padding:11px 18px;border-radius:14px;font-weight:700;font-size:13.5px;z-index:400;max-width:90vw;opacity:0;transition:opacity .2s;pointer-events:none'; document.body.appendChild(t); } return t; };
+  const toastEl = () => { let t = document.getElementById('wsToast'); if (!t) { t = document.createElement('div'); t.id = 'wsToast'; t.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#2A2D35;color:#F2F1ED;border:1px solid rgba(255,255,255,.12);padding:11px 18px;border-radius:16px;font-weight:600;font-size:13.5px;z-index:400;max-width:90vw;opacity:0;transition:opacity .2s;pointer-events:none'; document.body.appendChild(t); } return t; };
   let tt; const toast = m => { const t = toastEl(); t.textContent = m; t.style.opacity = 1; clearTimeout(tt); tt = setTimeout(() => t.style.opacity = 0, 2600); };
+
+  /* ---------- Si la carga se atasca: aviso con salida ---------- */
+  async function resetLocal() {
+    try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r => r.unregister())); } catch (e) {}
+    try { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } catch (e) {}
+    location.reload();
+  }
+  setTimeout(() => {
+    if (window.__wsReady || document.getElementById('wsGate')) return;
+    const o = overlay('<b style="font-size:20px;letter-spacing:-.02em">Está tardando más de lo normal</b><span>No he podido cargar el panel todavía. Puede ser la conexión o una copia antigua guardada en este dispositivo.</span><button class="btn" id="stR" style="width:100%">Reintentar</button><button class="btn ghost" id="stC" style="width:100%">Limpiar copia local y reintentar</button><span class="hint">Limpiar no borra tus datos ni tu sesión: solo vuelve a descargar la app.</span>');
+    o.querySelector('#stR').onclick = () => location.reload(); o.querySelector('#stC').onclick = resetLocal;
+  }, 15000);
 
   /* ---------- Guardado ---------- */
   async function flush() {
@@ -53,7 +65,7 @@
     if (!bar) {
       bar = document.createElement('div'); bar.id = 'slotBar'; hd.after(bar);
       const st = document.createElement('style');
-      st.textContent = '#slotBar .sl{display:flex;gap:8px;margin:14px 0 16px;overflow-x:auto;padding:2px}#slotBar .slb{flex:1 1 0;min-width:112px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:10px 14px;cursor:pointer;color:var(--ink);font:inherit;transition:.15s}#slotBar .slb:hover{border-color:var(--ink)}#slotBar .slb.on{background:var(--ink);color:#fff;border-color:var(--ink)}#slotBar .slb b{display:block;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#slotBar .slb span{display:block;font-size:11.5px;opacity:.7;white-space:nowrap}#slotBar .slr{flex:none;width:42px;border:1px solid var(--line);background:var(--card);border-radius:16px;cursor:pointer;color:var(--mut);font-size:15px}';
+      st.textContent = '#slotBar .sl{display:flex;gap:8px;margin:14px 0 16px;padding:2px}#slotBar .slb{flex:1 1 0;min-width:0;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:10px 12px;cursor:pointer;color:var(--ink);font:inherit;transition:.15s}#slotBar .slb:hover{border-color:var(--ink)}#slotBar .slb.on{background:var(--ink);color:#fff;border-color:var(--ink)}#slotBar .slb b{display:block;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#slotBar .slb span{display:block;font-size:11.5px;opacity:.7;white-space:nowrap}#slotBar .slr{flex:none;width:38px;border:1px solid var(--line);background:var(--card);border-radius:16px;cursor:pointer;color:var(--mut);font-size:15px}';
       document.head.appendChild(st); bar.addEventListener('click', onBar);
     }
     bar.innerHTML = '<div class="wrap"><div class="sl" role="tablist" aria-label="Cuentas">' + SLOTS.map(n => '<button class="slb' + (n === ACTIVE ? ' on' : '') + '" role="tab" aria-selected="' + (n === ACTIVE) + '" data-n="' + n + '"><b>' + esc(slotName(n)) + '</b><span>' + esc(slotStatus(n)) + '</span></button>').join('') + '<button class="slr" id="slRen" aria-label="Renombrar esta pestaña" title="Renombrar">✎</button></div></div>';
@@ -79,12 +91,12 @@
 
   /* ---------- Arranque ---------- */
   async function boot() {
-    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || !window.supabase) { overlay('<b style="font-size:20px">Falta conectar la base de datos</b><span>Revisa <code>config.js</code> en la raíz de la app.</span>'); return; }
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || !window.supabase) { overlay('<b style="font-size:20px;letter-spacing:-.02em">Falta conectar la base de datos</b><span>Revisa <code>config.js</code> en la raíz de la app.</span>'); return; }
     sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) { overlay('<b style="font-size:20px">Entra primero en la app</b><span>Este panel usa tu cuenta del Libro de Reventa para guardar y sincronizar el calentamiento.</span><a href="../" style="background:#0f2c36;color:#fff;text-align:center;padding:13px;border-radius:14px;font-weight:800;text-decoration:none">Ir a la app</a>'); return; }
+    if (!session) { overlay('<b style="font-size:20px;letter-spacing:-.02em">Entra primero en la app</b><span>Este panel usa tu cuenta del Libro de Reventa para guardar y sincronizar el calentamiento.</span><a href="../" style="background:var(--btn);color:var(--btn-ink);text-align:center;padding:13px;border-radius:16px;font-weight:600;text-decoration:none">Ir a la app</a>'); return; }
     const { data, error } = await sb.from('docs').select('data,updated_at').eq('coll', 'warmups').eq('id', 'current').maybeSingle();
-    if (error) { overlay('<b style="font-size:20px">No se pudieron cargar los datos</b><span>' + esc(error.message) + '</span>'); return; }
+    if (error) { overlay('<b style="font-size:20px;letter-spacing:-.02em">No se pudieron cargar los datos</b><span>' + esc(error.message) + '</span>'); return; }
     if (data) {
       let r = data.data || {}; remoteAt = Date.parse(data.updated_at);
       if (!r.slots) { const hist = r.vp_history || []; delete r.vp_history; r = { slots: { '1': r }, names: {}, history: hist }; W.root = r; W.save(); }
@@ -95,7 +107,7 @@
     if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
     // ejecuta el panel (su código está en un bloque de texto para no arrancar antes de tener los datos)
     const s = document.createElement('script'); s.textContent = document.getElementById('main-app').textContent; document.body.appendChild(s);
-    hookSend();
+    hookSend(); window.__wsReady = true;
   }
 
   /* ---------- Enviar el móvil a la app ---------- */
@@ -133,15 +145,15 @@
     const list = (accs || []).map(r => r.data || {});
     const nextName = W.root.names[ACTIVE] || 'Móvil ' + (list.length + 1);
     const missing = T.checks.filter(c => !c[1]).map(c => c[0]);
-    const o = overlay(`<div style="background:#fff;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 50px -20px rgba(15,44,54,.5)">
+    const o = overlay(`<div style="background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 50px -20px rgba(0,0,0,.6)">
       <b style="font-size:19px">Enviar el móvil a la app</b>
       <span class="hint">Se añade a <b>Móviles</b> como <b>Calentada</b>, con el resumen del calentamiento.</span>
-      ${missing.length ? `<div style="background:#fff4e5;border-radius:12px;padding:10px 12px;font-size:13px"><b>Aún no cumple todo:</b><ul style="margin:6px 0 0;padding-left:18px">${missing.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
-      <label class="hint">Nombre del móvil<input id="wsName" value="${esc(nextName)}" autocomplete="off" style="display:block;width:100%;margin-top:4px;padding:11px 12px;border-radius:12px;border:1px solid #e6e1d6;font:inherit;color:#0f2c36"></label>
-      <label class="hint">IBAN donde cobra (opcional)<input id="wsIban" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ES00 0000 0000 0000 0000 0000" style="display:block;width:100%;margin-top:4px;padding:11px 12px;border-radius:12px;border:1px solid #e6e1d6;font:inherit;color:#0f2c36;text-transform:uppercase"></label>
-      <div id="wsErr" style="color:#c4443b;font-size:13px;min-height:16px"></div>
+      ${missing.length ? `<div style="background:var(--warnbg);border-radius:14px;padding:10px 12px;font-size:13px"><b>Aún no cumple todo:</b><ul style="margin:6px 0 0;padding-left:18px">${missing.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
+      <label class="hint">Nombre del móvil<input id="wsName" value="${esc(nextName)}" autocomplete="off" style="display:block;width:100%;margin-top:4px;padding:11px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card2);font:inherit;color:var(--ink)"></label>
+      <label class="hint">IBAN donde cobra (opcional)<input id="wsIban" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ES00 0000 0000 0000 0000 0000" style="display:block;width:100%;margin-top:4px;padding:11px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card2);font:inherit;color:var(--ink);text-transform:uppercase"></label>
+      <div id="wsErr" style="color:var(--bad);font-size:13px;min-height:16px"></div>
       <div class="row" style="gap:8px"><button class="btn" id="wsOk" style="flex:1">Enviar</button><button class="btn ghost" id="wsCancel">Cancelar</button></div></div>`);
-    o.style.background = 'rgba(15,44,54,.55)';
+    o.style.background = 'rgba(0,0,0,.6)';
     const iban = o.querySelector('#wsIban');
     iban.addEventListener('input', () => { iban.value = ibanFmt(iban.value); });
     o.querySelector('#wsCancel').onclick = () => o.remove();

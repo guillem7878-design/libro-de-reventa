@@ -17,6 +17,20 @@
   const cache = {}, subs = {}, loaded = {}, loading = {}, mine = new Set();
   COLLS.forEach(c => { cache[c] = new Map(); subs[c] = []; });
 
+  /* ---------- Si la carga se atasca: aviso con salida ---------- */
+  async function resetLocal() {
+    try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r => r.unregister())); } catch (e) {}
+    try { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } catch (e) {}
+    location.reload();
+  }
+  function showStuck() {
+    const g = gate('<img class="logo" src="icons/icon-192.png" alt=""><h1>Está tardando más de lo normal</h1><p>' + esc((window.S && window.S.error) || 'No he podido cargar tus datos todavía. Puede ser la conexión o una copia antigua guardada en este dispositivo.') + '</p><button class="btn btn-main btn-block" id="st-r">Reintentar</button><button class="btn btn-soft btn-block" id="st-c">Limpiar copia local y reintentar</button><p style="font-size:12.5px">Limpiar no borra tus datos ni tu sesión: solo vuelve a descargar la app.</p>');
+    g.querySelector('#st-r').onclick = () => location.reload();
+    g.querySelector('#st-c').onclick = resetLocal;
+  }
+  window.__showStuck = showStuck;
+  setTimeout(() => { if (document.getElementById('gate')) return; if (window.loadedAll && window.loadedAll()) return; showStuck(); }, 15000);
+
   /* ---------- Service worker e instalación ---------- */
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

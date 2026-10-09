@@ -22,13 +22,53 @@
   async function flush() {
     if (!sb || !dirty || saving) return; saving = true; dirty = false;
     const at = iso();
-    const { error } = await sb.from('docs').upsert({ coll: 'warmups', id: 'current', data: W.data, updated_at: at });
+    const { error } = await sb.from('docs').upsert({ coll: 'warmups', id: 'current', data: W.root, updated_at: at });
     saving = false;
     if (error) { dirty = true; toast('No se pudo guardar. Revisa la conexión.'); return; }
     remoteAt = Date.parse(at);
     if (dirty) flush();
   }
-  window.W = { data: {}, save() { dirty = true; clearTimeout(timer); timer = setTimeout(flush, 600); }, flush };
+  /* ---------- Pestañas: 3 cuentas con los mismos menús y datos independientes ---------- */
+  const SLOTS = ['1', '2', '3'];
+  const LS = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const ACTIVE = (v => SLOTS.includes(v) ? v : '1')(LS.get('wsActive'));
+  window.W = {
+    root: { slots: {}, names: {}, history: [] },
+    get data() { return this.root.slots[ACTIVE] || (this.root.slots[ACTIVE] = {}); },
+    set data(v) { this.root.slots[ACTIVE] = v; },
+    save() { dirty = true; clearTimeout(timer); timer = setTimeout(flush, 600); },
+    flush
+  };
+  const slotName = n => W.root.names[n] || 'Cuenta ' + n;
+  function slotStatus(n) {
+    const d = W.root.slots[n] || {};
+    if (d.vp_sent) return 'Enviada a la app';
+    if (!d.vp_start) return 'Sin empezar';
+    const a = new Date(d.vp_start + 'T00:00:00'), t = new Date(); t.setHours(0, 0, 0, 0);
+    return 'Día ' + Math.min(31, Math.max(1, Math.round((t - a) / 864e5) + 1)) + ' de 31';
+  }
+  function slotBar() {
+    const hd = document.querySelector('header'); if (!hd) return;
+    let bar = document.getElementById('slotBar');
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'slotBar'; hd.after(bar);
+      const st = document.createElement('style');
+      st.textContent = '#slotBar .sl{display:flex;gap:8px;margin:14px 0 16px;overflow-x:auto;padding:2px}#slotBar .slb{flex:1 1 0;min-width:112px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:10px 14px;cursor:pointer;color:var(--ink);font:inherit;transition:.15s}#slotBar .slb:hover{border-color:var(--ink)}#slotBar .slb.on{background:var(--ink);color:#fff;border-color:var(--ink)}#slotBar .slb b{display:block;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#slotBar .slb span{display:block;font-size:11.5px;opacity:.7;white-space:nowrap}#slotBar .slr{flex:none;width:42px;border:1px solid var(--line);background:var(--card);border-radius:16px;cursor:pointer;color:var(--mut);font-size:15px}';
+      document.head.appendChild(st); bar.addEventListener('click', onBar);
+    }
+    bar.innerHTML = '<div class="wrap"><div class="sl" role="tablist" aria-label="Cuentas">' + SLOTS.map(n => '<button class="slb' + (n === ACTIVE ? ' on' : '') + '" role="tab" aria-selected="' + (n === ACTIVE) + '" data-n="' + n + '"><b>' + esc(slotName(n)) + '</b><span>' + esc(slotStatus(n)) + '</span></button>').join('') + '<button class="slr" id="slRen" aria-label="Renombrar esta pestaña" title="Renombrar">✎</button></div></div>';
+  }
+  async function onBar(e) {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'slRen') {
+      const v = prompt('Nombre de esta pestaña', slotName(ACTIVE)); if (v === null) return;
+      const t = v.trim().slice(0, 24);
+      if (t && t !== 'Cuenta ' + ACTIVE) W.root.names[ACTIVE] = t; else delete W.root.names[ACTIVE];
+      W.save(); window.render(); return;
+    }
+    const n = b.dataset.n; if (!n || n === ACTIVE) return;
+    LS.set('wsActive', n); clearTimeout(timer); await flush(); location.reload();
+  }
   document.addEventListener('visibilitychange', async () => {
     if (document.hidden) { clearTimeout(timer); flush(); return; }
     if (!sb || dirty) return;
@@ -45,7 +85,12 @@
     if (!session) { overlay('<b style="font-size:20px">Entra primero en la app</b><span>Este panel usa tu cuenta del Libro de Reventa para guardar y sincronizar el calentamiento.</span><a href="../" style="background:#0f2c36;color:#fff;text-align:center;padding:13px;border-radius:14px;font-weight:800;text-decoration:none">Ir a la app</a>'); return; }
     const { data, error } = await sb.from('docs').select('data,updated_at').eq('coll', 'warmups').eq('id', 'current').maybeSingle();
     if (error) { overlay('<b style="font-size:20px">No se pudieron cargar los datos</b><span>' + esc(error.message) + '</span>'); return; }
-    if (data) { W.data = data.data || {}; remoteAt = Date.parse(data.updated_at); }
+    if (data) {
+      let r = data.data || {}; remoteAt = Date.parse(data.updated_at);
+      if (!r.slots) { const hist = r.vp_history || []; delete r.vp_history; r = { slots: { '1': r }, names: {}, history: hist }; W.root = r; W.save(); }
+      r.slots = r.slots || {}; r.names = r.names || {}; r.history = r.history || [];
+      W.root = r;
+    }
     // la página debe estar entera (el bloque del panel está más abajo que este archivo)
     if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
     // ejecuta el panel (su código está en un bloque de texto para no arrancar antes de tener los datos)
@@ -59,7 +104,9 @@
   const r1 = n => Math.round(n * 10) / 10;
 
   function hookSend() {
-    const base = window.render; window.render = function () { base(); renderSend(); }; renderSend();
+    const base = window.render;
+    window.render = function () { D.account.alias = slotName(ACTIVE); document.title = slotName(ACTIVE) + ' · Calentar cuenta'; base(); renderSend(); slotBar(); };
+    window.render();
   }
 
   function renderSend() {
@@ -84,7 +131,7 @@
     const T = trust();
     const { data: accs } = await sb.from('docs').select('data').eq('coll', 'accounts');
     const list = (accs || []).map(r => r.data || {});
-    const nextName = 'Móvil ' + (list.length + 1);
+    const nextName = W.root.names[ACTIVE] || 'Móvil ' + (list.length + 1);
     const missing = T.checks.filter(c => !c[1]).map(c => c[0]);
     const o = overlay(`<div style="background:#fff;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 50px -20px rgba(15,44,54,.5)">
       <b style="font-size:19px">Enviar el móvil a la app</b>
@@ -114,10 +161,10 @@
   }
 
   async function startAnother() {
-    if (!confirm('Se guarda esta cuenta en el historial y el panel empieza de cero para otra. ¿Seguir?')) return;
+    if (!confirm('Se guarda esta cuenta en el historial y esta pestaña empieza de cero para otra. ¿Seguir?')) return;
     const d = W.data, T = trust();
-    const hist = (d.vp_history || []).concat([{ name: d.vp_sent && d.vp_sent.name, inicio: d.vp_start, enviado: d.vp_sent && d.vp_sent.at, indice: r1(T.score / 20), valoraciones: D.ratings.length }]);
-    W.data = { vp_history: hist }; W.save(); await flush(); location.reload();
+    W.root.history.push({ pestaña: slotName(ACTIVE), name: d.vp_sent && d.vp_sent.name, inicio: d.vp_start, enviado: d.vp_sent && d.vp_sent.at, indice: r1(T.score / 20), valoraciones: D.ratings.length });
+    W.data = {}; W.save(); await flush(); location.reload();
   }
 
   boot();

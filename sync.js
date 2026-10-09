@@ -282,7 +282,7 @@
     // al volver a la app tras un rato, recarga por si se perdió algún evento
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - (window.__hiddenAt || Date.now()) > 30000) COLLS.forEach(c => { loaded[c] = false; loading[c] = null; cache[c] = new Map(); if (subs[c].length) loadColl(c).catch(() => {}); }); else if (document.visibilityState === 'hidden') window.__hiddenAt = Date.now(); });
     // enlace directo ?movil=<id> (desde el panel de calentamiento)
-    { const m = /[?&]movil=([\w-]+)/.exec(location.search); if (m) { const t = setInterval(() => { if (window.loadedAll && window.loadedAll() && window.openAccount && window.S.accounts.some(a => a.id === m[1])) { clearInterval(t); window.S.quick = false; window.openAccount(m[1]); } }, 250); setTimeout(() => clearInterval(t), 10000); } }
+    { const m = /[?&]movil=([\w-]+)/.exec(location.search); if (m) { if (window.S) { window.S.quick = false; if (window.render) window.render(); } const t = setInterval(() => { if (window.loadedAll && window.loadedAll() && window.openAccount && window.S.accounts.some(a => a.id === m[1])) { clearInterval(t); window.S.quick = false; window.openAccount(m[1]); } }, 250); setTimeout(() => clearInterval(t), 40000); } }
     // acceso directo ?accion=venta
     if (/accion=venta/.test(location.search)) { const t = setInterval(() => { if (window.loadedAll && window.loadedAll() && window.saleForm) { clearInterval(t); window.S.quick = false; window.saleForm(); } }, 250); setTimeout(() => clearInterval(t), 10000); }
     return db;

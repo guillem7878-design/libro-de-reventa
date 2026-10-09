@@ -57,8 +57,8 @@
         const g = gate(`<img class="logo" src="icons/icon-192.png" alt=""><h1>Libro de Reventa</h1>
           <p>${signup ? 'Crea tu cuenta. Solo la necesitas la primera vez.' : 'Entra con tu cuenta para ver tus datos.'}</p>
           <form class="f" id="loginF" novalidate>
-            <div class="fld"><label for="lg-mail">Correo</label><input id="lg-mail" type="email" autocomplete="email" inputmode="email" autocapitalize="off" value="${esc(LS.get('lastMail') || '')}"></div>
-            <div class="fld"><label for="lg-pass">Contraseña</label><input id="lg-pass" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}"></div>
+            <div class="fld"><label for="lg-mail">Correo</label><input id="lg-mail" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" value="${esc(LS.get('lastMail') || '')}"></div>
+            <div class="fld"><label for="lg-pass">Contraseña</label><input id="lg-pass" name="password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}"></div>
             <div class="err" id="lg-err" role="alert">${esc(msg)}</div>
             <button class="btn btn-main btn-block" id="lg-go">${signup ? 'Crear cuenta' : 'Entrar'}</button>
           </form>
@@ -74,7 +74,9 @@
           go.disabled = false;
           if (error) { err.textContent = /invalid login/i.test(error.message) ? 'Correo o contraseña incorrectos.' : /already registered/i.test(error.message) ? 'Ese correo ya tiene cuenta. Pulsa «Ya tengo cuenta».' : 'No se pudo entrar: ' + error.message; return; }
           if (!data.session) { err.textContent = 'Te hemos enviado un correo para confirmar la cuenta. Confírmalo y vuelve a entrar.'; return; }
-          LS.set('lastMail', mail); resolve(data.session);
+          LS.set('lastMail', mail);
+          try { if (window.PasswordCredential && navigator.credentials) await navigator.credentials.store(new PasswordCredential({ id: mail, password: pass, name: mail })); } catch (e) {}
+          resolve(data.session);
         };
       };
       draw();
@@ -245,14 +247,23 @@
   });
 
   /* ---------- Arranque ---------- */
+  /* copia de la sesión en IndexedDB: si el navegador borra el almacenamiento normal, se recupera sin pedir la contraseña */
+  const idb = {
+    open() { return new Promise((ok, ko) => { const r = indexedDB.open('reventa', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); }); },
+    async get(k) { try { const d = await this.open(); return await new Promise(ok => { const q = d.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => ok(q.result); q.onerror = () => ok(null); }); } catch (e) { return null; } },
+    async set(k, v) { try { const d = await this.open(); await new Promise(ok => { const t = d.transaction('kv', 'readwrite'); if (v == null) t.objectStore('kv').delete(k); else t.objectStore('kv').put(v, k); t.oncomplete = ok; t.onerror = ok; }); } catch (e) {} }
+  };
   let booted = null;
   async function boot() {
     if (!configured) { setupScreen(); return null; }
     sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
     let { data: { session } } = await sb.auth.getSession();
+    if (!session) { const bk = await idb.get('session'); if (bk && bk.r) { const { data: rf, error: re } = await sb.auth.refreshSession({ refresh_token: bk.r }); if (!re && rf && rf.session) session = rf.session; } }
     if (!session) session = await loginScreen();
     uid = session.user.id; email = session.user.email || ''; ungate();
-    sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.reload(); });
+    idb.set('session', { r: session.refresh_token });
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+    sb.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_OUT') { idb.set('session', null); location.reload(); } else if (s && s.refresh_token) idb.set('session', { r: s.refresh_token }); });
     sb.channel('docs-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, onRealtime).subscribe();
     // al volver a la app tras un rato, recarga por si se perdió algún evento
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - (window.__hiddenAt || Date.now()) > 30000) COLLS.forEach(c => { loaded[c] = false; loading[c] = null; cache[c] = new Map(); if (subs[c].length) loadColl(c).catch(() => {}); }); else if (document.visibilityState === 'hidden') window.__hiddenAt = Date.now(); });

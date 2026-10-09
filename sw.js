@@ -1,5 +1,5 @@
 /* Service worker del Libro de Reventa: abre la app sin conexión y muestra avisos. */
-const VERSION = 'reventa-v3';
+const VERSION = 'reventa-v4';
 const CORE = ['./', 'index.html', 'config.js', 'sync.js', 'manifest.webmanifest', 'vendor/supabase.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -10,12 +10,12 @@ self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-// Primero la red (así siempre ves la última versión) y, si no hay conexión, la copia guardada.
+// Primero la red, saltándose la caché del navegador (GitHub Pages guarda 10 min) para no mezclar archivos viejos y nuevos; sin conexión, la copia guardada.
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
-    fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return res; })
+    fetch(req, { cache: 'no-cache' }).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return res; })
       .catch(() => caches.match(req).then(r => r || (new URL(req.url).pathname === new URL('./', self.registration.scope).pathname ? caches.match('index.html') : Response.error())))
   );
 });

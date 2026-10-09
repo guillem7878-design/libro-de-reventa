@@ -1901,7 +1901,8 @@ function toast(msg, undoFn) {
   clearTimeout(tt); tt = setTimeout(() => { t.classList.remove('show'); undoAction = null; }, undoFn ? 6000 : 2400);
 }
 function haptic(n = 1) {
-  try { if (navigator.vibrate && !/iP(hone|ad|od)/.test(navigator.userAgent)) { navigator.vibrate(n === 1 ? 10 : n === 2 ? [10, 110, 10] : [10, 90, 10, 90, 10]); return; }
+  try { if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+    if (navigator.vibrate && !/iP(hone|ad|od)/.test(navigator.userAgent)) { navigator.vibrate(n === 1 ? 10 : n === 2 ? [10, 110, 10] : [10, 90, 10, 90, 10]); return; }
     const l = document.createElement('label'), i = document.createElement('input'); i.type = 'checkbox'; i.setAttribute('switch', ''); l.style.display = 'none'; l.appendChild(i); document.head.appendChild(l); l.click(); l.remove(); } catch (e) {}
 }
 const strip = x => { const { id, ...r } = x; return r; };

@@ -54,9 +54,9 @@ En la app: **Ajustes › Importar copia** y elige ese archivo. Incluye ejemplos;
 ## Calentar una cuenta (31 días)
 
 El panel de calentamiento (el del agente de reventa de Adidas Samba) vive dentro de la app, en `calentador/`.
-Se abre desde **Móviles › Calentar** o **Ajustes › Calentar una cuenta**.
+Se abre desde el botón **Calentar** del menú de la app (también en **Móviles** y en **Ajustes**).
 
-- Plan día a día, índice de confianza, roadmap, artículos, valoraciones e incidencias.
+- Plan día a día, índice de confianza, ruta de 31 días por fases, artículos, valoraciones e incidencias.
 - **Tres pestañas** (Cuenta 1, 2 y 3), cada una con el mismo menú y sus propios datos. Cambias de una a otra arriba y con el lápiz le pones nombre. Lo que ya tenías empezado queda en la Cuenta 1.
 - Se guarda en tu Supabase (documento `warmups/current`), así que lo ves igual en el móvil y en el ordenador. Usa la misma sesión que la app.
 - **Enviar a la app:** cuando la cuenta esté calentada, pulsa el botón. Crea el móvil en **Móviles** como *Calentada*, con su IBAN si lo pones, y guarda el resumen (alta, días, valoraciones, media e índice). Si aún no cumple todas las comprobaciones, te lo avisa antes de enviar.

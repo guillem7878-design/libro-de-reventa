@@ -365,6 +365,23 @@
   html body #slotBar .slb:hover { border-color:var(--bd2); }
   html body h1#title:hover { opacity:.8; }
   html body #slotBar .slb.on { background:linear-gradient(135deg,var(--hero-a),var(--hero-b)); border-color:rgba(255,255,255,.09); color:#fff; }
+
+  /* ruta simple: barra total y una tarjeta por fase */
+  html body .rm > .bar { display:none; }
+  html body .rdtop { height:8px; margin:0 0 14px; }
+  html body .rds { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
+  @media (max-width:900px) { html body .rds { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  html body .rd { background:var(--card2); border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:7px; min-width:0; }
+  html body .rd .rdh { display:flex; align-items:center; gap:8px; }
+  html body .rd .rdh b { font-size:12.5px; font-weight:700; line-height:1.2; min-width:0; overflow-wrap:anywhere; }
+  html body .rd .rdn { width:24px; height:24px; border-radius:8px; display:grid; place-items:center; font-size:12px; font-weight:700; background:var(--card); color:var(--mut); flex:none; }
+  html body .rd .rdd, html body .rd .rdm { font-size:11.5px; color:var(--mut); font-weight:500; }
+  html body .rd .bar { height:5px; background:var(--card); }
+  html body .rd.done { background:var(--accbg); } html body .rd.done .rdn { background:var(--acc); color:var(--on-acc); }
+  html body .rd.cur { background:linear-gradient(135deg,var(--hero-a),var(--hero-b)); color:#fff; }
+  html body .rd.cur .rdn { background:var(--acc); color:var(--on-acc); }
+  html body .rd.cur .rdd, html body .rd.cur .rdm { color:rgba(255,255,255,.7); }
+  html body .rd.cur .bar { background:rgba(255,255,255,.2); }
 </style>
 </head>
 <body>
@@ -381,7 +398,7 @@
     <div id="hero"></div>
     <div id="sendBox"></div>
     <div class="kpis" id="kpis"></div>
-    <div class="card rm"><div class="rmh"><b>El cordón hacia las Samba</b><span class="hint" id="roadtxt"></span></div>
+    <div class="card rm"><div class="rmh"><b>Ruta de 31 días</b><span class="hint" id="roadtxt"></span></div>
       <div class="bar"><i id="roadbar"></i></div><div class="stp" id="roadmap"></div></div>
     <div class="main2">
       <div id="today"></div>
@@ -655,63 +672,15 @@ const RICON = [
 function renderRoad() {
   const age = daysSince(startDate()), cur = age == null ? null : age + 1;
   const total = D.plan.length, done = Object.values(dayDone).filter(Boolean).length;
-  const T = trust(), V = window.innerWidth < 720, n = total;
   const day = cur ? Math.min(cur, total) : null;
-  const sellos = PHASES.filter(ph => D.plan.filter(p => p.d >= ph.from && p.d <= ph.to).every(p => dayDone[p.d])).length;
-  $("roadtxt").textContent = `${done} de ${total} días · ${sellos}/${PHASES.length} sellos de seguridad` + (cur ? ` · hoy es el día ${day}` : " · aún sin empezar");
-
-  /* El cordón: 31 ojales (uno por día) en zigzag, como el cordón de una zapatilla. Se ilumina en dorado según avanzas. */
-  const STEP = V ? 30 : 31;
-  let W, H, P, box, ghost;
-  if (V) { W = 360; H = 56 + (n - 1) * STEP + 116; P = D.plan.map((p, i) => [i % 2 ? 190 : 100, 56 + i * STEP]); box = [145, 56 + (n - 1) * STEP + 70]; ghost = (p, i) => [i % 2 ? 100 : 190, p[1]]; }
-  else { W = 56 + (n - 1) * STEP + 150; H = 214; P = D.plan.map((p, i) => [50 + i * STEP, i % 2 ? 142 : 78]); box = [50 + (n - 1) * STEP + 84, 110]; ghost = (p, i) => [p[0], i % 2 ? 78 : 142]; }
-
-  let g = "";
-  P.forEach((p, i) => { const q = ghost(p, i); g += `<circle cx="${q[0]}" cy="${q[1]}" r="3.4" fill="var(--card2)" stroke="var(--bd2)" stroke-width="1"/>`; });
-  const line = P.concat([box]).map(p => p.join(",")).join(" ");
-  g += `<polyline points="${line}" fill="none" stroke="var(--card2)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>`;
-  g += `<polyline points="${line}" fill="none" stroke="var(--bd2)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 7"/>`;
-  for (let i = 1; i < n; i++) if (dayDone[D.plan[i].d]) g += `<line x1="${P[i-1][0]}" y1="${P[i-1][1]}" x2="${P[i][0]}" y2="${P[i][1]}" stroke="var(--acc)" stroke-width="8" stroke-linecap="round"/>`;
-  if (dayDone[D.plan[n-1].d]) g += `<line x1="${P[n-1][0]}" y1="${P[n-1][1]}" x2="${box[0]}" y2="${box[1]}" stroke="var(--acc)" stroke-width="8" stroke-linecap="round"/>`;
-
-  D.plan.forEach((p, i) => {
-    const [x, y] = P[i], ok = dayDone[p.d], isCur = cur && p.d === day, miss = !ok && cur && p.d < cur;
-    const fill = ok ? "var(--acc)" : isCur ? "var(--btn)" : miss ? "var(--badbg)" : "var(--card)";
-    const stroke = ok ? "var(--acc)" : isCur ? "var(--acc)" : miss ? "var(--bad)" : "var(--bd2)";
-    const tc = ok ? "var(--on-acc)" : isCur ? "var(--btn-ink)" : miss ? "var(--bad)" : "var(--mut)", r = isCur ? 13 : 10.5;
-    if (isCur) g += `<circle class="pulse" cx="${x}" cy="${y}" r="13" fill="var(--acc)" opacity=".4"/>`;
-    g += `<g><title>Día ${p.d}: ${esc(p.title)}</title><circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${isCur ? 3 : 1.6}"/>
-      <text x="${x}" y="${y + 3.6}" text-anchor="middle" style="font:700 10px var(--font);fill:${tc};stroke:none">${p.d}</text></g>`;
-  });
-
-  /* fases: una etiqueta en el ojal donde empieza cada una */
-  PHASES.forEach(ph => {
-    const i = ph.from - 1, [x, y] = P[i], ds = D.plan.filter(p => p.d >= ph.from && p.d <= ph.to);
-    const complete = ds.every(p => dayDone[p.d]), here = day && day >= ph.from && day <= ph.to;
-    let lines = [ph.name];
-    if (ph.name.length > 16) { const w = ph.name.split(" "); let best = 1, bd = 99; for (let k = 1; k < w.length; k++) { const d = Math.abs(w.slice(0, k).join(" ").length - w.slice(k).join(" ").length); if (d < bd) { bd = d; best = k; } } lines = [w.slice(0, best).join(" "), w.slice(best).join(" ")]; }
-    const all = lines.concat([`días ${ph.from}–${ph.to}`]), lh = 13;
-    let tx, ty, an;
-    if (V) { tx = 214; an = "start"; ty = y - (all.length - 1) * lh / 2 + 3; }
-    else { tx = Math.max(62, Math.min(W - 62, x)); an = "middle"; ty = i % 2 ? y + 34 : y - 26 - (all.length - 1) * lh; }
-    const col = here ? "var(--acc)" : "var(--ink)";
-    g += `<text text-anchor="${an}">` + all.map((t, k) => {
-      const last = k === all.length - 1;
-      return `<tspan x="${tx}" y="${ty + k * lh}" class="${last ? "rs" : "rl"}"${last ? "" : ` style="fill:${col}"`}>${esc(t)}${!last && k === lines.length - 1 && complete ? '<tspan style="fill:var(--ok)"> ✓</tspan>' : ""}</tspan>`;
-    }).join("") + `</text>`;
-  });
-
-  /* meta: la caja de las Samba */
-  const ready = T.ready, [bx, by] = box;
-  g += `<g transform="translate(${bx},${by})"><title>${ready ? "Desbloqueado" : "Se abre cuando se cumplan los criterios del índice"}</title>
-    <rect x="-46" y="-25" width="92" height="50" rx="14" fill="${ready ? "var(--accbg)" : "var(--card2)"}" stroke="${ready ? "var(--acc)" : "var(--bd2)"}" stroke-width="1.5"/>
-    <text y="-3" text-anchor="middle" style="font:700 11.5px var(--font);letter-spacing:.16em;fill:var(--ink);stroke:none">SAMBA</text>
-    <text y="12" text-anchor="middle" style="font:500 10px var(--font);fill:var(--mut);stroke:none">${ready ? "caja abierta" : "caja cerrada"}</text>
-    <g transform="translate(40,-22)"><circle r="11" fill="${ready ? "var(--ok)" : "var(--btn)"}" stroke="var(--card)" stroke-width="3"/>
-    ${ready ? '<path d="M-4.5 0.5 L-1.5 3.5 L4.5 -3" fill="none" stroke="var(--card)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
-      : '<rect x="-4.5" y="-1" width="9" height="6.5" rx="1.6" fill="var(--btn-ink)"/><path d="M-2.7 -1V-3a2.7 2.7 0 0 1 5.4 0V-1" fill="none" stroke="var(--btn-ink)" stroke-width="1.6"/>'}</g></g>`;
-
-  $("roadmap").innerHTML = `<svg class="road" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cordón de 31 ojales, uno por día, hasta las Samba">${g}</svg>`;
+  $("roadtxt").textContent = `${done} de ${total} días hechos` + (cur ? ` · hoy es el día ${day}` : " · aún sin empezar");
+  const fases = PHASES.map((ph, i) => {
+    const ds = D.plan.filter(p => p.d >= ph.from && p.d <= ph.to), nd = ds.filter(p => dayDone[p.d]).length;
+    const ok = nd === ds.length, here = day && day >= ph.from && day <= ph.to;
+    return `<div class="rd${ok ? " done" : here ? " cur" : ""}"><div class="rdh"><span class="rdn">${ok ? "✓" : i + 1}</span><b>${esc(ph.name)}</b></div>
+      <div class="rdd">Días ${ph.from}–${ph.to}</div><div class="bar"><i style="width:${nd / ds.length * 100}%"></i></div><div class="rdm">${nd} de ${ds.length} hechos</div></div>`;
+  }).join("");
+  $("roadmap").innerHTML = `<div class="bar rdtop"><i style="width:${done / total * 100}%"></i></div><div class="rds">${fases}</div>`;
 }
 
 // ---- Cuenta ----

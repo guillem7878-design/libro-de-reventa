@@ -65,19 +65,30 @@
     if (!bar) {
       bar = document.createElement('div'); bar.id = 'slotBar'; hd.after(bar);
       const st = document.createElement('style');
-      st.textContent = '#slotBar .sl{display:flex;gap:8px;margin:14px 0 16px;padding:2px}#slotBar .slb{flex:1 1 0;min-width:0;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:10px 12px;cursor:pointer;color:var(--ink);font:inherit;transition:.15s}#slotBar .slb:hover{border-color:var(--ink)}#slotBar .slb.on{background:var(--ink);color:#fff;border-color:var(--ink)}#slotBar .slb b{display:block;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#slotBar .slb span{display:block;font-size:11.5px;opacity:.7;white-space:nowrap}#slotBar .slr{flex:none;width:38px;border:1px solid var(--line);background:var(--card);border-radius:16px;cursor:pointer;color:var(--mut);font-size:15px}';
+      st.textContent = '#slotBar .sl{display:flex;gap:8px;margin:14px 0 16px;padding:2px}#slotBar .slw{position:relative;flex:1 1 0;min-width:0}#slotBar .slb{width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:18px;padding:9px 26px 9px 10px;cursor:pointer;color:var(--ink);font:inherit;transition:.15s}#slotBar .slb:hover{border-color:var(--bd2)}#slotBar .slb b{display:block;font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#slotBar .slb span{display:block;font-size:11px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#slotBar .sle{position:absolute;top:50%;right:3px;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:9px;background:transparent;color:var(--mut);cursor:pointer;display:grid;place-items:center;padding:0;transition:.15s}#slotBar .sle:hover{background:var(--card2);color:var(--ink)}#slotBar .sle svg{width:12px;height:12px}#slotBar .slb.on+.sle{color:rgba(255,255,255,.75)}#slotBar .slb.on+.sle:hover{background:rgba(255,255,255,.14);color:#fff}';
       document.head.appendChild(st); bar.addEventListener('click', onBar);
     }
-    bar.innerHTML = '<div class="wrap"><div class="sl" role="tablist" aria-label="Cuentas">' + SLOTS.map(n => '<button class="slb' + (n === ACTIVE ? ' on' : '') + '" role="tab" aria-selected="' + (n === ACTIVE) + '" data-n="' + n + '"><b>' + esc(slotName(n)) + '</b><span>' + esc(slotStatus(n)) + '</span></button>').join('') + '<button class="slr" id="slRen" aria-label="Renombrar esta pestaña" title="Renombrar">✎</button></div></div>';
+    const pen = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/></svg>';
+    bar.innerHTML = '<div class="wrap"><div class="sl" role="tablist" aria-label="Cuentas">' + SLOTS.map(n =>
+      '<div class="slw"><button class="slb' + (n === ACTIVE ? ' on' : '') + '" role="tab" aria-selected="' + (n === ACTIVE) + '" data-n="' + n + '"><b>' + esc(slotName(n)) + '</b><span>' + esc(slotStatus(n)) + '</span></button>' +
+      '<button class="sle" data-ed="' + n + '" aria-label="Cambiar el nombre de ' + esc(slotName(n)) + '" title="Cambiar nombre">' + pen + '</button></div>').join('') + '</div></div>';
+  }
+  function renameSlot(n) {
+    const o = overlay('<div style="background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 50px -20px rgba(0,0,0,.6)"><b style="font-size:19px;letter-spacing:-.02em">Nombre de la cuenta</b><span class="hint">Cómo quieres llamar a esta pestaña. Si la envías a la app, ese será el nombre del móvil.</span><input id="wsRen" maxlength="24" autocomplete="off" value="' + esc(slotName(n)) + '" style="display:block;width:100%;padding:11px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card2);font:inherit;color:var(--ink)"><div class="row" style="gap:8px"><button class="btn" id="wsRenOk" style="flex:1">Guardar</button><button class="btn ghost" id="wsRenNo">Cancelar</button></div></div>');
+    o.style.background = 'rgba(0,0,0,.6)';
+    const inp = o.querySelector('#wsRen');
+    setTimeout(() => { inp.focus(); inp.select(); }, 50);
+    const save = () => {
+      const v = inp.value.trim().slice(0, 24);
+      if (v && v !== 'Cuenta ' + n) W.root.names[n] = v; else delete W.root.names[n];
+      W.save(); o.remove(); window.render(); toast('Nombre guardado');
+    };
+    o.querySelector('#wsRenOk').onclick = save; o.querySelector('#wsRenNo').onclick = () => o.remove();
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(); else if (e.key === 'Escape') o.remove(); });
   }
   async function onBar(e) {
-    const b = e.target.closest('button'); if (!b) return;
-    if (b.id === 'slRen') {
-      const v = prompt('Nombre de esta pestaña', slotName(ACTIVE)); if (v === null) return;
-      const t = v.trim().slice(0, 24);
-      if (t && t !== 'Cuenta ' + ACTIVE) W.root.names[ACTIVE] = t; else delete W.root.names[ACTIVE];
-      W.save(); window.render(); return;
-    }
+    const ed = e.target.closest('[data-ed]'); if (ed) { renameSlot(ed.dataset.ed); return; }
+    const b = e.target.closest('.slb'); if (!b) return;
     const n = b.dataset.n; if (!n || n === ACTIVE) return;
     LS.set('wsActive', n); clearTimeout(timer); await flush(); location.reload();
   }
@@ -119,6 +130,7 @@
     const base = window.render;
     window.render = function () { D.account.alias = slotName(ACTIVE); document.title = slotName(ACTIVE) + ' · Calentar cuenta'; base(); renderSend(); slotBar(); };
     window.render();
+    const ti = document.getElementById('title'); if (ti) { ti.style.cursor = 'pointer'; ti.title = 'Cambiar el nombre de la cuenta'; ti.addEventListener('click', () => renameSlot(ACTIVE)); }
   }
 
   function renderSend() {

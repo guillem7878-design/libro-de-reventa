@@ -410,6 +410,8 @@
   /* pantalla fija en el móvil: sin zoom, sin rebote y sin moverse de lado */
   html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   html, body { overscroll-behavior: none; overflow-x: clip; max-width: 100%; }
+  /* margen de arriba: el hueco de la barra de estado del móvil + aire */
+  html body { padding-top: env(safe-area-inset-top, 0px); }
   /* el iPhone hace zoom al tocar un campo con letra de menos de 16 px */
   @media (max-width: 899px) { input, select, textarea { font-size: 16px !important; } }
 </style>

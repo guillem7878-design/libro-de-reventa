@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0D0E11"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Reventa"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="icons/icon-192.png"></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><script>document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false }); document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });</script><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0D0E11"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Reventa"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="icons/icon-192.png"></head><body>
 <title>Libro de Reventa</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -777,6 +777,17 @@ html body .dk .day { padding: 12px 0 2px; }
 .px { width: 34px; height: 34px; border: 0; border-radius: 11px; background: transparent; color: var(--ink2); display: grid; place-items: center; flex: none; cursor: pointer; }
 .px:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--neg); }
 .px svg { width: 16px; height: 16px; }
+
+/* pantalla fija en el móvil: sin zoom, sin rebote y sin moverse de lado */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { overscroll-behavior: none; overflow-x: clip; max-width: 100%; }
+img, svg { -webkit-user-drag: none; }
+@media (max-width: 899px) {
+  /* más fluido al hacer scroll: la barra de abajo sin desenfoque (ya era casi opaca) */
+  html body .tabbar { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  html body:not(.light) .tabbar { background: #0D0E11; }
+  html body.light .tabbar { background: #FFFFFF; }
+}
 
 </style>
 

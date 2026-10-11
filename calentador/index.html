@@ -414,6 +414,12 @@
   html body { padding-top: env(safe-area-inset-top, 0px); }
   /* el iPhone hace zoom al tocar un campo con letra de menos de 16 px */
   @media (max-width: 899px) { input, select, textarea { font-size: 16px !important; } }
+
+  /* móvil: la página queda clavada; solo se desplaza el contenido por dentro (el body) y sin rebote */
+  @media (max-width: 899px) {
+    html { height: 100%; overflow: hidden; }
+    html body { position: fixed; inset: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: none; }
+  }
 </style>
 </head>
 <body>
@@ -1091,7 +1097,7 @@ function showTab(id) {
   const nb = document.querySelector("#nav button.on"), nv = $("nav");
   if (nb && nv.scrollWidth > nv.clientWidth) nv.scrollTo({ left: nv.scrollLeft + nb.getBoundingClientRect().left - nv.getBoundingClientRect().left - (nv.clientWidth - nb.offsetWidth) / 2, behavior: "smooth" });
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("on", s.id === id));
-  window.scrollTo(0, 0);
+  window.scrollTo(0, 0); document.body.scrollTo(0, 0);
 }
 $("nav").onclick = e => { const b = e.target.closest("button"); if (b) showTab(b.dataset.t); };
 // El panel se entera solo cuando cambia el día (medianoche) o al volver a la pestaña

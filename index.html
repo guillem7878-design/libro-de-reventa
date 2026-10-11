@@ -791,6 +791,13 @@ img, svg { -webkit-user-drag: none; }
   html body.light .tabbar { background: #FFFFFF; }
 }
 
+/* móvil: la página queda clavada; solo se desplaza el contenido por dentro (el body) y sin rebote */
+@media (max-width: 899px) {
+  html { height: 100%; overflow: hidden; }
+  html body { position: fixed; inset: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: none; }
+  html body.locked { overflow: hidden; }
+}
+
 </style>
 
 <div class="screen">
@@ -1114,7 +1121,7 @@ function vQuick() {
 }
 function enterApp() {
   const v = $('#view'); v.classList.add('qs-leave'); haptic(1);
-  setTimeout(() => { S.quick = false; S.tab = 'panel'; S.accView = ''; S.animate = true; v.classList.remove('qs-leave'); render(); window.scrollTo(0, 0); }, 180);
+  setTimeout(() => { S.quick = false; S.tab = 'panel'; S.accView = ''; S.animate = true; v.classList.remove('qs-leave'); render(); toTop(); }, 180);
 }
 function returnPicker() {
   S.retQ = '';
@@ -1291,7 +1298,7 @@ function blockSheet(id) {
 }
 
 /* ---------- PANTALLA DE UN MÓVIL ---------- */
-function openAccount(id) { S.accView = id; S.accP = 'month'; S.accOff = 0; S.tab = 'moviles'; S.animate = true; closeSheet(); render(); window.scrollTo(0, 0); }
+function openAccount(id) { S.accView = id; S.accP = 'month'; S.accOff = 0; S.tab = 'moviles'; S.animate = true; closeSheet(); render(); toTop(); }
 function accRange() { return S.accP === 'all' ? null : S.accP === 'year' ? yearR(S.accOff) : monthR(S.accOff); }
 function accPeriodName() {
   if (S.accP === 'all') return 'Todo';
@@ -1412,7 +1419,8 @@ function render() {
   if (fid) { const el = document.getElementById(fid); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
   placeSegs(view); placeTab();
 }
-function go(tab) { S.tab = tab; S.accView = ''; S.animate = true; closeSheet(); render(); window.scrollTo(0, 0); }
+function toTop(smooth) { const o = { top: 0, behavior: smooth ? 'smooth' : 'auto' }; document.body.scrollTo(o); window.scrollTo(o); }
+function go(tab) { S.tab = tab; S.accView = ''; S.animate = true; closeSheet(); render(); toTop(); }
 /* indicadores que se deslizan: pestaña activa y selectores segmentados */
 const segPos = {};
 function placeSegs(root) {
@@ -1438,7 +1446,8 @@ function showTip(el, x, y) { tip.textContent = el.dataset.tip; tip.classList.add
 document.addEventListener('pointerover', e => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el && e.pointerType === 'mouse') showTip(el, e.clientX, e.clientY); });
 document.addEventListener('pointerout', e => { if (e.pointerType === 'mouse' && e.target.closest && e.target.closest('[data-tip]')) tip.classList.remove('show'); });
 document.addEventListener('pointerdown', e => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el, e.clientX, e.clientY); else tip.classList.remove('show'); });
-addEventListener('scroll', () => tip.classList.remove('show'), { passive: true });
+addEventListener('scroll', () => tip.classList.remove('show'), { passive: true, capture: true });
+$('#backdrop').addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
 /* ---------- hojas ---------- */
 let onSubmit = null, closeT, catRefresh = null;
@@ -1446,13 +1455,13 @@ function openSheet(title, body, submit, mount) {
   clearTimeout(closeT); tip.classList.remove('show'); catRefresh = null;
   $('#sheetBody').innerHTML = `<div class="sh"><h2>${title}</h2><button class="x" data-action="close" aria-label="Cerrar">${G.x}</button></div><div class="sbody">${body}</div>`;
   onSubmit = submit || null; $('#sheet').scrollTop = 0;
-  $('#sheet').classList.add('show'); $('#backdrop').classList.add('show'); document.body.style.overflow = 'hidden';
+  $('#sheet').classList.add('show'); $('#backdrop').classList.add('show'); document.body.style.overflow = 'hidden'; document.body.classList.add('locked');
   if (mount) mount();
   requestAnimationFrame(() => placeSegs($("#sheetBody")));
 }
 function closeSheet() {
   if (!$('#sheet').classList.contains('show')) return;
-  $('#sheet').classList.remove('show'); $('#backdrop').classList.remove('show'); document.body.style.overflow = ''; onSubmit = null;
+  $('#sheet').classList.remove('show'); $('#backdrop').classList.remove('show'); document.body.style.overflow = ''; document.body.classList.remove('locked'); onSubmit = null;
   closeT = setTimeout(() => { $('#sheetBody').innerHTML = ''; }, 420);
 }
 const val = v => v === undefined || v === null || v === '' || v === 0 ? '' : String(v).replace('.', ',');
@@ -2009,7 +2018,7 @@ document.addEventListener('click', async ev => {
   const b = ev.target.closest('[data-action]'); if (!b || b.disabled) return;
   const a = b.dataset.action, id = b.dataset.id;
   switch (a) {
-    case 'tab': haptic(1); if (S.tab === b.dataset.tab) { if (S.accView) { S.accView = ''; S.animate = true; render(); } window.scrollTo({ top: 0, behavior: 'smooth' }); break; } go(b.dataset.tab); break;
+    case 'tab': haptic(1); if (S.tab === b.dataset.tab) { if (S.accView) { S.accView = ''; S.animate = true; render(); } toTop(true); break; } go(b.dataset.tab); break;
     case 'off': S.off = Math.min(0, S.off + +b.dataset.d); S.animate = true; haptic(1); render(); break;
     case 'per': S.per = b.dataset.v; S.off = 0; S.animate = true; render(); break;
     case 'new': haptic(1); newMenu(); break;
@@ -2076,7 +2085,7 @@ document.addEventListener('click', async ev => {
     case 'qStock': stockPicker(); break;
     case 'pickStock': addUnitsForm(id); break;
     case 'enterApp': enterApp(); break;
-    case 'quickOn': S.quick = true; S.animate = true; closeSheet(); render(); window.scrollTo(0, 0); break;
+    case 'quickOn': S.quick = true; S.animate = true; closeSheet(); render(); toTop(); break;
     case 'quickPref': store.set('quickStart', b.dataset.v); moreSheet(); break;
     case 'expense': expenseDetail(id); break;
     case 'editExpense': expenseForm(S.expenses.find(x => x.id === id)); break;
@@ -2091,7 +2100,7 @@ document.addEventListener('click', async ev => {
     case 'account': openAccount(id); break;
     case 'accMenu': accountSheet(id); break;
     case 'blockAcc': blockSheet(id); break;
-    case 'accBack': S.accView = ''; S.animate = true; render(); window.scrollTo(0, 0); break;
+    case 'accBack': S.accView = ''; S.animate = true; render(); toTop(); break;
     case 'accP': S.accP = b.dataset.v; S.accOff = 0; S.animate = true; haptic(1); render(); break;
     case 'accOff': S.accOff = Math.min(0, S.accOff + +b.dataset.d); S.animate = true; haptic(1); render(); break;
     case 'accAllMovs': S.movAcc = id; S.movF = 'all'; S.movQ = ''; go('movs'); break;
@@ -2120,7 +2129,7 @@ document.addEventListener('input', ev => {
 let swY = null, swX = 0;
 document.addEventListener('touchstart', e => { swY = S.quick && !$('#sheet').classList.contains('show') ? e.touches[0].clientY : null; swX = e.touches[0].clientX; }, { passive: true });
 document.addEventListener('touchend', e => { if (swY === null) return; const t = e.changedTouches[0], dy = t.clientY - swY, dx = t.clientX - swX; swY = null;
-  if (dy < -80 && Math.abs(dx) < 70 && innerHeight + scrollY >= document.documentElement.scrollHeight - 8) enterApp(); }, { passive: true });
+  if (dy < -80 && Math.abs(dx) < 70 && innerHeight + scrollY >= document.documentElement.scrollHeight - 8 && document.body.scrollTop + document.body.clientHeight >= document.body.scrollHeight - 8) enterApp(); }, { passive: true });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSheet(); });
 
 /* ---------- arranque ---------- */

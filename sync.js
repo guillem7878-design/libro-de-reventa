@@ -76,8 +76,8 @@
             <div class="err" id="lg-err" role="alert">${esc(msg)}</div>
             <button class="btn btn-main btn-block" id="lg-go">${signup ? 'Crear cuenta' : 'Entrar'}</button>
           </form>
-          <button class="lnk" id="lg-sw">${signup ? 'Ya tengo cuenta' : 'Crear cuenta nueva'}</button>`);
-        g.querySelector('#lg-sw').onclick = () => { signup = !signup; draw(); };
+          <p class="hint" style="margin:0;text-align:center">Usa el mismo correo y contraseña que en el ordenador.</p>`);
+        // el registro está cerrado en Supabase (solo existe tu cuenta): aquí solo se entra
         g.querySelector('#loginF').onsubmit = async ev => {
           ev.preventDefault();
           const mail = g.querySelector('#lg-mail').value.trim(), pass = g.querySelector('#lg-pass').value, err = g.querySelector('#lg-err'), go = g.querySelector('#lg-go');
@@ -86,7 +86,7 @@
           go.disabled = true; err.textContent = '';
           const { data, error } = signup ? await sb.auth.signUp({ email: mail, password: pass }) : await sb.auth.signInWithPassword({ email: mail, password: pass });
           go.disabled = false;
-          if (error) { err.textContent = /invalid login/i.test(error.message) ? 'Correo o contraseña incorrectos.' : /already registered/i.test(error.message) ? 'Ese correo ya tiene cuenta. Pulsa «Ya tengo cuenta».' : 'No se pudo entrar: ' + error.message; return; }
+          if (error) { err.textContent = /invalid login/i.test(error.message) ? 'Correo o contraseña incorrectos.' : /signups? not allowed/i.test(error.message) ? 'No se pueden crear cuentas nuevas. Entra con tu cuenta.' : 'No se pudo entrar: ' + error.message; return; }
           if (!data.session) { err.textContent = 'Te hemos enviado un correo para confirmar la cuenta. Confírmalo y vuelve a entrar.'; return; }
           LS.set('lastMail', mail);
           try { if (window.PasswordCredential && navigator.credentials) await navigator.credentials.store(new PasswordCredential({ id: mail, password: pass, name: mail })); } catch (e) {}

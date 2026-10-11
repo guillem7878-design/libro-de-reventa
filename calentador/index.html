@@ -1100,6 +1100,12 @@ function showTab(id) {
   window.scrollTo(0, 0); document.body.scrollTo(0, 0);
 }
 $("nav").onclick = e => { const b = e.target.closest("button"); if (b) showTab(b.dataset.t); };
+// gesto «atrás»: desde el borde izquierdo hacia la derecha vuelve al Panel y, desde el Panel, a la app
+{ let sx = null, sy = 0;
+  document.addEventListener("touchstart", e => { const t = e.touches[0]; sx = (e.touches.length === 1 && t.clientX < 26 && !document.getElementById("wsGate")) ? t.clientX : null; sy = t.clientY; }, { passive: true });
+  document.addEventListener("touchend", e => { if (sx == null) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; sx = null;
+    if (dx < 70 || Math.abs(dy) > 90) return;
+    const cur = document.querySelector(".view.on"); if (cur && cur.id !== "v-panel") showTab("v-panel"); else location.href = "../"; }, { passive: true }); }
 // El panel se entera solo cuando cambia el día (medianoche) o al volver a la pestaña
 let lastDay = todayIso();
 const checkDay = () => { if (todayIso() !== lastDay) { lastDay = todayIso(); selDay = null; render(); } };

@@ -1420,7 +1420,9 @@ function render() {
   placeSegs(view); placeTab();
 }
 function toTop(smooth) { const o = { top: 0, behavior: smooth ? 'smooth' : 'auto' }; document.body.scrollTo(o); window.scrollTo(o); }
-function go(tab) { S.tab = tab; S.accView = ''; S.animate = true; closeSheet(); render(); toTop(); }
+/* pestañas visitadas, para el gesto «atrás» */
+let tabHist = [], backing = false;
+function go(tab) { if (!backing && !S.quick && S.tab && S.tab !== tab) { tabHist.push(S.tab); if (tabHist.length > 20) tabHist.shift(); } S.tab = tab; S.accView = ''; S.animate = true; closeSheet(); render(); toTop(); }
 /* indicadores que se deslizan: pestaña activa y selectores segmentados */
 const segPos = {};
 function placeSegs(root) {
@@ -2131,6 +2133,62 @@ document.addEventListener('touchstart', e => { swY = S.quick && !$('#sheet').cla
 document.addEventListener('touchend', e => { if (swY === null) return; const t = e.changedTouches[0], dy = t.clientY - swY, dx = t.clientX - swX; swY = null;
   if (dy < -80 && Math.abs(dx) < 70 && innerHeight + scrollY >= document.documentElement.scrollHeight - 8 && document.body.scrollTop + document.body.clientHeight >= document.body.scrollHeight - 8) enterApp(); }, { passive: true });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSheet(); });
+
+/* ---------- gestos del móvil ----------
+   atrás: deslizar desde el borde izquierdo hacia la derecha, o el botón/gesto «atrás» de Android
+   cambiar de pestaña: deslizar a izquierda o derecha sobre el contenido
+   cerrar una ventana: arrastrarla hacia abajo */
+const TABS = ['panel', 'stock', 'movs', 'moviles'];
+const isMob = () => !S.desk && innerWidth < 900;
+const sheetOpen = () => $('#sheet').classList.contains('show');
+function appBack() {
+  if (sheetOpen()) { closeSheet(); return true; }
+  if (S.accView) { S.accView = ''; S.animate = true; render(); toTop(); return true; }
+  if (tabHist.length) { backing = true; go(tabHist.pop()); backing = false; return true; }
+  if (isMob() && !S.quick) { S.quick = true; S.animate = true; render(); toTop(); return true; }
+  return false;
+}
+// una entrada de más en el historial: «atrás» vuelve dentro de la app en vez de salir de ella
+try { history.replaceState({ base: 1 }, ''); history.pushState({ guard: 1 }, ''); } catch (e) {}
+addEventListener('popstate', () => { if (appBack()) { try { history.pushState({ guard: 1 }, ''); } catch (e) {} } });
+// no robar el gesto a lo que ya se desliza de lado (filtros, selectores, gráficos, campos)
+const ownSwipe = el => !!(el.closest && el.closest('.scroll-x,.picker,.seg,.chips,.mnav,.cpick,.skgrid,input,textarea,select,svg,canvas,table,.tabbar,.qk'));
+let gs = null;
+document.addEventListener('touchstart', e => {
+  if (!isMob() || e.touches.length !== 1) { gs = null; return; }
+  const t = e.touches[0], sh = $('#sheet'), inSheet = sheetOpen() && sh.contains(e.target);
+  gs = { x: t.clientX, y: t.clientY, dir: null, dragY: null,
+    edge: t.clientX < 26 && !inSheet && !S.quick,
+    sheet: inSheet && sh.scrollTop <= 0 && !ownSwipe(e.target),
+    free: !sheetOpen() && !S.quick && !S.accView && !ownSwipe(e.target) };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!gs) return;
+  const t = e.touches[0], dx = t.clientX - gs.x, dy = t.clientY - gs.y;
+  if (!gs.dir && Math.hypot(dx, dy) > 10) gs.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+  if (gs.sheet && gs.dir === 'v' && dy > 0) {
+    const sh = $('#sheet'); if (gs.dragY == null && sh.scrollTop > 0) { gs.sheet = false; return; }
+    e.preventDefault(); sh.style.transition = 'none'; sh.style.transform = 'translateY(' + dy + 'px)'; gs.dragY = dy;
+  } else if (gs.edge && gs.dir === 'h' && dx > 0) {
+    const v = $('#view'); v.style.transition = 'none'; v.style.transform = 'translateX(' + Math.min(dx * .6, 140) + 'px)'; v.style.opacity = String(1 - Math.min(dx / 700, .3));
+  }
+}, { passive: false });
+document.addEventListener('touchend', e => {
+  if (!gs) return;
+  const g = gs, t = e.changedTouches[0], dx = t.clientX - g.x, dy = t.clientY - g.y; gs = null;
+  if (g.dragY != null) { const sh = $('#sheet'); sh.style.transition = ''; sh.style.transform = ''; if (dy > 110) closeSheet(); return; }
+  if (g.edge && g.dir === 'h') {
+    const v = $('#view'); v.style.transition = 'transform .2s ease, opacity .2s ease'; v.style.transform = ''; v.style.opacity = '';
+    setTimeout(() => { v.style.transition = ''; }, 220);
+    if (dx > 70 && Math.abs(dy) < 90 && appBack()) haptic(1);
+    return;
+  }
+  if (g.free && g.dir === 'h' && Math.abs(dx) > 90 && Math.abs(dy) < 50) {
+    const i = TABS.indexOf(S.tab), n = i + (dx < 0 ? 1 : -1);
+    if (i >= 0 && n >= 0 && n < TABS.length) { haptic(1); go(TABS[n]); }
+  }
+}, { passive: true });
+document.addEventListener('touchcancel', () => { if (!gs) return; gs = null; const sh = $('#sheet'), v = $('#view'); sh.style.transition = sh.style.transform = ''; v.style.transition = v.style.transform = v.style.opacity = ''; }, { passive: true });
 
 /* ---------- arranque ---------- */
 applyLook();

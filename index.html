@@ -764,6 +764,20 @@ html body .dk .day { padding: 12px 0 2px; }
   html body .sheet .sh { margin-top: 14px; }
 }
 @media (min-width: 1000px) and (max-width: 1180px) { .dk > .s4 { grid-column: span 6; } .dk > .s5, .dk > .s7, .dk > .s8 { grid-column: span 12; } }
+/* saldo de los móviles */
+.sal { display: grid; grid-template-columns: 1fr 1fr; }
+.sal > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sal > div + div { border-left: 1px solid var(--hair); padding-left: 16px; }
+.sal span { font-size: 13px; color: var(--ink2); font-weight: 500; }
+.sal b { font-size: 26px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.sal b.neg { color: var(--neg); }
+.saldo .ch .hint { font-size: 12.5px; text-align: right; max-width: 60%; margin: 0; }
+.saldo .btn { margin-top: 16px; }
+.salsum { margin-bottom: 12px; }
+.px { width: 34px; height: 34px; border: 0; border-radius: 11px; background: transparent; color: var(--ink2); display: grid; place-items: center; flex: none; cursor: pointer; }
+.px:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--neg); }
+.px svg { width: 16px; height: 16px; }
+
 </style>
 
 <div class="screen">
@@ -1199,9 +1213,11 @@ function vMoviles() {
   if (!loadedAll() || S.error) return h + loading();
   if (!accs.length) return h + empty(G.phone, 'Sin móviles', 'Añade uno con su IBAN.', '<button class="btn btn-main btn-sm" data-action="newAccount">Añadir móvil</button>');
   h += `<div class="seg" data-k="accf" role="group" aria-label="Filtrar"><button data-action="accFilter" data-v="all" aria-pressed="${S.accFilter === 'all'}">Todos</button><button data-action="accFilter" data-v="warm" aria-pressed="${S.accFilter === 'warm'}">Calentadas</button><button data-action="accFilter" data-v="cold" aria-pressed="${S.accFilter === 'cold'}">Sin calentar</button></div>`;
+  { const tot = accs.map(a => balance(a.id)), ts = r2(sum(tot, x => x.saldo)), tp = r2(sum(tot, x => x.pend));
+    if (ts || tp) h += `<section class="card salsum"><div class="sal"><div><span>Saldo en las cuentas</span><b class="${ts < 0 ? 'neg' : ''}">${money(ts)}</b></div><div><span>Pendiente</span><b>${money(tp)}</b></div></div></section>`; }
   const list = accs.filter(a => S.accFilter === 'all' || (S.accFilter === 'warm') === !!a.warm);
   if (!list.length) return h + empty(G.phone, S.accFilter === 'warm' ? 'Ninguna calentada' : 'Todas calentadas', '');
-  return h + `<div class="list mlist">${list.map(a => `<div class="mcr"><button class="mcr-main" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span><span class="rs">${a.iban ? `<span class="iban">${ibanShort(a.iban)}</span>` : 'Sin IBAN'}${(a.blocks || []).length ? ` · ${(a.blocks || []).length} ${(a.blocks || []).length === 1 ? 'bloqueo' : 'bloqueos'}` : ''}</span></span><span class="mr"><b class="mamt">${money(billed(mr, a.id))}</b>${warmChip(a, true)}</span></button><button class="mcr-ed" data-action="renameAccount" data-id="${a.id}" aria-label="Renombrar ${esc(a.name)}">${G.edit}</button></div>`).join('')}</div>
+  return h + `<div class="list mlist">${list.map(a => `<div class="mcr"><button class="mcr-main" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span><span class="rs">${a.iban ? `<span class="iban">${ibanShort(a.iban)}</span>` : 'Sin IBAN'}${(a.blocks || []).length ? ` · ${(a.blocks || []).length} ${(a.blocks || []).length === 1 ? 'bloqueo' : 'bloqueos'}` : ''}${(() => { const v = balance(a.id).saldo; return v ? ` · saldo ${money(v)}` : ''; })()}</span></span><span class="mr"><b class="mamt">${money(billed(mr, a.id))}</b>${warmChip(a, true)}</span></button><button class="mcr-ed" data-action="renameAccount" data-id="${a.id}" aria-label="Renombrar ${esc(a.name)}">${G.edit}</button></div>`).join('')}</div>
     <p class="hint" style="margin:-6px 0 0;text-align:center">Importe de este mes</p>`;
 }
 
@@ -1269,6 +1285,44 @@ function accPeriodName() {
   const d = accRange()[2], cur = new Date().getFullYear();
   return S.accP === 'year' ? String(d.getFullYear()) : MONTHS_L[d.getMonth()] + (d.getFullYear() !== cur ? ' ' + d.getFullYear() : '');
 }
+/* ---------- SALDO: venta → 14 días sin devolución (o cobro marcado a mano) → saldo del móvil → lo pasas al banco ---------- */
+/* venta.paidAt = día en que marcaste a mano que ya llegó el dinero · móvil.payouts = [{id, date, amount, iban}] */
+const HOLD = 14;
+const addDays = (d, n) => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
+const freeOn = s => s.paidAt || addDays(s.date || today(), HOLD);
+const isFree = s => s.status !== 'devuelta' && freeOn(s) <= today();
+const inDays = d => { const n = days(today(), d); return n === 0 ? 'hoy' : n === 1 ? 'mañana' : 'en ' + n + ' días'; };
+function balance(id) {
+  const a = acc(id), mine = S.sales.filter(s => s.account === id && s.status !== 'devuelta');
+  const free = mine.filter(isFree), pend = mine.filter(s => !isFree(s)).sort((x, y) => freeOn(x).localeCompare(freeOn(y)));
+  const outs = ((a && a.payouts) || []).slice().sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+  return { saldo: r2(sum(free, s => s.price) - sum(outs, p => p.amount)), pend: r2(sum(pend, s => s.price)), pendL: pend, outs };
+}
+function saldoCard(a) {
+  const B = balance(a.id); if (!B.pendL.length && !B.outs.length && !B.saldo) return '';
+  let h = `<section class="card saldo"><div class="ch"><h2>Saldo</h2><span class="hint">Cada venta entra a los ${HOLD} días si no hay devolución</span></div>
+    <div class="sal"><div><span>En el saldo</span><b class="${B.saldo < 0 ? 'neg' : ''}">${money(B.saldo)}</b></div><div><span>Pendiente</span><b>${money(B.pend)}</b></div></div>
+    ${B.saldo > 0 ? `<button class="btn btn-main btn-block" data-action="payout" data-id="${a.id}">Pasar al banco${a.iban ? ' · ' + ibanShort(a.iban) : ''}</button>` : B.saldo < 0 ? '<p class="hint" style="margin:12px 0 0">Saldo negativo: hubo una devolución después de pasar el dinero al banco.</p>' : ''}</section>`;
+  if (B.pendL.length) h += `<div class="sec-h"><h2>Pendiente de cobrar</h2><span>${B.pendL.length}</span></div><div class="list">${B.pendL.slice(0, 8).map(s => `<div class="row"><span class="rm"><span class="rt">${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</span><span class="rs">Al saldo ${inDays(freeOn(s))}</span></span><span class="rv"><b>${money(s.price)}</b></span><button class="btn btn-soft btn-sm" data-action="salePaid" data-id="${s.id}">Ya cobrada</button></div>`).join('')}</div>`;
+  if (B.outs.length) h += `<div class="sec-h"><h2>Pasado al banco</h2><span>${money(sum(B.outs, p => p.amount))}</span></div><div class="list">${B.outs.slice(0, 6).map(p => `<div class="row"><span class="th" style="${tint('var(--accent)')}">${G.cash}</span><span class="rm"><span class="rt">${money(p.amount)}</span><span class="rs">${fmtDate(p.date)}${p.iban ? ' · ' + ibanShort(p.iban) : ''}</span></span><button class="px" data-action="delPayout" data-id="${a.id}" data-k="${esc(p.id)}" aria-label="Borrar transferencia" title="Borrar transferencia">${G.x}</button></div>`).join('')}</div>`;
+  return h;
+}
+function payoutSheet(id) {
+  const a = acc(id); if (!a) return; const B = balance(id);
+  openSheet('Pasar al banco', `<form class="f" id="payF" novalidate>
+    ${amountField('pay-amt', 'amount', 'Importe', B.saldo)}
+    <div class="facts"><div class="fact"><span>En el saldo</span><b>${money(B.saldo)}</b></div><div class="fact"><span>A la cuenta</span><b class="iban">${a.iban ? ibanShort(a.iban) : 'Sin IBAN'}</b></div></div>
+    <div class="fld"><label for="pay-date">Fecha</label><input id="pay-date" name="date" type="date" value="${today()}"></div>
+    <button class="btn btn-main btn-block">Apuntar transferencia</button></form>`,
+    async fd => {
+      const amount = r2(num(fd.get('amount')));
+      if (!(amount > 0)) return fieldErr('pay-amt', 'Pon el importe');
+      if (amount > B.saldo + 0.005) return fieldErr('pay-amt', 'Es más de lo que hay en el saldo (' + money(B.saldo) + ')');
+      const old = a.payouts || [], p = { id: Date.now().toString(36), date: fd.get('date') || today(), amount, iban: a.iban || '' };
+      if (await write(() => db.doc('accounts/' + id).update({ payouts: old.concat(p) }), 'Transferencia apuntada · ' + money(amount), () => write(() => db.doc('accounts/' + id).update({ payouts: old }), 'Transferencia deshecha'))) closeSheet();
+    });
+}
+
 const saleProfit = s => r2((s.price || 0) - (s.cost || 0));
 function vMovil(id) {
   const a = acc(id);
@@ -1281,6 +1335,7 @@ function vMovil(id) {
   const F = r2(sum(ok, s => s.price)), B = r2(sum(ok, saleProfit)), uds = sum(ok, s => s.qty || 1);
   h += `<section class="hero"><div class="hero-l"><span>Beneficio</span></div><div class="big ${B < 0 ? 'neg' : ''}">${splitC(money(B))}</div>
     <div class="tiles ${ret ? '' : 'two'}"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Ventas</span><b>${uds}</b></div>${ret ? `<div class="tile"><span>Devueltas</span><b>${ret}</b></div>` : ''}</div></section>`;
+  h += saldoCard(a);
   if (!ss.length) h += empty(G.sell, 'Sin ventas', S.accP === 'all' ? 'Este móvil aún no ha vendido nada.' : 'Nada en este periodo.');
   else {
     /* evolución del móvil */
@@ -1608,8 +1663,10 @@ function saleDetail(id) {
     <div class="bigv ${dev ? 'struck' : 'pos'}">+${splitC(money(s.price))}</div>
     ${dev ? `<div class="tag neg" style="align-self:flex-start;height:26px;font-size:13px">Devuelta el ${fmtDate(s.returnedAt)}${s.restocked ? ' · volvió al stock' : ''}</div>` : ''}
     <div class="facts"><div class="fact"><span>Móvil</span><b>${esc(accName(s.account, s.accountName))}</b></div>${a && a.iban ? `<div class="fact"><span>IBAN</span><b class="iban">${ibanShort(a.iban)}</b></div>` : ''}
+      ${dev ? '' : `<div class="fact"><span>Cobro</span><b>${s.paidAt ? 'Cobrada el ' + fmtDate(s.paidAt) : isFree(s) ? 'En el saldo desde el ' + fmtDate(freeOn(s)) : 'Al saldo el ' + fmtDate(freeOn(s)) + ' (' + inDays(freeOn(s)) + ')'}</b></div>`}
       ${s.cost ? `<div class="fact"><span>Ganas con esta venta</span><b class="pos">+${money(s.price - s.cost)}</b></div>` : ""}</div>
     <div class="btns"><button class="btn btn-soft" data-action="editSale" data-id="${s.id}" ${dev ? 'disabled' : ''}>Editar</button>${dev ? `<button class="btn btn-soft" data-action="unreturn" data-id="${s.id}">Anular devolución</button>` : `<button class="btn btn-soft" data-action="returnSale" data-id="${s.id}">${G.ret}Devolución</button>`}</div>
+    ${dev ? '' : s.paidAt ? `<button class="btn btn-soft btn-block" data-action="saleUnpaid" data-id="${s.id}">Quitar «cobrada»</button>` : !isFree(s) ? `<button class="btn btn-soft btn-block" data-action="salePaid" data-id="${s.id}">Ya me ha llegado el dinero</button>` : ''}
     <button class="btn btn-danger btn-block" data-action="delSale" data-id="${s.id}">Borrar venta</button>`);
 }
 function returnSheet(id) {
@@ -1975,6 +2032,16 @@ document.addEventListener('click', async ev => {
     // ventas
     case 'newSale': saleForm(); break;
     case 'sale': saleDetail(id); break;
+    // saldo
+    case 'payout': payoutSheet(id); break;
+    case 'salePaid': case 'saleUnpaid': { const s = S.sales.find(x => x.id === id); if (!s) break; const prev = s.paidAt || '', next = a === 'salePaid' ? today() : '';
+      const open = $('#sheet').classList.contains('show');
+      if (await write(() => db.doc('sales/' + id).update({ paidAt: next }), next ? 'Cobrada · ya está en el saldo' : 'Vuelve a esperar los ' + HOLD + ' días', () => write(() => db.doc('sales/' + id).update({ paidAt: prev }), 'Deshecho')) && open) setTimeout(() => saleDetail(id), 250);
+      break; }
+    case 'delPayout': { const ac = acc(id); if (!ac) break; const old = ac.payouts || [], k = b.dataset.k, p = old.find(x => x.id === k); if (!p) break;
+      if (!confirm('¿Borrar la transferencia de ' + money(p.amount) + ' del ' + fmtDate(p.date) + '? El importe vuelve al saldo.')) break;
+      await write(() => db.doc('accounts/' + id).update({ payouts: old.filter(x => x.id !== k) }), 'Transferencia borrada', () => write(() => db.doc('accounts/' + id).update({ payouts: old }), 'Transferencia recuperada'));
+      break; }
     case 'editSale': saleForm({ edit: id }); break;
     case 'returnSale': returnSheet(id); break;
     case 'doReturn1': case 'doReturn0': { const s = S.sales.find(x => x.id === id); if (!s) break; const re = a === 'doReturn1';

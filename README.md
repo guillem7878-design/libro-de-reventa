@@ -51,6 +51,14 @@ Entra con el mismo correo y contraseña en todos los dispositivos.
 En `migracion/datos-claude.json` está la copia de los datos del artifact de Claude.
 En la app: **Ajustes › Importar copia** y elige ese archivo. Incluye ejemplos; bórralos con el aviso naranja «Borrar» que sale arriba.
 
+## Saldo de cada móvil
+
+- Cada venta pasa al **saldo** del móvil 14 días después de la fecha de venta, si no la has marcado como devolución. Mientras tanto sale como **pendiente**.
+- **Ya cobrada:** si el dinero te llega antes, márcalo a mano (en el móvil o en la ficha de la venta) y pasa al saldo al momento. Se puede quitar.
+- **Pasar al banco:** apunta la transferencia al IBAN del móvil y la resta del saldo. Las transferencias se ven en la ficha del móvil y se pueden borrar.
+- Si una venta se devuelve después de haber pasado el dinero al banco, el saldo puede quedar en negativo.
+- En **Móviles** arriba sale el saldo y lo pendiente de todas las cuentas.
+
 ## Calentar una cuenta (31 días)
 
 El panel de calentamiento (el del agente de reventa de Adidas Samba) vive dentro de la app, en `calentador/`.

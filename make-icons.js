@@ -7,28 +7,18 @@ function png(size, pix) { const raw = Buffer.alloc((size * 4 + 1) * size); for (
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]); }
 // colores de las tarjetas de la app: degradado grafito y tinta blanco hueso
 const BG_A = [30, 33, 40], BG_B = [58, 63, 75], INK = [242, 241, 237];
-// reventa: bolsa de compra con dos flechas en círculo (comprar y volver a vender), dentro de la zona segura
-const tri = (x, y, P) => { const sg = (p, q, r) => (p[0] - r[0]) * (q[1] - r[1]) - (q[0] - r[0]) * (p[1] - r[1]);
-  const t1 = sg([x, y], P[0], P[1]), t2 = sg([x, y], P[1], P[2]), t3 = sg([x, y], P[2], P[0]);
-  return !((t1 < 0 || t2 < 0 || t3 < 0) && (t1 > 0 || t2 > 0 || t3 > 0)); };
-function arrows(x, y) { // flechas recortadas dentro de la bolsa
-  const cx = 50, cy = 60, R = 10.5, dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy);
-  let ang = Math.atan2(dy, dx) * 180 / Math.PI; if (ang < 0) ang += 360;
-  if (Math.abs(d - R) <= 2.1 && ((ang >= 195 && ang <= 330) || (ang >= 15 && ang <= 150))) return true;
-  for (const e0 of [338, 158]) { const e = e0 * Math.PI / 180, bx = cx + R * Math.cos(e - .2), by = cy + R * Math.sin(e - .2), tx = -Math.sin(e), ty = Math.cos(e), nx = Math.cos(e), ny = Math.sin(e);
-    if (tri(x, y, [[bx + nx * 5.2, by + ny * 5.2], [bx - nx * 5.2, by - ny * 5.2], [bx + tx * 6.5, by + ty * 6.5]])) return true; }
-  return false;
-}
+// monograma: una R geométrica (de reventa), centrada en la zona segura
 function shape(x, y) {
-  // asa: medio aro encima de la bolsa
-  const hx = x - 50, hy = y - 36;
-  if (hy <= 0 && Math.abs(Math.hypot(hx, hy) - 11) <= 2.6) return true;
-  // cuerpo con esquinas redondeadas
-  const x0 = 27, x1 = 73, y0 = 34, y1 = 82, r = 7;
-  if (x < x0 || x > x1 || y < y0 || y > y1) return false;
-  const qx = Math.min(Math.max(x, x0 + r), x1 - r), qy = Math.min(Math.max(y, y0 + r), y1 - r);
-  if ((x - qx) ** 2 + (y - qy) ** 2 > r * r) return false;
-  return !arrows(x, y);
+  const T = 10;                                   // grosor del trazo
+  if (x >= 33 && x <= 33 + T && y >= 25 && y <= 75) return true;          // palo
+  const cx = 52, cy = 41, R = 16;                 // panza: dos barras y medio aro
+  if (x >= 33 && x <= cx && ((y >= 25 && y <= 25 + T) || (y >= 57 - T && y <= 57))) return true;
+  if (x >= cx) { const d = Math.hypot(x - cx, y - cy); if (d <= R && d >= R - T) return true; }
+  // pierna en diagonal, cortada en recto abajo
+  const ax = 49, ay = 52, bx = 68, by = 78, vx = bx - ax, vy = by - ay;
+  const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)));
+  if (y <= 75 && y >= 57 - T && Math.hypot(x - ax - t * vx, y - ay - t * vy) <= T / 2 + .6) return true;
+  return false;
 }
 function draw(size) {
   const pix = Buffer.alloc(size * size * 4), S = 4, u = 100 / size;

@@ -196,25 +196,71 @@
 
   /* ---------- Copia de seguridad ---------- */
   const allDocs = () => COLLS.flatMap(c => [...cache[c]].map(([id, data]) => ({ coll: c, id, data })));
-  function exportBackup() { saveFile(`reventa-copia-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), docs: allDocs() }), 'application/json'); }
+  // la copia incluye también el calentador (documento warmups/current)
+  const isWarm = d => d.coll === 'warmups' && d.id === 'current';
+  async function warmDoc() {
+    try { const { data } = await sb.from('docs').select('data').eq('coll', 'warmups').eq('id', 'current').maybeSingle(); return data && data.data ? [{ coll: 'warmups', id: 'current', data: data.data }] : []; } catch (e) { return []; }
+  }
+  const ymdL = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  async function exportBackup() { saveFile(`reventa-copia-${ymdL(new Date())}.json`, JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), docs: allDocs().concat(await warmDoc()) }), 'application/json'); }
+  // vuelve a poner los registros de una copia (lo creado después de la copia se mantiene)
+  async function restoreDocs(docs) {
+    for (let i = 0; i < docs.length; i += 200) {
+      const rows = docs.slice(i, i + 200).map(d => ({ coll: d.coll, id: String(d.id), data: clean(d.data) }));
+      rows.forEach(r => note(r.id));
+      const { error } = await sb.from('docs').upsert(rows); if (error) throw error;
+      rows.forEach(r => cache[r.coll] && cache[r.coll].set(r.id, r.data));
+    }
+    COLLS.forEach(c => loaded[c] && emit(c));
+  }
+  const backupDocs = j => {
+    const docs = (j.docs || []).filter(d => (COLLS.includes(d.coll) || isWarm(d)) && d.id && d.data);
+    if (!docs.length && j.root && j.root.slots) docs.push({ coll: 'warmups', id: 'current', data: j.root }); // copia descargada desde el calentador
+    return docs;
+  };
   function importBackup() {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
     inp.onchange = async () => {
       const f = inp.files && inp.files[0]; if (!f) return;
       try {
-        const j = JSON.parse(await f.text()); const docs = (j.docs || []).filter(d => COLLS.includes(d.coll) && d.id && d.data);
+        const docs = backupDocs(JSON.parse(await f.text()));
         if (!docs.length) { window.toast('Ese archivo no tiene datos de la app'); return; }
         window.toast('Importando…');
-        for (let i = 0; i < docs.length; i += 200) {
-          const rows = docs.slice(i, i + 200).map(d => ({ coll: d.coll, id: String(d.id), data: clean(d.data) }));
-          rows.forEach(r => note(r.id));
-          const { error } = await sb.from('docs').upsert(rows); if (error) throw error;
-          rows.forEach(r => cache[r.coll].set(r.id, r.data));
-        }
-        COLLS.forEach(c => loaded[c] && emit(c)); window.toast(`Importados ${docs.length} registros`);
+        await restoreDocs(docs); window.toast(`Importados ${docs.length} registros`);
       } catch (e) { window.toast('No se pudo importar: ' + (e.message || 'archivo no válido')); }
     };
     inp.click();
+  }
+  /* copia automática: una al día en tu base de datos (colección "backups"), se guardan las últimas 14 */
+  const BK_KEEP = 14;
+  async function listAutoBk() {
+    const { data, error } = await sb.from('docs').select('id,updated_at').eq('coll', 'backups');
+    return error ? null : (data || []).filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.id)).sort((a, b) => b.id.localeCompare(a.id));
+  }
+  async function autoBackup() {
+    try {
+      const docs = allDocs(), list = await listAutoBk(); if (!docs.length || !list) return;
+      const id = ymdL(new Date());
+      if (!list.some(r => r.id === id)) { const { error } = await sb.from('docs').upsert({ coll: 'backups', id, data: { version: 1, exportedAt: new Date().toISOString(), docs: docs.concat(await warmDoc()) } }); if (!error) list.unshift({ id }); }
+      for (const r of list.slice(BK_KEEP)) await sb.from('docs').delete().eq('coll', 'backups').eq('id', r.id);
+    } catch (e) {}
+  }
+  const fmtDay = s => new Date(s + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  async function autoBkSheet() {
+    if (!window.openSheet) return;
+    window.openSheet('Copias automáticas', '<p class="hint" style="margin:0">Cargando…</p>');
+    const list = await listAutoBk();
+    const body = !list ? '<p class="hint" style="margin:0">No se pudieron cargar las copias. Revisa la conexión.</p>'
+      : !list.length ? '<p class="hint" style="margin:0">Aún no hay copias. La primera se guarda sola hoy.</p>'
+      : `<p class="hint" style="margin:0 0 4px;line-height:1.5">Cada día se guarda sola una copia de todo (también del calentador). Se conservan las últimas ${BK_KEEP}. Al recuperar una, vuelve lo que se borró o cambió desde ese día; lo que hayas añadido después se mantiene. El calentador se recupera desde Calentar › Registro.</p>
+        <div class="list">${list.map(r => `<div class="row"><span class="rm"><span class="rt">${esc(fmtDay(r.id))}</span><span class="rs">${r.updated_at ? 'Guardada a las ' + new Date(r.updated_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}</span></span>
+          <span style="display:flex;gap:6px;flex:none"><button class="btn btn-soft" data-action="sx-bkd" data-id="${esc(r.id)}">Descargar</button><button class="btn btn-soft" data-action="sx-bkr" data-id="${esc(r.id)}">Recuperar</button></span></div>`).join('')}</div>`;
+    window.openSheet('Copias automáticas', body);
+  }
+  async function readAutoBk(id) {
+    const { data, error } = await sb.from('docs').select('data').eq('coll', 'backups').eq('id', id).maybeSingle();
+    if (error || !data || !data.data) { window.toast('No se pudo leer la copia'); return null; }
+    return data.data;
   }
 
   /* ---------- Ajustes ---------- */
@@ -237,6 +283,7 @@
     }
     h += row('sx-warm', IC.phone, 'Calentar una cuenta', 'Plan de 31 días · al terminar la envías a Móviles');
     h += row('sx-backup', IC.down, 'Copia de seguridad', 'Descarga todos tus datos en un archivo');
+    h += row('sx-auto', IC.down, 'Copias automáticas', 'Una al día, se guardan las de 2 semanas');
     h += row('sx-import', IC.up, 'Importar copia', 'Sube un archivo de copia de seguridad');
     h += row('sx-out', IC.out, 'Cerrar sesión', esc(email));
     return `<div class="list">${h}</div>`;
@@ -256,6 +303,15 @@
       case 'sx-warm': location.href = 'calentador/'; break;
       case 'sx-backup': exportBackup(); break;
       case 'sx-import': importBackup(); break;
+      case 'sx-auto': autoBkSheet(); break;
+      case 'sx-bkd': { const j = await readAutoBk(b.dataset.id); if (j) saveFile(`reventa-copia-${b.dataset.id}.json`, JSON.stringify(j), 'application/json'); break; }
+      case 'sx-bkr': {
+        if (!confirm('Se recupera lo que había el ' + fmtDay(b.dataset.id) + ': vuelve lo borrado o cambiado desde entonces. Lo añadido después se mantiene. ¿Seguir?')) break;
+        const j = await readAutoBk(b.dataset.id); if (!j) break;
+        // el calentador no se toca aquí: se guarda entero y tiene sus propias copias en Calentar › Registro
+        try { const docs = backupDocs(j).filter(d => !isWarm(d)); await restoreDocs(docs); window.toast(`Recuperados ${docs.length} registros`); if (window.closeSheet) window.closeSheet(); }
+        catch (e) { window.toast('No se pudo recuperar: ' + (e.message || 'error')); }
+        break; }
       case 'sx-out': await sb.auth.signOut(); location.reload(); break;
     }
   });
@@ -281,6 +337,10 @@
     sb.channel('docs-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, onRealtime).subscribe();
     // al volver a la app tras un rato, recarga por si se perdió algún evento
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - (window.__hiddenAt || Date.now()) > 30000) COLLS.forEach(c => { loaded[c] = false; loading[c] = null; cache[c] = new Map(); if (subs[c].length) loadColl(c).catch(() => {}); }); else if (document.visibilityState === 'hidden') window.__hiddenAt = Date.now(); });
+    // copia automática del día, cuando ya están cargados todos los datos
+    { const t = setInterval(() => { if (COLLS.every(c => loaded[c])) { clearInterval(t); autoBackup(); } }, 3000); setTimeout(() => clearInterval(t), 120000); }
+    // recordatorio diario del calentamiento (remind.js)
+    if (window.WarmRemind) window.WarmRemind.start(async () => { const { data } = await sb.from('docs').select('data').eq('coll', 'warmups').eq('id', 'current').maybeSingle(); return data && data.data; });
     // enlace directo ?movil=<id> (desde el panel de calentamiento)
     { const m = /[?&]movil=([\w-]+)/.exec(location.search); if (m) { if (window.S) { window.S.quick = false; if (window.render) window.render(); } const t = setInterval(() => { if (window.loadedAll && window.loadedAll() && window.openAccount && window.S.accounts.some(a => a.id === m[1])) { clearInterval(t); window.S.quick = false; window.openAccount(m[1]); } }, 250); setTimeout(() => clearInterval(t), 40000); } }
     // acceso directo ?accion=venta

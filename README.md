@@ -61,7 +61,19 @@ Se abre desde el botón **Calentar** del menú de la app (también en **Móviles
 - Se guarda en tu Supabase (documento `warmups/current`), así que lo ves igual en el móvil y en el ordenador. Usa la misma sesión que la app.
 - **Enviar a la app:** cuando la cuenta esté calentada, pulsa el botón. Crea el móvil en **Móviles** como *Calentada*, con su IBAN si lo pones, y guarda el resumen (alta, días, valoraciones, media e índice). Si aún no cumple todas las comprobaciones, te lo avisa antes de enviar.
 - **Calentar otra cuenta** guarda la anterior en el historial y empieza de cero.
+- **Saltar hoy:** el día pasa a mañana y el resto del plan se mueve uno. No cuenta como fallado; la antigüedad de la cuenta sigue sumando. Se puede deshacer en el mismo día.
+- **Historial:** compras y ventas de cada cuenta, con lo gastado, lo ingresado y el balance. Las compras se apuntan ahí; las ventas, en Artículos.
+- **Compras → app:** al enviar la cuenta a la app, cada compra se apunta como gasto de ese móvil (tipo Otros, «Calentamiento …»). Si la cuenta ya está en la app, se apunta al momento, y al borrarla se quita. La ficha del móvil muestra el historial del calentamiento.
+- **Comparar:** las tres pestañas en una tabla (días, saltados, compras, ventas, valoraciones, índice) y las cuentas anteriores.
+- **Recordatorio del día** (Registro): aviso a la hora elegida con lo que toca en cada pestaña. Se activa por dispositivo y funciona con la app o el panel abiertos o en segundo plano (ver Avisos).
+- **Copias:** cada día se guarda sola una copia de las tres pestañas (las últimas 14), que puedes descargar o recuperar en Registro. «Descargar copia completa» baja las tres pestañas en un archivo.
 - Si tenías datos en el panel antiguo (guardados en tu navegador), en **Registro › Restaurar copia** puedes subir la copia que descargaste de allí.
+
+## Copias de seguridad
+
+- **Ajustes › Copia de seguridad** descarga todos tus datos en un archivo, calentador incluido.
+- **Ajustes › Copias automáticas:** cada día se guarda sola una copia en tu Supabase (colección `backups`, las últimas 14). Recuperar una vuelve a poner lo borrado o cambiado desde ese día y mantiene lo añadido después.
+- **Ajustes › Importar copia** acepta las copias de la app y las del calentador.
 
 ## Avisos
 
@@ -74,6 +86,7 @@ Se abre desde el botón **Calentar** del menú de la app (también en **Móviles
 ```
 index.html              la app
 sync.js                 conexión con Supabase: login, datos en tiempo real, fotos, avisos, copias
+remind.js               recordatorio diario del calentamiento (lo usan la app y el calentador)
 sw.js                   service worker (sin conexión y avisos)
 manifest.webmanifest    datos de instalación
 config.js               tu URL y clave de Supabase

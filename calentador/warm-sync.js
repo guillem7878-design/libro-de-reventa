@@ -40,6 +40,8 @@
     remoteAt = Date.parse(at);
     if (dirty) flush();
   }
+  // guarda ya lo pendiente, esperando si había un guardado a medias (antes de recargar la página)
+  async function flushAll() { clearTimeout(timer); while (saving) await new Promise(r => setTimeout(r, 50)); await flush(); }
   /* ---------- Pestañas: 3 cuentas con los mismos menús y datos independientes ---------- */
   const SLOTS = ['1', '2', '3'];
   const LS = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
@@ -48,16 +50,21 @@
     root: { slots: {}, names: {}, history: [] },
     get data() { return this.root.slots[ACTIVE] || (this.root.slots[ACTIVE] = {}); },
     set data(v) { this.root.slots[ACTIVE] = v; },
+    active: ACTIVE,
     save() { dirty = true; clearTimeout(timer); timer = setTimeout(flush, 600); },
-    flush
+    flush: flushAll,
+    pushBuys: () => pushBuys(),
+    delExpense: id => delExpense(id)
   };
   const slotName = n => W.root.names[n] || 'Cuenta ' + n;
   function slotStatus(n) {
     const d = W.root.slots[n] || {};
     if (d.vp_sent) return 'Enviada a la app';
     if (!d.vp_start) return 'Sin empezar';
-    const a = new Date(d.vp_start + 'T00:00:00'), t = new Date(); t.setHours(0, 0, 0, 0);
-    return 'Día ' + Math.min(31, Math.max(1, Math.round((t - a) / 864e5) + 1)) + ' de 31';
+    const t = new Date(), hoy = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+    if ((d.vp_skip || []).includes(hoy)) return 'Descanso hoy';
+    const dia = window.WarmRemind ? WarmRemind.dayOf(d, hoy) : 1;
+    return dia > 31 ? 'Plan terminado' : 'Día ' + Math.max(1, dia) + ' de 31';
   }
   function slotBar() {
     const hd = document.querySelector('header'); if (!hd) return;
@@ -90,7 +97,7 @@
     const ed = e.target.closest('[data-ed]'); if (ed) { renameSlot(ed.dataset.ed); return; }
     const b = e.target.closest('.slb'); if (!b) return;
     const n = b.dataset.n; if (!n || n === ACTIVE) return;
-    LS.set('wsActive', n); clearTimeout(timer); await flush(); location.reload();
+    LS.set('wsActive', n); await flushAll(); location.reload();
   }
   document.addEventListener('visibilitychange', async () => {
     if (document.hidden) { clearTimeout(timer); flush(); return; }
@@ -119,6 +126,114 @@
     // ejecuta el panel (su código está en un bloque de texto para no arrancar antes de tener los datos)
     const s = document.createElement('script'); s.textContent = document.getElementById('main-app').textContent; document.body.appendChild(s);
     hookSend(); window.__wsReady = true;
+    renderRem(); autoBackup();
+    if (window.WarmRemind) WarmRemind.start(async () => W.root);
+    if (W.data.vp_sent) pushBuys();
+  }
+
+  /* ---------- Compras del calentamiento → gastos del móvil en la app ---------- */
+  const r2 = n => Math.round(n * 100) / 100;
+  // resumen de compras y ventas de la pestaña abierta (va a la ficha del móvil en la app)
+  function hist() {
+    const d = W.data, B = d.vp_buys || [], S = (d.vp_listings || []).filter(x => x.estado === 'vendido');
+    const historial = B.map(b => ({ t: 'compra', fecha: b.fecha, articulo: b.articulo, importe: r2((b.precio || 0) + (b.envio || 0)) }))
+      .concat(S.map(x => ({ t: 'venta', fecha: x.fechaVenta || x.fecha, articulo: x.articulo + (x.modelo ? ' · ' + x.modelo : ''), importe: r2((x.precioVenta || 0) - (x.comisionEnvio || 0)) })))
+      .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    const tot = t => r2(historial.filter(h => h.t === t).reduce((a, h) => a + h.importe, 0));
+    return { compras: B.length, gastado: tot('compra'), ventas: S.length, ingresos: tot('venta'), historial };
+  }
+  let pushing = false;
+  async function pushBuys(accountId, name) {
+    const sent = W.data.vp_sent; accountId = accountId || (sent && sent.accountId); name = name || (sent && sent.name);
+    if (!sb || !accountId || pushing) return 0;
+    pushing = true; let n = 0;
+    try {
+      for (const b of W.data.vp_buys || []) {
+        if (b.appId) continue;
+        const id = uuid();
+        const { error } = await sb.from('docs').upsert({ coll: 'expenses', id, data: { concept: 'Calentamiento ' + name + ' · ' + (b.articulo || 'compra'), amount: r2((b.precio || 0) + (b.envio || 0)), date: b.fecha || todayIso(), category: 'otros', units: 1, account: accountId, warmup: true, createdAt: Date.now() } });
+        if (error) { toast('No se pudo pasar una compra a la app: ' + error.message); break; }
+        b.appId = id; n++;
+      }
+    } finally { pushing = false; }
+    if (n) { W.save(); await flushAll(); window.render(); toast(n === 1 ? 'Compra apuntada como gasto en la app' : n + ' compras apuntadas como gastos en la app'); }
+    return n;
+  }
+  async function delExpense(id) {
+    const { error } = await sb.from('docs').delete().eq('coll', 'expenses').eq('id', id);
+    if (error) toast('No se pudo quitar el gasto de la app: ' + error.message);
+  }
+  // con la cuenta ya en la app, su ficha se mantiene al día con las compras y ventas nuevas
+  let histSig = null, histT = null;
+  function syncApp() {
+    const sent = W.data.vp_sent; if (!sent || !sb) return;
+    const h = hist(), sig = JSON.stringify(h); if (sig === histSig) return; histSig = sig;
+    clearTimeout(histT); histT = setTimeout(async () => {
+      const { data } = await sb.from('docs').select('data').eq('coll', 'accounts').eq('id', sent.accountId).maybeSingle();
+      if (!data || !data.data) return; // el móvil se borró en la app
+      const a = data.data, w = a.warmup || {};
+      if (JSON.stringify({ compras: w.compras, gastado: w.gastado, ventas: w.ventas, ingresos: w.ingresos, historial: w.historial }) === sig) return;
+      a.warmup = { ...w, ...h };
+      await sb.from('docs').upsert({ coll: 'accounts', id: sent.accountId, data: a });
+    }, 800);
+  }
+
+  /* ---------- Copias automáticas: una al día de las tres pestañas, se guardan las últimas 14 ---------- */
+  const KEEP = 14;
+  async function listBk() {
+    const { data, error } = await sb.from('docs').select('id,updated_at').eq('coll', 'warmups');
+    if (error) return null;
+    return (data || []).filter(r => /^bk-\d{4}-\d{2}-\d{2}$/.test(r.id)).sort((a, b) => b.id.localeCompare(a.id));
+  }
+  async function autoBackup() {
+    try {
+      const has = Object.values(W.root.slots || {}).some(s => s && Object.keys(s).length);
+      const list = await listBk();
+      if (has && list) {
+        const id = 'bk-' + todayIso();
+        if (!list.some(r => r.id === id)) { const at = iso(); const { error } = await sb.from('docs').upsert({ coll: 'warmups', id, data: JSON.parse(JSON.stringify(W.root)), updated_at: at }); if (!error) list.unshift({ id, updated_at: at }); }
+        for (const r of list.slice(KEEP)) await sb.from('docs').delete().eq('coll', 'warmups').eq('id', r.id);
+      }
+    } catch (e) {}
+    renderBk();
+  }
+  const fmtDay = s => new Date(s + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+  async function renderBk() {
+    const el = document.getElementById('bkList'); if (!el) return;
+    const list = await listBk();
+    if (!list) { el.innerHTML = '<div class="empty">No se pudieron cargar las copias.</div>'; return; }
+    if (!list.length) { el.innerHTML = '<div class="empty">Aún no hay copias automáticas. La primera se guarda sola en cuanto empieces una cuenta.</div>'; return; }
+    el.innerHTML = list.map(r => { const d = r.id.slice(3), h = r.updated_at ? new Date(r.updated_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+      return `<div class="bkrow"><span>${esc(fmtDay(d))}${h ? ' <span class="hint">· ' + esc(h) + '</span>' : ''}</span><span class="row" style="gap:6px"><button class="btn ghost sm" data-bkd="${esc(r.id)}">Descargar</button><button class="btn ghost sm" data-bkr="${esc(r.id)}">Volver a esta</button></span></div>`; }).join('');
+    el.onclick = async e => {
+      const b = e.target.closest('[data-bkd],[data-bkr]'); if (!b) return;
+      const id = b.dataset.bkd || b.dataset.bkr, day = id.slice(3);
+      const { data, error } = await sb.from('docs').select('data').eq('coll', 'warmups').eq('id', id).maybeSingle();
+      if (error || !data || !data.data) { toast('No se pudo leer la copia'); return; }
+      if (b.dataset.bkd) { saveJson('copia-calentador-' + day + '.json', { tipo: 'calentador', version: 2, fecha: day, root: data.data }); return; }
+      if (!confirm('El calentador entero (las tres pestañas) vuelve a como estaba el ' + fmtDay(day) + '. Lo que hayas hecho después se pierde. ¿Seguir?')) return;
+      const r = data.data; W.root = { slots: r.slots || {}, names: r.names || {}, history: r.history || [] };
+      W.save(); await flushAll(); location.reload();
+    };
+  }
+
+  /* ---------- Recordatorio del día (en este dispositivo) ---------- */
+  function renderRem() {
+    const el = document.getElementById('remBox'); if (!el || !window.WarmRemind) return;
+    const R = window.WarmRemind, t = R.time(), sup = 'Notification' in window, perm = sup ? Notification.permission : 'denied';
+    el.innerHTML = `<p class="hint" style="margin-top:0">Un aviso a la hora que elijas con lo que toca hoy en cada pestaña. No avisa de las cuentas que ya has hecho, saltado o enviado.</p>
+      <div class="remrow"><input type="time" id="remT" value="${t || '10:00'}" aria-label="Hora del aviso"><button class="btn" id="remOn">${t ? 'Cambiar hora' : 'Activar'}</button>${t ? '<button class="btn ghost" id="remOff">Desactivar</button>' : ''}</div>
+      <p class="hint" style="margin-bottom:0">${!sup ? 'Este navegador no permite avisos.' : perm === 'denied' ? 'Los avisos están bloqueados para esta web en el navegador: actívalos en sus ajustes.' : t ? '<b style="color:var(--ink)">Activado a las ' + t + '</b> en este dispositivo.' : 'Se activa solo en este dispositivo.'}
+      Llega con la app o este panel abiertos o en segundo plano. Con todo cerrado haría falta un servidor de avisos, que no está montado.</p>`;
+    el.querySelector('#remOn').onclick = async () => {
+      const v = el.querySelector('#remT').value; if (!/^\d{2}:\d{2}$/.test(v)) { toast('Elige una hora'); return; }
+      if (!sup) { toast('Este navegador no permite avisos'); return; }
+      if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') { toast('Sin permiso para avisos'); renderRem(); return; }
+      const first = !R.time(); R.set(v); renderRem(); window.render();
+      toast('Te aviso cada día a las ' + v);
+      if (first) R.show('Recordatorio activado', 'Cada día a las ' + v + ' te aviso de lo que toca en cada cuenta.');
+    };
+    const off = el.querySelector('#remOff'); if (off) off.onclick = () => { R.set(null); renderRem(); window.render(); toast('Recordatorio desactivado'); };
   }
 
   /* ---------- Enviar el móvil a la app ---------- */
@@ -128,7 +243,7 @@
 
   function hookSend() {
     const base = window.render;
-    window.render = function () { D.account.alias = slotName(ACTIVE); document.title = slotName(ACTIVE) + ' · Calentar cuenta'; base(); renderSend(); slotBar(); };
+    window.render = function () { D.account.alias = slotName(ACTIVE); document.title = slotName(ACTIVE) + ' · Calentar cuenta'; base(); renderSend(); slotBar(); syncApp(); };
     window.render();
     const ti = document.getElementById('title'); if (ti) { ti.style.cursor = 'pointer'; ti.title = 'Cambiar el nombre de la cuenta'; ti.addEventListener('click', () => renameSlot(ACTIVE)); }
   }
@@ -175,11 +290,12 @@
       if (ib && !IBAN_RE.test(ib)) { err.textContent = 'Ese IBAN no parece correcto. Revisa que empiece por ES y los números.'; return; }
       ok.disabled = true; err.textContent = '';
       const T2 = trust(), id = uuid();
-      const warmup = { inicio: startDate(), diasHechos: Object.values(dayDone).filter(Boolean).length, valoraciones: D.ratings.length, media: r1(T2.avg), indice: r1(T2.score / 20), articulos: D.listings.length, enviado: todayIso() };
+      const warmup = { inicio: startDate(), diasHechos: Object.values(dayDone).filter(Boolean).length, valoraciones: D.ratings.length, media: r1(T2.avg), indice: r1(T2.score / 20), articulos: D.listings.length, enviado: todayIso(), ...hist() };
       const { error } = await sb.from('docs').upsert({ coll: 'accounts', id, data: { name, iban: ib, phone: '', warm: true, order: Math.max(0, ...list.map(a => a.order || 0)) + 1, createdAt: Date.now(), warmup } });
       if (error) { ok.disabled = false; err.textContent = 'No se pudo enviar: ' + error.message; return; }
       W.data.vp_sent = { at: todayIso(), accountId: id, name };
-      W.save(); await flush(); o.remove(); renderSend(); toast('«' + name + '» enviado a la app');
+      W.save(); await flushAll(); o.remove(); renderSend(); toast('«' + name + '» enviado a la app');
+      await pushBuys(id, name); renderBuyForm();
     };
     setTimeout(() => o.querySelector('#wsName').select(), 50);
   }
@@ -187,8 +303,8 @@
   async function startAnother() {
     if (!confirm('Se guarda esta cuenta en el historial y esta pestaña empieza de cero para otra. ¿Seguir?')) return;
     const d = W.data, T = trust();
-    W.root.history.push({ pestaña: slotName(ACTIVE), name: d.vp_sent && d.vp_sent.name, inicio: d.vp_start, enviado: d.vp_sent && d.vp_sent.at, indice: r1(T.score / 20), valoraciones: D.ratings.length });
-    W.data = {}; W.save(); await flush(); location.reload();
+    W.root.history.push({ pestaña: slotName(ACTIVE), name: d.vp_sent && d.vp_sent.name, inicio: d.vp_start, enviado: d.vp_sent && d.vp_sent.at, indice: r1(T.score / 20), valoraciones: D.ratings.length, compras: (d.vp_buys || []).length, ventas: D.listings.filter(x => x.estado === 'vendido').length });
+    W.data = {}; W.save(); await flushAll(); location.reload();
   }
 
   boot();

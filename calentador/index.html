@@ -382,13 +382,37 @@
   html body .rd.cur .rdn { background:var(--acc); color:var(--on-acc); }
   html body .rd.cur .rdd, html body .rd.cur .rdm { color:rgba(255,255,255,.7); }
   html body .rd.cur .bar { background:rgba(255,255,255,.2); }
+
+  /* historial, comparativa, recordatorio y copias */
+  html body .hseg { display:flex; gap:6px; flex-wrap:wrap; }
+  html body .hseg .tchip { background:var(--card2); border-color:transparent; color:var(--mut); }
+  html body .hseg .tchip.on { background:var(--acc); color:var(--on-acc); }
+  html body .hrow { display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line); }
+  html body .hrow:last-child { border-bottom:0; }
+  html body .hic { width:34px; height:34px; border-radius:12px; display:grid; place-items:center; font-weight:800; font-size:17px; flex:none; background:var(--card2); color:var(--mut); }
+  html body .hrow.venta .hic { background:var(--accbg); color:var(--acc); }
+  html body .hm { flex:1; min-width:0; }
+  html body .hm b { display:block; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  html body .hm .tag { padding:1px 8px; font-size:11px; }
+  html body .hv { font-weight:700; white-space:nowrap; }
+  html body .hrow.venta .hv { color:var(--ok); }
+  html body .hx { color:var(--mut); text-decoration:none; padding:4px 7px; border-radius:8px; }
+  html body .hx:hover { color:var(--bad); background:var(--card2); }
+  html body table.cmp th, html body table.cmp td { text-align:left; white-space:nowrap; }
+  html body table.cmp .me { background:var(--card2); }
+  html body table.cmp td.top { color:var(--acc); font-weight:700; }
+  html body .remrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  html body .remrow input[type=time] { padding:10px 12px; border-radius:14px; border:1px solid var(--line); background:var(--card2); color:var(--ink); font:inherit; }
+  html body .bkh { margin:18px 0 4px; font-weight:650; font-size:13.5px; }
+  html body .bkrow { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  html body .bkrow:last-child { border-bottom:0; }
 </style>
 </head>
 <body>
 <header><div class="wrap">
   <div class="top">
     <h1 id="title">Panel Vinted</h1>
-    <nav id="nav"><button data-t="v-panel" class="on">Panel</button><button data-t="v-arts">Artículos</button><button data-t="v-inc">Incidencias<span id="nbadge"></span></button><button data-t="v-reg">Registro</button></nav>
+    <nav id="nav"><button data-t="v-panel" class="on">Panel</button><button data-t="v-arts">Artículos</button><button data-t="v-inc">Incidencias<span id="nbadge"></span></button><button data-t="v-his">Historial</button><button data-t="v-cmp">Comparar</button><button data-t="v-reg">Registro</button></nav>
     <span class="pill" id="pill"></span><a class="pill" href="../" id="backApp" style="text-decoration:none">← App</a>
   </div>
 </div></header>
@@ -435,12 +459,29 @@
     </div>
   </section>
 
+  <section id="v-his" class="view">
+    <div class="kpis" id="hisKpis"></div>
+    <div class="main2">
+      <div class="card"><div class="rmh"><b>Historial de la cuenta</b><span class="hseg" id="hisSeg"></span></div><div id="hisList"></div></div>
+      <div><div class="card"><h2>Apuntar compra</h2><div id="fBuy"></div></div></div>
+    </div>
+  </section>
+
+  <section id="v-cmp" class="view">
+    <div class="card"><h2>Comparativa entre cuentas</h2><p class="hint" style="margin-top:0">Las tres pestañas, una al lado de la otra. El índice es una estimación nuestra, no una puntuación de Vinted.</p><div class="scroll" id="cmpTable"></div></div>
+    <div class="card"><h2>Cuentas anteriores</h2><div class="scroll" id="cmpHist"></div></div>
+  </section>
+
   <section id="v-reg" class="view">
     <div class="main2">
       <div class="card"><h2>Actividad diaria</h2><div class="scroll" id="activity"></div></div>
-      <div class="card"><h2>Copia de seguridad</h2><p class="hint" style="margin-top:0">Tus datos se guardan en este navegador. Descarga una copia de vez en cuando.</p>
-        <div class="row"><button class="btn ghost" id="exp">Descargar copia</button>
-        <button class="btn ghost" id="imp">Restaurar copia</button><input type="file" id="impf" accept=".json" hidden></div></div>
+      <div>
+        <div class="card"><h2>Recordatorio del día</h2><div id="remBox"></div></div>
+        <div class="card"><h2>Copia de seguridad</h2><p class="hint" style="margin-top:0">Todo se guarda en tu cuenta y se sincroniza entre el móvil y el ordenador. Además, cada día se guarda sola una copia de las tres pestañas (se conservan las últimas 14).</p>
+          <div class="row"><button class="btn ghost" id="exp">Descargar copia completa</button>
+          <button class="btn ghost" id="imp">Restaurar desde archivo</button><input type="file" id="impf" accept=".json" hidden></div>
+          <div class="bkh">Copias automáticas</div><div id="bkList"><div class="empty">Cargando…</div></div></div>
+      </div>
     </div>
   </section>
 </main>
@@ -448,6 +489,7 @@
 <script src="data.js"></script>
 <script src="../config.js"></script>
 <script src="../vendor/supabase.js"></script>
+<script src="../remind.js"></script>
 <script src="warm-sync.js"></script>
 <script type="text/plain" id="main-app">
 const D = window.DATA;
@@ -480,16 +522,27 @@ function daysSince(d) {
   return Math.max(0, Math.round((n - a) / 86400000));
 }
 const todayIso = () => { const d = new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const fmtD = s => { if (!s) return ""; const d = new Date(s + "T00:00:00"); return isNaN(d) ? String(s) : d.toLocaleDateString("es-ES", { day:"numeric", month:"short", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }); };
+
+// ---- saltar un día: el plan se mueve un día y no cuenta como fallado (la antigüedad de la cuenta sigue sumando) ----
+const skips = () => store.get("vp_skip", []);
+const skippedToday = () => skips().includes(todayIso());
+function planDayOf(start, sk) { const age = daysSince(start); if (age == null) return null; const t = todayIso(); return age + 1 - (sk || []).filter(d => d >= start && d < t).length; }
+const planDay = () => planDayOf(startDate(), skips());
+// datos de cualquier pestaña con la forma que usa el índice (para comparar cuentas)
+const slotView = d => ({ start: d.vp_start || null, days: d.vp_days || {}, L: d.vp_listings || [], A: d.vp_activity || [], R: d.vp_ratings || [], inc: d.vp_inc || [], proof: !!d.vp_proof, buys: d.vp_buys || [], skip: d.vp_skip || [] });
 
 // ---- índice de confianza ----
-function trust() {
-  const L = D.listings, A = D.activity, R = D.ratings;
-  const age = daysSince(startDate()) || 0;
+function trust(V) {
+  V = V || { start: startDate(), days: dayDone, L: D.listings, A: D.activity, R: D.ratings, inc: D.incidents || [], proof: store.get("vp_proof", false), buys: store.get("vp_buys", []) };
+  const L = V.L, A = V.A, R = V.R;
+  const age = daysSince(V.start) || 0;
   const sum = k => A.reduce((a,x)=>a+(+x[k]||0),0);
-  const ops = sum("ventas") + sum("compras") + L.filter(x => x.estado === "vendido").length;
+  // cuentan las compras apuntadas en Historial; si además se marcó el día de compra, no se cuenta dos veces
+  const ops = sum("ventas") + Math.max(sum("compras"), V.buys.length) + L.filter(x => x.estado === "vendido").length;
   const avg = R.length ? R.reduce((a,r)=>a+r.estrellas,0)/R.length : 0;
-  const prof = D.plan.slice(0,4).filter(p=>dayDone[p.d]).length / 4;
-  const proof = store.get("vp_proof", false);
+  const prof = D.plan.slice(0,4).filter(p=>V.days[p.d]).length / 4;
+  const proof = !!V.proof;
   const parts = [
     ["Perfil completo y verificado (días 1-4)", 15, prof, "Completa los días 1 a 4 del plan."],
     ["Antigüedad (mín. 21 días, ideal 30)", 25, Math.min(age/30,1), "Solo el tiempo: el factor que más pesa y no se acelera."],
@@ -499,7 +552,7 @@ function trust() {
     ["Uso regular (12 días completados)", 15, Math.min(A.length/12,1), "Marca cada día como completado: se registra solo."]
   ];
   const pts = parts.reduce((a,p)=>a+p[1]*p[2],0);
-  const INCS = D.incidents || [], hayRev = L.some(x => x.estado === "revision");
+  const INCS = V.inc || [], hayRev = L.some(x => x.estado === "revision");
   const incOpen = INCS.filter(i => i.estado === "abierta");
   // el aviso de "anuncio en revision" ya penaliza si el articulo esta marcado en revision: no se cuenta dos veces
   const incBase = incOpen.reduce((a, i) => a + ((i.tipo === "revision" && hayRev) ? 0 : (i.penal || 0)), 0);
@@ -529,7 +582,7 @@ function ring(score) {
 
 // ---- Banner ----
 function renderHero() {
-  const T = trust(), age = daysSince(startDate()), cur = age == null ? null : age + 1, plan = D.plan;
+  const T = trust(), cur = planDay(), plan = D.plan, nsk = skips().length;
   const done = Object.values(dayDone).filter(Boolean).length;
   const day = cur == null ? null : Math.min(cur, plan.length), p = day ? plan[day-1] : null;
   const ph = day ? PHASES.find(x => day >= x.from && day <= x.to) : null;
@@ -537,8 +590,8 @@ function renderHero() {
   $("hero").innerHTML = `<div class="banner"><div>
       <div class="eyebrow">${day ? esc(ph ? ph.name : "Plan completado") : "Calentamiento de cuenta"}</div>
       <div class="big">${day ?? "–"}<small>/${plan.length}</small></div>
-      <div class="bt">${p ? esc(p.title) : "Pulsa «He creado la cuenta» para empezar"}</div>
-      <div class="chips2"><span class="chip2">${done} días hechos</span>${week ? `<span class="chip2">Semana ${week}</span>` : ""}</div>
+      <div class="bt">${p ? (skippedToday() ? "Hoy descansas · mañana: " : "") + esc(p.title) : "Pulsa «He creado la cuenta» para empezar"}</div>
+      <div class="chips2"><span class="chip2">${done} días hechos</span>${nsk ? `<span class="chip2">${nsk} saltado${nsk > 1 ? "s" : ""}</span>` : ""}${week ? `<span class="chip2">Semana ${week}</span>` : ""}</div>
       <div class="bar"><i style="width:${done/plan.length*100}%"></i></div></div>
     <div class="br">${ring(T.score)}<div class="st"><b>Índice de confianza</b><span class="badge ${T.ready ? "ok" : ""}">${T.ready ? "Listo para 1 par de Samba" : "Aún no subas las Samba"}</span></div></div></div>`;
 }
@@ -566,7 +619,7 @@ function todayText(cur) {
     p.steps.map((s,i) => `${sd[i] ? "[x]" : "[ ]"} ${s}`).join("\n") + `\n\nNo hagas: ${p.dont}`;
 }
 function renderToday() {
-  const s = startDate(), age = daysSince(s), cur = age == null ? null : age + 1, plan = D.plan;
+  const s = startDate(), cur = planDay(), plan = D.plan, rest = skippedToday();
   const T = trust();
   let html = "";
 
@@ -574,6 +627,11 @@ function renderToday() {
     html += `<div class="card hero"><h2>Aún no has empezado</h2><p class="hint">Cuando hayas creado la cuenta de Vinted, pulsa el botón. Hoy será tu día 1 y el panel contará los días solo.</p><button class="btn" id="start"> He creado la cuenta</button></div>`;
   } else if (cur > plan.length) {
     html += `<div class="card"><h2>Plan completado</h2><p class="hint">Llevas ${cur-1} días. Mira el índice de confianza para ver si ya estás listo para las Samba.</p></div>`;
+  } else if (rest) {
+    const p = plan[cur-1];
+    html += `<div class="card hero today"><div class="hint">HOY DESCANSAS</div><h2 style="font-size:19px;margin:2px 0 8px">Día saltado, el plan sigue igual</h2>
+      <p class="hint" style="margin:0">Mañana toca el <b>día ${cur}</b>: ${esc(p.title)}. Los días siguientes se mueven uno y hoy no cuenta como fallado. La antigüedad de la cuenta sigue sumando.</p>
+      <div class="row" style="margin-top:12px"><button class="btn ghost" id="unskip">Deshacer, hoy sí lo hago</button></div></div>`;
   } else {
     const p = plan[cur-1], sd = stepDone[cur] || [];
     const missed = plan.filter(x => x.d < cur && !dayDone[x.d]).map(x => x.d);
@@ -593,7 +651,8 @@ function renderToday() {
       </div>
       <div class="row" style="margin-top:12px;gap:8px">
         <button class="btn" id="fin">${dayDone[cur]?"✔ Día completado":" Marcar día completado"}</button>
-        <button class="btn ghost" id="cpy"> Copiar en texto</button></div></div>`;
+        <button class="btn ghost" id="cpy"> Copiar en texto</button>${dayDone[cur] ? "" : `<button class="btn ghost" id="skip">Saltar hoy</button>`}</div>
+      ${window.WarmRemind && !WarmRemind.time() ? `<p class="hint" style="margin:12px 0 0"><a href="#" id="remLink" style="color:var(--mut)">Avísame cada día a una hora</a></p>` : ""}</div>`;
   }
   if (cur != null) html += `<p class="hint" style="text-align:center">Alta: ${esc(s)} · <a href="#" id="rst" style="color:var(--mut)">cambiar fecha de alta</a></p>`;
   $("today").innerHTML = html;
@@ -601,9 +660,14 @@ function renderToday() {
     const v = prompt("Fecha de alta (AAAA-MM-DD). Déjalo vacío para empezar de cero:", s);
     if (v === null) return;
     if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { alert("Formato no válido"); return; }
-    if (!v) { store.set("vp_start", null); } else { store.set("vp_start", v); }
+    if (!v) { store.set("vp_start", null); store.set("vp_skip", []); } else { store.set("vp_start", v); }
     render(); };
   const st = $("start"); if (st) st.onclick = () => { store.set("vp_start", todayIso()); render(); };
+  const sk = $("skip"); if (sk) sk.onclick = () => {
+    if (!confirm(`¿Saltar hoy? El día ${cur} pasa a mañana y el resto del plan se mueve un día. No cuenta como fallado.`)) return;
+    store.set("vp_skip", skips().concat(todayIso())); render(); };
+  const us = $("unskip"); if (us) us.onclick = () => { store.set("vp_skip", skips().filter(d => d !== todayIso())); render(); };
+  const rl = $("remLink"); if (rl) rl.onclick = e => { e.preventDefault(); showTab("v-reg"); };
   document.querySelectorAll(".steps li").forEach(li => li.onclick = () => {
     const a = stepDone[cur] || []; a[li.dataset.s] = !a[li.dataset.s]; stepDone[cur] = a; store.set("vp_steps", stepDone); render();
   });
@@ -625,7 +689,7 @@ function renderToday() {
 
 // ---- Plan ----
 function renderPlan() {
-  const age = daysSince(startDate()), cur = age == null ? null : age + 1;
+  const cur = planDay();
   $("cal").innerHTML = D.plan.map(p => {
     let c = "tile";
     if (dayDone[p.d]) c += " done"; else if (cur && p.d < cur) c += " miss";
@@ -670,7 +734,7 @@ const RICON = [
 ];
 
 function renderRoad() {
-  const age = daysSince(startDate()), cur = age == null ? null : age + 1;
+  const cur = planDay();
   const total = D.plan.length, done = Object.values(dayDone).filter(Boolean).length;
   const day = cur ? Math.min(cur, total) : null;
   $("roadtxt").textContent = `${done} de ${total} días hechos` + (cur ? ` · hoy es el día ${day}` : " · aún sin empezar");
@@ -742,7 +806,7 @@ function renderSale() {
     <button class="btn" id="s_ok">Registrar venta</button>`;
   $("s_ok").onclick = () => {
     const x = D.listings[+$("s_art").value]; if (!x) return;
-    x.estado = "vendido"; x.precioVenta = num($("s_pre").value) || x.precio || 0; x.comisionEnvio = num($("s_com").value);
+    x.estado = "vendido"; x.fechaVenta = todayIso(); x.precioVenta = num($("s_pre").value) || x.precio || 0; x.comisionEnvio = num($("s_com").value);
     saveLoc("listings");
     if ($("s_est").value) addItem("ratings", { fecha: todayIso(), estrellas: +$("s_est").value, comentario: $("s_cm").value || ("Venta: " + x.articulo) });
     render(); };
@@ -750,31 +814,115 @@ function renderSale() {
 function setEstado(i, v) {
   const x = D.listings[i]; if (!x || !x._loc) return;
   x.estado = v;
-  if (v === "vendido") { x.precioVenta = num(prompt("Precio de venta €", x.precio ?? "")); x.comisionEnvio = num(prompt("Comisión y envío €", "0")); }
+  if (v === "vendido") { x.fechaVenta = todayIso(); x.precioVenta = num(prompt("Precio de venta €", x.precio ?? "")); x.comisionEnvio = num(prompt("Comisión y envío €", "0")); }
   if (v === "revision" || v === "rechazado") { x.motivo = prompt("Motivo (opcional)", x.motivo || "") || ""; }
   saveLoc("listings"); render();
 }
 function delItem(k, i) { const x = D[k][i]; if (!x || !x._loc || !confirm("¿Borrar?")) return; D[k].splice(i, 1); saveLoc(k); render(); }
 
-$("exp").onclick = () => {
-  const data = { start: store.get("vp_start", null), days: dayDone, steps: stepDone,
-    listings: store.get("vp_listings", []), activity: store.get("vp_activity", []), ratings: store.get("vp_ratings", []), inc: store.get("vp_inc", []) };
+function saveJson(name, data) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type:"application/json" }));
-  a.download = "copia-panel-vinted-" + todayIso() + ".json"; a.click();
-};
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+$("exp").onclick = () => saveJson("copia-calentador-" + todayIso() + ".json", { tipo: "calentador", version: 2, fecha: todayIso(), root: W.root });
 $("imp").onclick = () => $("impf").click();
 $("impf").onchange = e => {
   const f = e.target.files[0]; if (!f) return;
   const rd = new FileReader();
-  rd.onload = () => { try {
-    const d = JSON.parse(rd.result);
-    store.set("vp_start", d.start ?? null); store.set("vp_days", d.days || {}); store.set("vp_steps", d.steps || {});
-    ["listings","activity","ratings"].forEach(k => store.set("vp_"+k, d[k] || []));
-    store.set("vp_inc", d.inc || []);
-    location.reload();
-  } catch(err) { alert("Archivo no válido"); } };
+  rd.onload = async () => { let d; try { d = JSON.parse(rd.result); } catch(err) { alert("Archivo no válido"); return; }
+    if (d.root && d.root.slots) {
+      if (!confirm("Esta copia trae las tres pestañas. Se sustituye todo el calentador por lo que hay en la copia. ¿Seguir?")) return;
+      W.root = { slots: d.root.slots, names: d.root.names || {}, history: d.root.history || [] };
+    } else if (d.start !== undefined || d.days) {
+      // copia de una sola cuenta (formato del panel antiguo)
+      if (!confirm("Esta copia es de una sola cuenta. Se carga en la pestaña abierta y sustituye lo que tiene. ¿Seguir?")) return;
+      store.set("vp_start", d.start ?? null); store.set("vp_days", d.days || {}); store.set("vp_steps", d.steps || {});
+      ["listings","activity","ratings"].forEach(k => store.set("vp_"+k, d[k] || []));
+      store.set("vp_inc", d.inc || []);
+    } else { alert("Ese archivo no es una copia del calentador"); return; }
+    W.save(); await W.flush(); location.reload(); };
+  e.target.value = "";
   rd.readAsText(f);
 };
+
+// ---- Historial de compras y ventas de esta cuenta ----
+let hisF = "all";
+const buys = () => store.get("vp_buys", []);
+function hisEvents() {
+  const ev = buys().map(b => ({ t: "compra", fecha: b.fecha, art: b.articulo, sub: [b.envio ? "incluye " + eur(b.envio) + " de envío" : "", b.notas].filter(Boolean).join(" · "), imp: -((b.precio || 0) + (b.envio || 0)), id: b.id, app: !!b.appId }));
+  D.listings.forEach(x => { if (x.estado === "vendido") ev.push({ t: "venta", fecha: x.fechaVenta || x.fecha, art: x.articulo + (x.modelo ? " · " + x.modelo : ""),
+    sub: x.comisionEnvio ? "vendido por " + eur(x.precioVenta) + ", menos " + eur(x.comisionEnvio) + " de comisión y envío" : "", imp: (x.precioVenta || 0) - (x.comisionEnvio || 0) }); });
+  return ev.sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+}
+function renderHis() {
+  const el = $("hisList"); if (!el) return;
+  const all = hisEvents(), C = all.filter(e => e.t === "compra"), V = all.filter(e => e.t === "venta");
+  const gast = -C.reduce((a, e) => a + e.imp, 0), ingr = V.reduce((a, e) => a + e.imp, 0), bal = ingr - gast;
+  $("hisKpis").innerHTML = [["Compras", C.length], ["Gastado", eur(gast)], ["Ventas", V.length], ["Balance", (bal > 0 ? "+" : "") + eur(bal)]]
+    .map(([k, v]) => `<div class="kpi"><div><div class="k">${k}</div><div class="v">${v}</div></div></div>`).join("");
+  $("hisSeg").innerHTML = [["all", "Todo"], ["compra", "Compras"], ["venta", "Ventas"]].map(([k, l]) => `<button class="tchip ${hisF === k ? "on" : ""}" data-h="${k}">${l}</button>`).join("");
+  $("hisSeg").querySelectorAll("[data-h]").forEach(b => b.onclick = () => { hisF = b.dataset.h; renderHis(); });
+  const list = all.filter(e => hisF === "all" || e.t === hisF);
+  el.innerHTML = list.length ? list.map(e => `<div class="hrow ${e.t}"><span class="hic">${e.t === "compra" ? "−" : "+"}</span>
+      <div class="hm"><b>${esc(e.art || (e.t === "compra" ? "Compra" : "Venta"))}</b><div class="hint">${e.t === "compra" ? "Compra" : "Venta"} · ${esc(fmtD(e.fecha))}${e.sub ? " · " + esc(e.sub) : ""}${e.app ? ' · <span class="tag">en la app</span>' : ""}</div></div>
+      <b class="hv">${e.imp > 0 ? "+" : ""}${eur(e.imp)}</b>${e.id ? `<a href="#" class="hx" onclick="delBuy('${esc(e.id)}');return false" title="Borrar compra" aria-label="Borrar compra">✕</a>` : ""}</div>`).join("")
+    : `<div class="empty">${hisF === "venta" ? "Aún no hay ventas. Se registran en Artículos." : hisF === "compra" ? "Aún no hay compras. Apunta la primera en el formulario." : "Aún no hay compras ni ventas en esta cuenta. Las compras se apuntan aquí y las ventas en Artículos."}</div>`;
+}
+function renderBuyForm() {
+  const sent = store.get("vp_sent", null);
+  $("fBuy").innerHTML = `<div style="${gridF}">${fld("b_art","Qué has comprado")}${fld("b_pre","Precio €","number","step=0.01 min=0 inputmode=decimal")}${fld("b_env","Envío y protección €","number","step=0.01 min=0 inputmode=decimal")}${fld("b_fec","Fecha","date")}</div>${fld("b_not","Notas (opcional)")}
+    <p class="hint" style="margin:10px 0 12px">${sent ? `También se apunta como gasto de «${esc(sent.name)}» en la app.` : "Cuando envíes la cuenta a la app, cada compra se apunta como gasto de ese móvil."}</p>
+    <button class="btn" id="b_ok">Apuntar compra</button>`;
+  $("b_fec").value = todayIso();
+  $("b_ok").onclick = () => {
+    const art = $("b_art").value.trim(), pre = num($("b_pre").value);
+    if (!art) { alert("Pon qué has comprado"); return; }
+    if (!(pre > 0)) { alert("Pon el precio"); return; }
+    store.set("vp_buys", buys().concat({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), fecha: $("b_fec").value || todayIso(), articulo: art, precio: pre, envio: num($("b_env").value), notas: $("b_not").value.trim() }));
+    renderBuyForm(); render(); if (W.pushBuys) W.pushBuys();
+  };
+}
+function delBuy(id) {
+  const b = buys().find(x => x.id === id); if (!b) return;
+  if (!confirm(b.appId ? "¿Borrar esta compra? También se quita el gasto de la app." : "¿Borrar esta compra?")) return;
+  store.set("vp_buys", buys().filter(x => x.id !== id));
+  if (b.appId && W.delExpense) W.delExpense(b.appId);
+  render();
+}
+
+// ---- Comparativa entre las tres pestañas ----
+function renderCmp() {
+  const el = $("cmpTable"); if (!el || !W.root) return;
+  const act = W.active, N = D.plan.length;
+  const cols = ["1", "2", "3"].map(n => {
+    const d = W.root.slots[n] || {}, V = slotView(d), T = trust(V), cur = planDayOf(V.start, V.skip);
+    const sold = V.L.filter(x => x.estado === "vendido").length, gast = V.buys.reduce((a, b) => a + (b.precio || 0) + (b.envio || 0), 0);
+    const done = Object.values(V.days).filter(Boolean).length, miss = cur ? D.plan.filter(p => p.d < cur && !V.days[p.d]).length : 0;
+    return { n, name: W.root.names[n] || "Cuenta " + n, sent: d.vp_sent, V, T, cur, sold, gast, done, miss };
+  });
+  const started = cols.filter(c => c.V.start), best = started.length > 1 ? Math.max(...started.map(c => c.T.score)) : null;
+  const dash = (c, v) => c.V.start ? v : "–";
+  const rows = [
+    ["Estado", c => c.sent ? "Enviada a la app" : !c.V.start ? "Sin empezar" : c.cur > N ? "Plan terminado" : "Día " + c.cur + " de " + N],
+    ["Alta", c => dash(c, fmtD(c.V.start))],
+    ["Días hechos", c => dash(c, c.done + " de " + N)],
+    ["Días pendientes", c => dash(c, c.miss)],
+    ["Días saltados", c => dash(c, c.V.skip.length)],
+    ["Artículos", c => c.V.L.length],
+    ["Ventas", c => c.sold],
+    ["Compras", c => c.V.buys.length + (c.gast ? " · " + eur(c.gast) : "")],
+    ["Valoraciones", c => c.V.R.length + (c.V.R.length ? " · media " + c.T.avg.toFixed(1).replace(".", ",") : "")],
+    ["Incidencias abiertas", c => c.T.incOpen.length],
+    ["Comprobaciones", c => dash(c, c.T.checks.filter(x => x[1]).length + " de " + c.T.checks.length)],
+    ["Índice", c => dash(c, (c.T.score / 20).toFixed(1).replace(".", ",") + " / 5")]
+  ];
+  el.innerHTML = `<table class="cmp"><tr><th></th>${cols.map(c => `<th class="${c.n === act ? "me" : ""}">${esc(c.name)}${c.n === act ? '<span class="hint"> · abierta</span>' : ""}</th>`).join("")}</tr>` +
+    rows.map(([k, f]) => `<tr><td class="hint">${k}</td>${cols.map(c => `<td class="${c.n === act ? "me" : ""}${k === "Índice" && best != null && c.V.start && c.T.score === best ? " top" : ""}">${esc(f(c))}</td>`).join("")}</tr>`).join("") + "</table>";
+  const H = W.root.history || [];
+  $("cmpHist").innerHTML = H.length ? `<table class="cmp"><tr><th>Pestaña</th><th>Móvil</th><th>Alta</th><th>Enviada</th><th>Compras</th><th>Ventas</th><th>Valoraciones</th><th>Índice</th></tr>` +
+    H.slice().reverse().map(h => `<tr><td>${esc(h.pestaña)}</td><td>${esc(h.name || "–")}</td><td>${esc(h.inicio ? fmtD(h.inicio) : "–")}</td><td>${esc(h.enviado ? fmtD(h.enviado) : "–")}</td><td>${esc(h.compras ?? "–")}</td><td>${esc(h.ventas ?? "–")}</td><td>${esc(h.valoraciones ?? "–")}</td><td>${h.indice != null ? esc(String(h.indice).replace(".", ",")) + " / 5" : "–"}</td></tr>`).join("") + "</table>"
+    : `<div class="empty">Cuando pulses «Calentar otra cuenta» en una pestaña, la cuenta anterior queda guardada aquí.</div>`;
+}
 
 // ---- Incidencias: asistente con reglas ----
 const INC = {
@@ -925,12 +1073,15 @@ function renderBadge() {
 }
 function render() {
   $("title").textContent = D.account.alias;
-  const age = daysSince(startDate());
-  $("pill").textContent = age == null ? "Sin fecha de alta" : `Día ${age+1} · semana ${Math.min(Math.floor(age/7)+1,5)}`;
-  renderHero(); renderSale(); renderKpis(); renderToday(); renderRoad(); renderPlan(); renderTrust(); renderTables(); renderInc(); renderBadge();
+  const age = daysSince(startDate()), cur = planDay();
+  $("pill").textContent = age == null ? "Sin fecha de alta" : skippedToday() ? `Descanso · mañana día ${cur}` : `Día ${cur} · semana ${Math.min(Math.floor((cur-1)/7)+1,5)}`;
+  renderHero(); renderSale(); renderKpis(); renderToday(); renderRoad(); renderPlan(); renderTrust(); renderTables(); renderInc(); renderBadge(); renderHis(); renderCmp();
 }
 function showTab(id) {
   document.querySelectorAll("#nav button").forEach(x => x.classList.toggle("on", x.dataset.t === id));
+  // en el móvil la barra se desliza: deja a la vista la pestaña abierta
+  const nb = document.querySelector("#nav button.on"), nv = $("nav");
+  if (nb && nv.scrollWidth > nv.clientWidth) nv.scrollTo({ left: nv.scrollLeft + nb.getBoundingClientRect().left - nv.getBoundingClientRect().left - (nv.clientWidth - nb.offsetWidth) / 2, behavior: "smooth" });
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("on", s.id === id));
   window.scrollTo(0, 0);
 }
@@ -941,6 +1092,7 @@ const checkDay = () => { if (todayIso() !== lastDay) { lastDay = todayIso(); sel
 setInterval(checkDay, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkDay(); });
 renderForms();
+renderBuyForm();
 render();
 $("incSend").onclick = sendInc;
 $("incText").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendInc(); });

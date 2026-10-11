@@ -790,6 +790,7 @@ html body .dk .day { padding: 12px 0 2px; }
 
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
+<script src="remind.js"></script>
 <script src="sync.js"></script>
 <script>
 const ICONS = {
@@ -1226,7 +1227,11 @@ function ibanAt(a, date) {
 function warmupCard(a) {
   const w = a.warmup; if (!w) return "";
   const rows = [["Alta", w.inicio ? fmtDate(w.inicio) : "—"], ["Días completados", w.diasHechos ?? "—"], ["Valoraciones", w.valoraciones != null ? w.valoraciones + (w.media ? " · media " + String(w.media).replace(".", ",") : "") : "—"], ["Índice de confianza", w.indice != null ? String(w.indice).replace(".", ",") + " / 5" : "—"], ["Artículos de calentamiento", w.articulos ?? "—"]];
-  return `<div class="sec-h"><h2>Calentamiento</h2><span>${w.enviado ? "Enviado " + fmtDate(w.enviado) : ""}</span></div><div class="facts">${rows.map(([k, v]) => `<div class="fact"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>`;
+  if (w.compras != null) rows.push(["Compras del calentamiento", w.compras + (w.gastado ? " · " + money(w.gastado) : "")]);
+  if (w.ventas != null) rows.push(["Ventas del calentamiento", w.ventas + (w.ingresos ? " · " + money(w.ingresos) : "")]);
+  const H = w.historial || [];
+  const hist = H.length ? `<div class="sec-h"><h2>Historial del calentamiento</h2><span>${H.length}</span></div><div class="list">${H.map(x => `<div class="row"><span class="th" style="${tint(x.t === "venta" ? "var(--accent)" : "var(--ink3)")}">${x.t === "venta" ? G.sell : G.cart}</span><span class="rm"><span class="rt">${esc(x.articulo || (x.t === "venta" ? "Venta" : "Compra"))}</span><span class="rs">${x.t === "venta" ? "Venta" : "Compra"} · ${fmtDate(x.fecha)}</span></span><span class="rv"><b>${x.t === "venta" ? "+" : "−"}${money(Math.abs(x.importe || 0))}</b></span></div>`).join("")}</div>` : "";
+  return `<div class="sec-h"><h2>Calentamiento</h2><span>${w.enviado ? "Enviado " + fmtDate(w.enviado) : ""}</span></div><div class="facts">${rows.map(([k, v]) => `<div class="fact"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>` + hist;
 }
 const diasTxt = n => n === null ? '' : n === 0 ? 'Menos de un día' : n + (n === 1 ? ' día' : ' días');
 function gensCard(a) {

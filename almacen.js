@@ -319,7 +319,7 @@
   const readyCount = () => { let s; try { s = new Set(JSON.parse(localStorage.getItem('almPacked') || '[]')); } catch (e) { s = new Set(); } return pend().filter(x => s.has(x.id)).length; };
   function data3d() {
     return {
-      products: stockList().map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', tip: p.name + ' · ' + units(p) + (units(p) === 1 ? ' ud' : ' uds') })),
+      products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
       accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) })),
       pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
       incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()

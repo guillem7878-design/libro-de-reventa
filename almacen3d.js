@@ -57,7 +57,7 @@ function shoeboxMats(brand, size) {
   const key = brand + '|' + size; if (shoeMats[key]) return shoeMats[key]; const B = BRANDS[brand];
   const end = tex(256, 128, (g) => { const w = 128, h = 64; g.scale(2, 2); g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
     if (B.stripes) { g.fillStyle = B.band; for (let i = 0; i < 3; i++) g.fillRect(14 + i * 9, 22, 5, 36); } else { g.fillStyle = B.band; g.fillRect(0, h - 10, w, 10); }
-    g.fillStyle = '#FFFFFF'; g.fillRect(70, 24, 48, 28); g.fillStyle = '#222'; g.font = '700 15px Inter, system-ui, sans-serif'; g.fillText(size || '42', 76, 43); for (let i = 0; i < 8; i++) g.fillRect(100 + i * 2, 30, 1, 16); noise(g, w, h, 300, .05); });
+    g.fillStyle = '#FFFFFF'; g.fillRect(56, 21, 66, 37); g.fillStyle = '#16171A'; g.font = '800 26px Manrope, Inter, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(size || '—').slice(0, 4), 89, 40.5); noise(g, w, h, 300, .05); });
   const side = tex(256, 64, (g, w, h) => { g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
     if (B.stripes) { g.fillStyle = B.band; for (let i = 0; i < 3; i++) { g.save(); g.translate(150 + i * 22, 64); g.rotate(-.5); g.fillRect(0, -70, 10, 80); g.restore(); } } else { g.fillStyle = B.band; g.fillRect(0, h - 10, w, 10); } noise(g, w, h, 600, .05); });
   const top = tex(128, 128, (g, w, h) => { g.fillStyle = B.lid; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(0,0,0,.15)'; g.lineWidth = 3; g.strokeRect(2, 2, w - 4, h - 4); noise(g, w, h, 500, .05); });
@@ -306,21 +306,22 @@ export function createWorld(opts) {
   function update(d) {
     D = d; slotPos = {}; shelfMesh = {};
     // lo vendido que aún no ha preparado sigue físicamente en su sitio hasta que lo coge de verdad
-    const waiting = {};
-    d.pend.forEach(s => { if (!packed.has(s.id) && !(job && job.kind === 'sale' && job.id === s.id && job.picked)) waiting[s.productId] = (waiting[s.productId] || 0) + 1; });
+    const waiting = {}, waitSz = {};
+    d.pend.forEach(s => { if (!packed.has(s.id) && !(job && job.kind === 'sale' && job.id === s.id && job.picked)) { waiting[s.productId] = (waiting[s.productId] || 0) + 1; (waitSz[s.productId] = waitSz[s.productId] || []).push(String(s.size || '')); } });
+    const sizesOf = p => [...(p.unitSizes || []), ...(waitSz[p.id] || [])];
     const shown = p => p.units + (waiting[p.id] || 0);
     const byCat = k => d.products.filter(p => p.cat === k && shown(p) > 0);
-    const track = (p, m) => { (shelfMesh[p.id] = shelfMesh[p.id] || []).push(m); m.userData.tip = p.tip; };
+    const track = (p, m, sz) => { (shelfMesh[p.id] = shelfMesh[p.id] || []).push(m); m.userData.size = sz || ''; m.userData.tip = p.tip + (sz && sz !== 'Única' ? ' · talla ' + sz : ''); };
     // zapatillas: una caja por par, de 3 en 3 por hueco, cada producto seguido del anterior
     clear(shoeItems);
     const pairs = byCat('zapatillas').reduce((t, p) => t + shown(p), 0), per = Math.min(SW.per, Math.max(1, Math.ceil(pairs / (SW.bays * SW.levels))));
     const LV = [2, 1, 3, 0, 4];   // orden de baldas: primero la del medio
     let slot = 0; const cap = SW.bays * SW.levels * per;
     byCat('zapatillas').forEach(p => { const g = new THREE.Group(); g.userData.tip = p.tip; g.userData.rack = 'zapatillas'; shoeItems.add(g);
-      const mats = shoeboxMats(brandOf(p.name), p.size); let first = null;
+      const szs = sizesOf(p); let first = null;
       for (let k = 0; k < shown(p) && slot < cap; k++, slot++) {
         const cell = Math.floor(slot / per), inCell = slot % per, bay = cell % SW.bays, lvl = LV[Math.floor(cell / SW.bays)];
-        const z = SW.z0 + bay * SW.bay + .04, y = .073 + lvl * SW.lv + inCell * .118; track(p, block(.33, .115, SW.bay - .07, mats, .06, y, z, g));
+        const z = SW.z0 + bay * SW.bay + .04, y = .073 + lvl * SW.lv + inCell * .118; const sz = szs[k] || p.size; track(p, block(.33, .115, SW.bay - .07, shoeboxMats(brandOf(p.name), sz), .06, y, z, g), sz);
         if (!first) first = [.35, y + .4, z + .15];
       } slotPos[p.id] = first || [.35, 1, 1]; });
     // peluches: uno por unidad, amontonados en capas cada vez más pequeñas
@@ -335,7 +336,7 @@ export function createWorld(opts) {
         ball(.034 * s, m, -.06 * s, .26 * s, .03, pl, .7, 1.7, .6); ball(.034 * s, m, .06 * s, .26 * s, .03, pl, .7, 1.7, .6);
         ball(.045 * s, m, -.12 * s, .02, .05, pl, .8, 1, 1.2); ball(.045 * s, m, .12 * s, .02, .05, pl, .8, 1, 1.2);
         ball(.012, M.dark, -.035 * s, .19 * s, .12 * s, pl); ball(.012, M.dark, .035 * s, .19 * s, .12 * s, pl); ball(.016, mat('#8C6A5A'), 0, .16 * s, .125 * s, pl);
-        track(p, pl);
+        track(p, pl, sizesOf(p)[k]);
       } slotPos[p.id] = [PILE.x, .9, PILE.z]; });
     // camisetas: una por unidad
     clear(shirtItems);
@@ -347,12 +348,12 @@ export function createWorld(opts) {
         block(.035, .08, .4, M.chrome, -.0175, 1.5, -.2, sh);
         block(.04, .6, .46, m, -.02, .94, -.23, sh); block(.036, .16, .17, m, -.018, 1.36, -.4, sh); block(.036, .16, .17, m, -.018, 1.36, .23, sh);
         block(.044, .04, .14, M.white, -.022, 1.5, -.07, sh);
-        track(p, sh);
+        track(p, sh, sizesOf(p)[k]);
       } slotPos[p.id] = [(RAIL.x0 + RAIL.x1) / 2, 1.9, RAIL.z]; });
     // otros: una caja por unidad en la estantería baja
     clear(otherItems);
     let oi = 0; byCat('otro').forEach(p => { const g = new THREE.Group(); g.userData.tip = p.tip; g.userData.rack = 'otro'; otherItems.add(g);
-      for (let k = 0; k < shown(p) && oi < 18; k++, oi++) { const shelf = Math.floor(oi / 6), col = oi % 6, x = LOW.x0 + .08 + col * .37, y = [.073, .523, .973][shelf]; track(p, parcel(.3, .26, .3, x, y, LOW.z0 + .06, g)); }
+      for (let k = 0; k < shown(p) && oi < 18; k++, oi++) { const shelf = Math.floor(oi / 6), col = oi % 6, x = LOW.x0 + .08 + col * .37, y = [.073, .523, .973][shelf]; track(p, parcel(.3, .26, .3, x, y, LOW.z0 + .06, g), sizesOf(p)[k]); }
       slotPos[p.id] = [LOW.x0 + .6, .8, LOW.z0 + .3]; });
     // recepción: lo recibido esta semana + lo que el repartidor va descargando (una caja por unidad)
     recvUnits = d.recvUnits; unloadTotal = d.unloadUnits; if (d.vanMode !== 'unload') delivered = 0; drawPallet();
@@ -445,7 +446,8 @@ export function createWorld(opts) {
     const kind = kindOf(s.cat), info = { kind, name: s.name, size: s.size };
     const [spot0, face, where] = pickSpot(s);
     // va justo delante de la unidad que va a coger
-    const target = () => { const list = shelfMesh[s.productId]; return list && list.length ? list[list.length - 1] : null; };
+    const pickIdx = list => { if (!list || !list.length) return -1; for (let i = list.length - 1; i >= 0; i--) if (list[i].userData.size === String(s.size || '')) return i; return list.length - 1; };
+    const target = () => { const list = shelfMesh[s.productId], i = pickIdx(list); return i < 0 ? null : list[i]; };
     const tgt = target(); let spot = spot0;
     if (tgt && s.cat === 'zapatillas') { tgt.getWorldPosition(wv); spot = [1.0, wv.z]; }
     if (tgt && s.cat === 'futbol') { tgt.getWorldPosition(wv); spot = [wv.x, RAIL.z - .65]; }
@@ -455,7 +457,7 @@ export function createWorld(opts) {
       { go: SPOT.aisle, say: 'Va a por ' + short(s) },
       { go: spot, say: 'Va a por ' + short(s) + ' a ' + where },
       { anim: 'pick', t: 2.2, face: s.cat === 'jellycat' ? Math.atan2(PILE.x - spot[0], PILE.z - spot[1]) : face, say: 'Cogiendo ' + short(s),
-        start: () => { const list = shelfMesh[s.productId]; let m = list && list.pop();
+        start: () => { const list = shelfMesh[s.productId], pi = pickIdx(list); let m = pi < 0 ? null : list.splice(pi, 1)[0];
           if (m && m.userData.kind === 'shirt') { const w2 = new THREE.Vector3(); m.getWorldPosition(w2); m.parent.remove(m); m = itemMesh('shirt', { mat: m.userData.mat }); m.position.set(w2.x, 1.24, w2.z); world.add(m); }
           if (!m) { m = itemMesh(kind, info); P.carry.getWorldPosition(wv); m.position.copy(wv); world.add(m); }
           held = m; job.picked = true; toCarry(m, 1.6, () => holdIn(m, P.carry)); },

@@ -1197,10 +1197,10 @@ function vPanelDesk() {
 
   /* stock */
   const stU = sum(S.products, units), stC = r2(sum(S.products, p => units(p) * (p.cost || 0))), stP = r2(sum(S.products, p => units(p) * (p.price || 0)));
-  const low = [];   // sin «Por reponer»
+  const have = S.products.filter(p => units(p) > 0).sort((a, b) => units(b) - units(a)), shown = have.slice(0, 6);   // lo que tienes en stock
   g += `<section class="card s4"><div class="ch"><h2>Stock</h2><button class="lnk" data-action="tab" data-tab="stock">Ver${G.right}</button></div>
     <div class="stat3"><div><span>Unidades</span><b>${stU}</b></div><div><span>Valor a coste</span><b>${money0(stC)}</b></div><div><span>Valor a venta</span><b>${money0(stP)}</b></div></div>
-    ${low.length ? `<div class="sub-h">Por reponer</div><div class="rows">${low.map(p => `<div class="row">${th(p)}<span class="rm"><span class="rt">${esc(p.name)}</span><span class="rs">${units(p) ? units(p) + ' ud' : 'Agotado'}</span></span><button class="qbtn soft" data-action="addUnits" data-id="${p.id}">Reponer</button></div>`).join('')}</div>` : ''}</section>`;
+    ${shown.length ? `<div class="sub-h">En stock</div><div class="rows">${shown.map(p => `<button class="row" data-action="product" data-id="${p.id}" style="width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;cursor:pointer">${th(p)}<span class="rm"><span class="rt">${esc(p.name)}</span><span class="rs">${(p.sizes || []).filter(s => s.q > 0).map(s => esc(s.s) + (s.q > 1 ? ' ×' + s.q : '')).join(' · ')}</span></span><span class="rv"><b>${units(p)} ${units(p) === 1 ? 'ud' : 'uds'}</b></span></button>`).join('')}</div>${have.length > shown.length ? `<button class="lnk" data-action="tab" data-tab="stock" style="margin-top:8px">Ver los ${have.length} productos${G.right}</button>` : ''}` : ''}</section>`;
 
   /* pedidos: cuánto llevas recuperado de cada uno */
   const ords = S.expenses.filter(e => e.category === 'pedido' && S.products.some(p => p.orderId === e.id)).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5);

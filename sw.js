@@ -1,5 +1,5 @@
 /* Service worker del Libro de Reventa: abre la app sin conexión y muestra avisos. */
-const VERSION = 'reventa-v25';
+const VERSION = 'reventa-v26';
 const CORE = ['./', 'index.html', 'config.js', 'sync.js', 'remind.js', 'estilo-cristal.css', 'almacen.js', 'manifest.webmanifest', 'vendor/supabase.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -24,7 +24,7 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || './';
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-    for (const c of list) if ('focus' in c) return c.focus();
+    for (const c of list) if ('focus' in c) { if (e.notification.tag === 'carta') c.postMessage({ open: 'carta' }); return c.focus(); }
     return self.clients.openWindow(url);
   }));
 });

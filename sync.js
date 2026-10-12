@@ -176,7 +176,7 @@
   const notifOn = () => notifSupported() && Notification.permission === 'granted' && LS.get('notif') !== '0';
   async function showNote(title, body, tag) {
     if (!notifOn()) return;
-    try { const reg = await navigator.serviceWorker.getRegistration(); const o = { body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag, data: { url: './' } };
+    try { const reg = await navigator.serviceWorker.getRegistration(); const o = { body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag, data: { url: tag === 'carta' ? './?carta=1' : './' } };
       if (reg) await reg.showNotification(title, o); else new Notification(title, o); } catch (e) {}
   }
   const money = n => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: Number.isInteger(+n) ? 0 : 2 }).format(n || 0);
@@ -296,7 +296,7 @@
       case 'sx-notif': {
         if (notifOn()) { LS.set('notif', '0'); window.toast('Avisos desactivados'); }
         else if (Notification.permission === 'denied') window.toast('Actívalos en los ajustes del navegador para este sitio');
-        else { const p = await Notification.requestPermission(); if (p === 'granted') { LS.set('notif', '1'); window.toast('Avisos activados'); showNote('Avisos activados', 'Te avisaremos de ventasjo.', 'hola'); } }
+        else { const p = await Notification.requestPermission(); if (p === 'granted') { LS.set('notif', '1'); window.toast('Avisos activados'); showNote('Avisos activados', 'Te avisaremos de ventas.', 'hola'); } }
         if (window.moreSheet) window.moreSheet(); break; }
       case 'sx-warm': location.href = 'calentador/'; break;
       case 'sx-backup': exportBackup(); break;
@@ -346,5 +346,5 @@
     return db;
   }
   window.claude = { use: async name => name === 'db' ? (booted || (booted = boot())) : name === 'downloads' ? downloads : name === 'assets' ? assets : null };
-  window.SYNC = { settingsHtml };
+  window.SYNC = { settingsHtml, note: showNote };
 })();

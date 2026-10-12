@@ -21,7 +21,7 @@ const PALLET = [8.2, .35];                                               // rece
 const TUB = [8.5, 3.3, .95, .75];                                        // salida (lo que se va)
 const LANE = RX + 4.3;                                                    // carril de la furgoneta
 export const ZONES = {
-  overview: { at: [5.5, .9, 4.4], zoom: 1 },
+  overview: { at: [6.1, .7, 5.5], zoom: 1 },
   in: { at: [9.4, .5, 1.2], zoom: 2.6 },
   stock: { at: [1.6, .8, 3.4], zoom: 2.1 },
   prep: { at: [5.4, .5, 3.8], zoom: 2.8 },
@@ -246,6 +246,41 @@ export function createWorld(opts) {
   }
   const fill = new THREE.DirectionalLight('#FFFFFF', 0); fill.position.set(14, 4, 2); fill.target.position.set(0, 1, 2); scene.add(fill, fill.target);
   const world = new THREE.Group(); scene.add(world);
+  /* buzón (cada lunes trae la carta de la semana) */
+  const mailG = new THREE.Group(); mailG.userData.zone = 'mail'; mailG.userData.tip = 'Buzón';
+  block(.07, .92, .07, M.dark, -.035, -.02, -.035, mailG);
+  const mbody = mat('#2E3440', { roughness: .45, metalness: .3 }); block(.3, .26, .4, mbody, -.15, .9, -.2, mailG);
+  const roof = new THREE.Mesh(new THREE.CylinderGeometry(.15, .15, .4, 20, 1, false, 0, Math.PI), mbody); roof.rotation.x = Math.PI / 2; roof.rotation.y = Math.PI / 2; roof.position.set(0, 1.16, 0); roof.castShadow = true; mailG.add(roof);
+  block(.012, .18, .3, M.acc, .148, .94, -.15, mailG);
+  const flag = new THREE.Group(); flag.position.set(-.16, 1.02, .1); mailG.add(flag); block(.02, .26, .03, M.red, -.01, 0, -.015, flag); block(.02, .07, .1, M.red, -.01, .19, -.1, flag);
+  const letterM = new THREE.Group(); letterM.position.set(0, 1.1, -.08); mailG.add(letterM);
+  block(.03, .2, .28, M.white, -.015, 0, -.14, letterM); block(.032, .05, .05, M.red, -.016, .12, -.025, letterM);
+  let letterOn = false;
+  /* el coche del jardín: un compacto deportivo amarillo con alerón (sin logos) */
+  function hotHatch() {
+    const g = new THREE.Group(), paint = mat('#E3B21F', { roughness: .3, metalness: .35 }), black = mat('#141518', { roughness: .4, metalness: .3 }), glass = M.tint;
+    block(4.4, .5, 1.82, paint, -2.2, .3, -.91, g);                                   // carrocería
+    block(.5, .14, 1.7, paint, 1.62, .8, -.85, g).rotation.z = -.12;                  // capó
+    block(2.2, .48, 1.62, paint, -1.45, .8, -.81, g);                                 // habitáculo
+    block(2.22, .34, 1.66, glass, -1.46, .86, -.83, g);                               // ventanillas
+    const ws = block(.62, .05, 1.56, glass, .58, 1.0, -.78, g); ws.rotation.z = -.62; // parabrisas
+    const rw = block(.42, .05, 1.5, glass, -1.82, .98, -.75, g); rw.rotation.z = .9;   // luneta
+    block(2.0, .05, 1.5, black, -1.35, 1.28, -.75, g);                                // techo negro
+    block(.36, .04, 1.78, black, -1.92, 1.38, -.89, g); for (const z of [-.6, .6]) block(.05, .1, .05, black, -1.8, 1.28, z - .025, g);   // alerón
+    block(4.42, .12, 1.84, black, -2.21, .24, -.92, g);                               // faldones
+    block(.05, .26, .92, black, 2.18, .4, -.46, g); for (let i = 0; i < 9; i++) block(.06, .22, .018, M.chrome, 2.19, .42, -.42 + i * .1, g);   // parrilla de lamas
+    for (const z of [-.86, .52]) { block(.05, .07, .34, M.lamp, 2.17, .68, z, g); block(.05, .09, .36, M.red, -2.23, .66, z - .01, g); }
+    for (const z of [-.42, -.24, .2, .38]) cyl(.045, .12, M.chrome, -2.24, .3, z, g, 0, Math.PI / 2);   // cuatro escapes
+    for (const z of [-.98, .9]) block(.14, .08, .08, black, .55, .95, z, g);           // retrovisores
+    for (const [x, z] of [[1.38, -.86], [1.38, .86], [-1.36, -.86], [-1.36, .86]]) {
+      const w = new THREE.Group(); w.position.set(x, .34, z); g.add(w);
+      const ty = new THREE.Mesh(new THREE.CylinderGeometry(.34, .34, .24, 22), M.tyre); ty.rotation.x = Math.PI / 2; w.add(ty);
+      const rm = new THREE.Mesh(new THREE.CylinderGeometry(.24, .24, .25, 10), black); rm.rotation.x = Math.PI / 2; w.add(rm);
+      block(.12, .14, .02, M.red, -.06, -.02, (z > 0 ? -1 : 1) * .04 - .01, w);       // pinza de freno roja
+    }
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  }
   /* ---------- fuera: acera, calle y árboles ---------- */
   block(ISL.x1 - ISL.x0, .1, ISL.z1 - ISL.z0, M.grass, ISL.x0, -.2, ISL.z0, world, false);
   block(ISL.x1 - ISL.x0, .7, ISL.z1 - ISL.z0, mat('#3A2F28', { roughness: 1 }), ISL.x0, -.9, ISL.z0, world, false); block(ISL.x1 - ISL.x0, .12, ISL.z1 - ISL.z0, mat('#55473B', { roughness: 1 }), ISL.x0, -.32, ISL.z0, world, false);
@@ -259,12 +294,15 @@ export function createWorld(opts) {
     for (const [x0, x1] of [[-.1, 3.0], [3.8, 7.6], [8.4, RX - .1]]) { block(x1 - x0, .32, .34, hedge, x0, -.1, RZ + .55, world); for (let x = x0 + .15; x < x1 - .1; x += .3) ball(.17, hedge, x, .22, RZ + .72, world, 1, .7, 1); }
     // jardineras con flores a los lados de la puerta
     for (const z of [DOOR.z0 - .55, DOOR.z1 + .2]) { block(.4, .3, .36, pot, RX + .25, -.02, z, world); for (let i = 0; i < 5; i++) ball(.07, flower[i % 4], RX + .33 + (i % 3) * .12, .33, z + .08 + (i % 2) * .16, world); ball(.14, M.leaf2, RX + .45, .3, z + .18, world, 1.3, .6, 1); }
+    // entrada de coches con el deportivo aparcado
+    block(5.6, .03, 2.5, mat('#8C8F96', { roughness: .95 }), RX - 5.6, -.1, RZ + 1.45, world, false);
+    const amg = hotHatch(); amg.position.set(RX - 2.9, -.07, RZ + 2.7); amg.userData.tip = 'Mercedes-AMG A45'; world.add(amg);
     // banco de madera en la acera
     const bz = 7.2; block(.42, .05, 1.3, M.wood, RX + 1.42, .38, bz, world); block(.06, .38, 1.3, M.wood, RX + 1.78, .43, bz, world);
     for (const dz of [.08, 1.14]) { block(.36, .4, .06, M.dark, RX + 1.46, -.02, bz + dz, world); block(.05, .82, .06, M.dark, RX + 1.8, -.02, bz + dz, world); }
     // papelera y buzón
     cyl(.14, .55, M.dark, RX + 1.7, .25, 8.85, world); cyl(.15, .04, M.chrome, RX + 1.7, .54, 8.85, world);
-    block(.08, .9, .08, M.dark, RX + .55, -.02, DOOR.z1 + .9, world); block(.26, .3, .32, mat('#B8913F', { roughness: .5 }), RX + .46, .88, DOOR.z1 + .78, world);
+    mailG.position.set(RX + .6, 0, DOOR.z1 + .94); world.add(mailG);
     // aparcabicis con una bici
     for (const z of [-2.6, -2.0]) { const r = new THREE.Mesh(new THREE.TorusGeometry(.3, .025, 8, 24, Math.PI), M.chrome); r.position.set(RX + 1.55, 0, z); r.rotation.y = Math.PI / 2; world.add(r); }
     const bike = new THREE.Group(); bike.position.set(RX + 1.25, 0, -2.3); bike.rotation.y = Math.PI / 2; world.add(bike);
@@ -427,7 +465,7 @@ export function createWorld(opts) {
     clear(phones);
     d.accounts.slice(0, 8).forEach((a, i) => { const g = new THREE.Group(); g.userData.tip = a.tip; g.userData.account = a.id; phones.add(g);
       block(.08, .014, .15, M.dark, DESK[0] + .1 + i * .11, .79, DESK[1] + .6, g); block(.07, .005, .13, a.warm ? mat(ACC, { emissive: ACC, emissiveIntensity: .5 }) : M.screen, DESK[0] + .105 + i * .11, .806, DESK[1] + .61, g); });
-    vanMode = d.vanMode; planeOn = !!d.plane;
+    vanMode = d.vanMode; planeOn = !!d.plane; letterOn = !!d.letter;
     pins = d.alerts; for (const id of [...packed]) if (!d.pend.some(s => s.id === id)) packed.delete(id); savePacked(); drawTub(); plan();
   }
 
@@ -720,6 +758,7 @@ export function createWorld(opts) {
     if (!canvas.isConnected) { raf = 0; return; }
     const dt = Math.min(.05, (now - last) / 1000); last = now; clock2 += dt;
     if (D) tickWorker(dt, clock2); tickStreet(dt, clock2);
+    letterM.visible = letterOn; flag.rotation.z = letterOn ? 0 : -1.5; if (letterOn) letterM.position.y = 1.1 + Math.sin(clock2 * 2) * .015;
     tickNight(dt, clock2); placeCam(dt); sky.position.copy(cam.position); sky.quaternion.copy(cam.quaternion); sky.scale.setScalar(1 / zoom);
     renderer.clear(); renderer.clippingPlanes = []; renderer.render(skyScene, cam); renderer.clearDepth(); renderer.clippingPlanes = island; renderer.render(scene, cam);
     if (opts.onFrame) opts.onFrame({

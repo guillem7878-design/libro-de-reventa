@@ -199,6 +199,37 @@ button.row:active { transform: none; opacity: .65; }
 .empty b { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
 .empty p { margin: 0 auto; max-width: 32ch; font-size: 14px; }
 .empty .btn { margin-top: 16px; }
+/* carta de la semana */
+.lettercard { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; padding: 14px 16px; margin-bottom: 12px; }
+.lettercard .rm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .lettercard .rt { font-weight: 700; font-size: 15px; } .lettercard .rs { font-size: 12.5px; color: var(--ink2); }
+.lc-env { position: relative; width: 44px; height: 34px; flex: none; color: var(--accent); animation: lcBob 2.4s ease-in-out infinite; }
+.lc-env svg { width: 100%; height: 100%; fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.lc-env i { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--neg); box-shadow: 0 0 0 3px var(--card, #16181D); }
+@keyframes lcBob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(-4deg); } }
+.letter { position: relative; padding-top: 34px; }
+.lt-env { position: absolute; top: 0; left: 50%; width: 120px; transform: translateX(-50%); z-index: 0; animation: ltEnv .6s ease both; }
+.lt-env svg { width: 100%; display: block; } .lt-env .e-b { fill: color-mix(in srgb, var(--accent) 22%, var(--card2, #1F2229)); stroke: var(--accent); stroke-width: 2; } .lt-env .e-f { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.lt-paper { position: relative; z-index: 1; margin-top: 28px; padding: 22px 20px 20px; border-radius: 18px; color: #22201B; background: linear-gradient(180deg, #FBF8F1, #F2ECDF); box-shadow: 0 20px 40px -18px rgba(0,0,0,.7), inset 0 1px 0 #fff; animation: ltUp .7s .25s cubic-bezier(.2,.8,.2,1) both; }
+.lt-paper::before { content: ""; position: absolute; inset: 8px; border: 1px dashed rgba(34,32,27,.14); border-radius: 12px; pointer-events: none; }
+@keyframes ltUp { from { transform: translateY(40px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ltEnv { from { transform: translateX(-50%) translateY(10px); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
+.lt-k { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #9A7A3A; }
+.lt-paper h3 { margin: 6px 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -.03em; }
+.lt-mood { margin: 0 0 14px; font-size: 14px; color: #5C574D; }
+.lt-big { padding: 14px; border-radius: 14px; background: rgba(184,145,63,.12); }
+.lt-big span { display: block; font-size: 12px; font-weight: 600; color: #7A6A48; } .lt-big b { font-size: 32px; font-weight: 800; letter-spacing: -.04em; } .lt-big b.neg { color: #B0473E; }
+.lt-big em { display: block; font-style: normal; font-size: 12.5px; font-weight: 700; margin-top: 2px; } .lt-big em.up { color: #3E7A3E; } .lt-big em.down { color: #B0473E; }
+.lt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.lt-f { display: flex; flex-direction: column; gap: 1px; padding: 10px 12px; border-radius: 12px; background: rgba(34,32,27,.05); min-width: 0; }
+.lt-f span { font-size: 11.5px; color: #6E685C; font-weight: 600; } .lt-f b { font-size: 16px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lt-bars { display: flex; gap: 6px; height: 92px; align-items: flex-end; margin: 16px 2px 4px; }
+.lt-bars div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.lt-bars i { width: 100%; border-radius: 6px 6px 3px 3px; background: linear-gradient(180deg, #D4B06A, #B8913F); animation: ltBar .8s .6s cubic-bezier(.2,.8,.2,1) both; transform-origin: bottom; } .lt-bars i.z { background: rgba(34,32,27,.1); }
+.lt-bars span { font-size: 11px; font-weight: 700; color: #8A8374; }
+@keyframes ltBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.lt-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; } .lt-list .lt-f { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 10px; } .lt-list .lt-f b { font-size: 14px; }
+.lt-sign { margin: 16px 0 0; font-size: 13.5px; color: #5C574D; line-height: 1.5; } .lt-sign b { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 17px; color: #22201B; }
+@media (prefers-reduced-motion: reduce) { .lc-env, .lt-env, .lt-paper, .lt-bars i { animation: none; } }
 .pill[data-action="cats"] { display: inline-flex; align-items: center; gap: 4px; } .pill[data-action="cats"] svg { width: 14px; height: 14px; }
 .skel { height: 100px; border-radius: var(--r-xl); background: linear-gradient(90deg, var(--card2) 0%, color-mix(in srgb, var(--card2) 70%, var(--ink) 6%) 50%, var(--card2) 100%); background-size: 200% 100%; animation: skel 1.2s ease-in-out infinite; }
 @keyframes skel { from { background-position: 200% 0 } to { background-position: -200% 0 } }
@@ -1025,6 +1056,52 @@ function deltaChip(cur, prev, invert) {
 
 /* ---------- PANEL ---------- */
 /* único aviso de la app: stock bajo (menos de 15 unidades en total) */
+/* cada lunes llega una carta con el resumen de la semana anterior (lunes a domingo) */
+function letterWeek() {
+  const t = today(), dow = (new Date(t + 'T00:00:00').getDay() + 6) % 7, mon = addDays(t, -dow), start = addDays(mon, -7);
+  return { start, end: mon, prev: [addDays(start, -7), start] };
+}
+const letterUnread = () => store.get('letterRead') !== letterWeek().start;
+function letterCard() {
+  if (!loadedAll() || !letterUnread()) return '';
+  const w = letterWeek();
+  return `<button class="card lettercard" data-action="letter"><span class="lc-env"><svg viewBox="0 0 40 30" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="27" rx="4"/><path d="M3 4l17 13L37 4"/></svg><i></i></span><span class="rm"><span class="rt">Ha llegado tu carta</span><span class="rs">Tu semana del ${+w.start.slice(8)} al ${fmtDate(addDays(w.end, -1))} · ábrela</span></span>${G.chev}</button>`;
+}
+function letterSheet() {
+  const w = letterWeek(), r = [w.start, w.end], pr = w.prev;
+  const ss = okSales().filter(s => inR(s.date, r)), ps = okSales().filter(s => inR(s.date, pr));
+  const ex = S.expenses.filter(e => inR(e.date, r)), rets = S.sales.filter(s => s.status === 'devuelta' && inR(s.returnedAt || s.date, r));
+  const F = r2(sum(ss, s => s.price)), G2 = r2(sum(ex, e => e.amount)), B = r2(sum(ss, saleProfit) - sum(ex.filter(e => e.category !== 'pedido'), e => e.amount));
+  const U = sum(ss, s => s.qty || 1), Fp = r2(sum(ps, s => s.price));
+  const delta = Fp ? Math.round((F - Fp) / Fp * 100) : null;
+  const daysL = ['L', 'M', 'X', 'J', 'V', 'S', 'D'], perDay = daysL.map((_, i) => r2(sum(ss.filter(s => s.date === addDays(w.start, i)), s => s.price))), mx = Math.max(1, ...perDay);
+  const bestDay = perDay.indexOf(Math.max(...perDay));
+  const top = (arr, key) => { const m = {}; arr.forEach(s => { const k = key(s); if (k) m[k] = (m[k] || 0) + (s.qty || 1); }); return Object.entries(m).sort((a, b) => b[1] - a[1])[0]; };
+  const tp = top(ss, s => s.name), ta = top(ss, s => s.account), tz = top(ss, s => s.size && s.size !== 'Única' ? s.size : '');
+  const outs = accounts().flatMap(a => (a.payouts || []).filter(p => inR(p.date, r))), bank = r2(sum(outs, p => p.amount));
+  const got = S.expenses.filter(e => e.category === 'pedido' && e.receivedAt && inR(e.receivedAt, r)).length;
+  const fact = (k, v) => `<div class="lt-f"><span>${k}</span><b>${v}</b></div>`;
+  const extra = [tp && fact('Lo más vendido', esc(tp[0]) + ' · ' + tp[1] + (tp[1] === 1 ? ' ud' : ' uds')), ta && fact('Mejor móvil', esc(accName(ta[0])) + ' · ' + ta[1] + (ta[1] === 1 ? ' venta' : ' ventas')), tz && fact('Talla estrella', esc(tz[0])), ss.length && fact('Mejor día', ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'][bestDay] + ' · ' + money(perDay[bestDay])), rets.length && fact('Devoluciones', rets.length), got && fact('Pedidos recibidos', got), bank && fact('Pasado al banco', money(bank))].filter(Boolean).join('');
+  const mood = !ss.length ? 'Semana tranquila. La siguiente seguro que se mueve más.' : delta === null ? 'Buen comienzo. Sigue así.' : delta >= 20 ? 'Semanón. Has vendido bastante más que la anterior.' : delta >= 0 ? 'Vas mejor que la semana pasada. Bien hecho.' : 'Un poco por debajo de la semana pasada. A remontar.';
+  openSheet('Carta de la semana', `<div class="letter">
+      <div class="lt-env"><svg viewBox="0 0 120 80" aria-hidden="true"><rect class="e-b" x="4" y="14" width="112" height="62" rx="8"/><path class="e-f" d="M6 18 L60 52 L114 18"/></svg></div>
+      <div class="lt-paper">
+        <span class="lt-k">Semana del ${+w.start.slice(8)} al ${fmtDate(addDays(w.end, -1))}</span>
+        <h3>Hola, esto es lo que hiciste</h3>
+        <p class="lt-mood">${mood}</p>
+        <div class="lt-big"><span>Beneficio</span><b class="${B < 0 ? 'neg' : ''}">${money(B)}</b>${delta !== null ? `<em class="${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)} % en facturación</em>` : ''}</div>
+        <div class="lt-grid">${fact('Ventas', ss.length)}${fact('Unidades', U)}${fact('Facturación', money(F))}${fact('Gastos', money(G2))}</div>
+        <div class="lt-bars">${perDay.map((v, i) => `<div><i style="height:${Math.max(4, v / mx * 100)}%" class="${v ? '' : 'z'}"></i><span>${daysL[i]}</span></div>`).join('')}</div>
+        ${extra ? `<div class="lt-list">${extra}</div>` : ''}
+        <p class="lt-sign">Nos vemos el lunes que viene.<br><b>Tu almacén</b></p>
+      </div></div>`);
+  store.set('letterRead', w.start); setTimeout(() => { if (S.tab === 'panel') render(); }, 500);
+}
+function letterNotify() {
+  if (!loadedAll() || !letterUnread()) return;
+  const w = letterWeek(); if (store.get('letterNoted') === w.start) return; store.set('letterNoted', w.start);
+  if (window.SYNC && window.SYNC.note) window.SYNC.note('Ha llegado tu carta', 'Tu resumen de la semana del ' + (+w.start.slice(8)) + ' al ' + fmtDate(addDays(w.end, -1)) + '. Ábrela.', 'carta');
+}
 function lowStockAlert() {
   return '';   // sin avisos de poco stock
   const t = sum(S.products, units);
@@ -1047,7 +1124,7 @@ function vPanel() {
       <div class="big ${B < 0 ? 'neg' : ''}" id="heroNum" data-to="${B}">${splitC(money(B))}</div>
       <div class="tiles two"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Gastos</span><b>${money0(Gs)}</b></div></div></section>${S.off === 0 ? `<div class="qa"><button class="btn btn-main" data-action="newSale">${G.sell}Apuntar venta</button><button class="btn btn-soft" data-action="newExpense">${G.bag}Gasto</button></div>` : ""}`;
   h += totalCard();
-  h += lowStockAlert();
+  h += letterCard();
   if (!cnt && !Gs) return h + empty(G.sell, 'Sin actividad', S.off === 0 ? 'Toca + cuando vendas algo.' : '', S.off === 0 ? '<button class="btn btn-main btn-sm" data-action="newSale">Apuntar venta</button>' : '');
 
   const nG = S.per === 'year' ? 12 : 6;
@@ -1132,7 +1209,7 @@ function vPanelDesk() {
 
   /* total y móviles */
   const accs = accounts(), warm = accs.filter(a => a.warm).length, blk = sum(accs, a => (a.blocks || []).filter(b => inR(b.date, r)).length);
-  g += `<div class="dk-col s6">${totalCard()}${lowStockAlert()}<section class="card"><div class="ch"><h2>Móviles</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
+  g += `<div class="dk-col s6">${letterCard()}${totalCard()}<section class="card"><div class="ch"><h2>Móviles</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
     <div class="stat3"><div><span>Móviles</span><b>${accs.length}</b></div><div><span>Calentadas</span><b>${warm}</b></div><div><span>Bloqueos</span><b>${blk}</b></div></div></section></div>`;
   return h + `<div class="dk">${g}</div>`;
 }
@@ -1729,10 +1806,10 @@ function saleDetail(id) {
     ${dev ? `<div class="tag neg" style="align-self:flex-start;height:26px;font-size:13px">Devuelta el ${fmtDate(s.returnedAt)}${s.restocked ? ' · volvió al stock' : ''}</div>` : ''}
     <div class="facts"><div class="fact"><span>Móvil</span><b>${esc(accName(s.account, s.accountName))}</b></div>${a && a.iban ? `<div class="fact"><span>IBAN</span><b class="iban">${ibanShort(a.iban)}</b></div>` : ''}
       ${dev ? '' : `<div class="fact"><span>Cobro</span><b>${s.paidAt ? 'Cobrada el ' + fmtDate(s.paidAt) : isFree(s) ? 'En el saldo desde el ' + fmtDate(freeOn(s)) : 'Al saldo el ' + fmtDate(freeOn(s)) + ' (' + inDays(freeOn(s)) + ')'}</b></div>`}
-      ${dev ? '' : `<div class="fact"><span>Envío</span><b>${s.ship === 'pend' && (s.date || '') >= today() ? 'Por preparar' : s.shippedAt ? 'Enviada el ' + fmtDate(s.shippedAt) : 'Enviada'}</b></div>`}
+      ${dev ? '' : `<div class="fact"><span>Envío</span><b>${s.ship === 'pend' && (s.date || '') >= today() ? (window.almPackedIds && almPackedIds().has(s.id) ? 'En la vagoneta' : 'Por preparar') : s.shippedAt ? 'Enviada el ' + fmtDate(s.shippedAt) : 'Enviada'}</b></div>`}
       ${s.cost ? `<div class="fact"><span>Ganas con esta venta</span><b class="pos">+${money(s.price - s.cost)}</b></div>` : ""}</div>
     <div class="btns"><button class="btn btn-soft" data-action="editSale" data-id="${s.id}" ${dev ? 'disabled' : ''}>Editar</button>${dev ? `<button class="btn btn-soft" data-action="unreturn" data-id="${s.id}">Anular devolución</button>` : `<button class="btn btn-soft" data-action="returnSale" data-id="${s.id}">${G.ret}Devolución</button>`}</div>
-    ${!dev && s.ship === 'pend' && (s.date || '') >= today() ? `<button class="btn btn-main btn-block" data-action="alm-ship" data-from="sale" data-id="${s.id}">Marcar como enviada</button>` : ''}
+    
     ${dev ? '' : s.paidAt ? `<button class="btn btn-soft btn-block" data-action="saleUnpaid" data-id="${s.id}">Quitar «cobrada»</button>` : !isFree(s) ? `<button class="btn btn-soft btn-block" data-action="salePaid" data-id="${s.id}">Ya me ha llegado el dinero</button>` : ''}
     <button class="btn btn-danger btn-block" data-action="delSale" data-id="${s.id}">Borrar venta</button>`);
 }
@@ -2065,7 +2142,7 @@ function catForm(id) {
 function moreSheet() {
   const look = store.get('look') || 'auto';
   const ex = (w, c, t, s) => `<button class="row" data-action="export" data-what="${w}"><span class="th" style="${tint(c)}">${G.down}</span><span class="rm"><span class="rt">${t}</span><span class="rs">${s}</span></span>${G.chev}</button>`;
-  openSheet('Ajustes', `<div class="list"><button class="row" data-action="cats"><span class="th" style="${tint('var(--ink)')}">${G.layers}</span><span class="rm"><span class="rt">Colecciones</span><span class="rs">${CAT_ORDER.map(k => CATS[k].label).join(' · ')}</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="orders"><span class="th" style="${tint('var(--warn)')}">${G.bag}</span><span class="rm"><span class="rt">Pedidos al proveedor</span><span class="rs">Historial con sus facturas</span></span>${G.chev}</button><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
+  openSheet('Ajustes', `<div class="list"><button class="row" data-action="cats"><span class="th" style="${tint('var(--ink)')}">${G.layers}</span><span class="rm"><span class="rt">Colecciones</span><span class="rs">${CAT_ORDER.map(k => CATS[k].label).join(' · ')}</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="letter"><span class="th" style="${tint('var(--accent)')}">${G.receipt}</span><span class="rm"><span class="rt">Carta de la semana</span><span class="rs">Resumen de la semana pasada</span></span>${G.chev}</button><button class="row" data-action="orders"><span class="th" style="${tint('var(--warn)')}">${G.bag}</span><span class="rm"><span class="rt">Pedidos al proveedor</span><span class="rs">Historial con sus facturas</span></span>${G.chev}</button><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
     ${S.desk ? '' : `<div class="fld"><span class="lbl">Al abrir en el móvil</span><div class="seg" data-k="qpref" style="align-self:flex-start">${[['1', 'Botones rápidos'], ['0', 'Panel']].map(([k, l]) => `<button data-action="quickPref" data-v="${k}" aria-pressed="${(store.get('quickStart') || '1') === k}">${l}</button>`).join('')}</div></div>`}
     ${window.SYNC ? window.SYNC.settingsHtml() : ''}
     <div class="fld"><span class="lbl">Apariencia</span><div class="seg" data-k="look" style="align-self:flex-start">${[['auto', 'Auto', G.auto], ['light', 'Claro', G.sun], ['dark', 'Oscuro', G.moon]].map(([k, l, i]) => `<button data-action="look" data-v="${k}" aria-pressed="${look === k}">${i}${l}</button>`).join('')}</div></div>`);
@@ -2191,6 +2268,7 @@ document.addEventListener('click', async ev => {
     case 'invoice': invoicePick(id); break;
     case 'orderRecv': if (await write(() => db.doc('expenses/' + id).update({ receivedAt: today() }), 'Pedido recibido', () => write(() => db.doc('expenses/' + id).update({ receivedAt: '' }), 'Deshecho'))) setTimeout(() => expenseDetail(id), 250); break;
     case 'saldo': saldoSheet(); break;
+    case 'letter': letterSheet(); break;
     case 'editExpense': expenseForm(S.expenses.find(x => x.id === id)); break;
     case 'delExpense': { const e = S.expenses.find(x => x.id === id); if (!e) break; const copy = strip(e);
       if (await write(() => db.doc('expenses/' + id).delete(), 'Gasto borrado', () => write(() => db.doc('expenses/' + id).set(copy), 'Recuperado'))) closeSheet(); break; }
@@ -2309,7 +2387,9 @@ render();
   db = window.claude ? await window.claude.use('db') : null;
   if (!db) { S.error = 'Falta conectar la base de datos. Revisa config.js y el README.'; render(); return; }
   const fail = e => { S.error = e && e.code === 'revoked' ? 'Ya no tienes acceso a estos datos.' : 'Se perdió la conexión. Recarga la página.'; render(); };
-  let rt; const later = () => { clearTimeout(rt); rt = setTimeout(() => { render(); if (catRefresh) catRefresh(); }, 30); };
+  let rt; const later = () => { clearTimeout(rt); rt = setTimeout(() => { render(); if (catRefresh) catRefresh(); letterNotify(); if (wantLetter && loadedAll()) { wantLetter = false; letterSheet(); } }, 30); };
+  let wantLetter = /[?&]carta=1/.test(location.search);
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', ev => { if (ev.data && ev.data.open === 'carta') letterSheet(); });
   COLLS.forEach(c => db.collection(c).onSnapshot(s => { S[c] = s.docs.map(d => ({ id: d.id, ...d.data() })); if (c === 'cats') syncCats(); const first = !loadedAll(); S.loaded[c] = true; if (first && loadedAll()) S.animate = true; later(); }, fail));
   [downloads, assets] = await Promise.all([window.claude.use('downloads'), window.claude.use('assets')]);
   render();

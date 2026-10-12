@@ -294,6 +294,7 @@
     const a = [];
     const pd = pend().length; if (pd) a.push({ at: [5.4, 1.5, 3.75], k: 'prep', txt: pd + ' por preparar' });
     const rt = rets().filter(s => (s.returnedAt || '') >= daysAgo(7)).length; if (rt) a.push({ at: [8.45, 1.1, 6.0], k: 'ret', txt: rt + (rt > 1 ? ' devoluciones' : ' devolución') + ' esta semana' });
+    if (typeof letterUnread === 'function' && loadedAll() && letterUnread()) a.push({ at: [10.6, 1.75, 3.3], k: 'mail', txt: 'Ha llegado tu carta' });
     if (onTheWay().some(o => o.n >= 12)) a.push({ at: [8.85, 1.3, 1.05], k: 'in', txt: 'Pedido en tu puerta: confírmalo' });
     return a;
   }
@@ -315,15 +316,18 @@
     const items = readLog(); const h = new Date(); items.unshift({ t: String(h.getHours()).padStart(2, '0') + ':' + String(h.getMinutes()).padStart(2, '0'), txt }); items.length = Math.min(items.length, 40);
     try { localStorage.setItem(LOGK, JSON.stringify({ d: today(), items })); } catch (e) {}
     const ul = document.getElementById('aiLog'); if (ul) ul.innerHTML = logHtml(items); const rd = document.getElementById('aiReady'); if (rd) rd.textContent = readyCount() + '/' + pend().length;
+    if (panelK === 'prep') { const p = document.getElementById('almPanel'); if (p && !p.hidden) p.innerHTML = panelHtml('prep'); }
   }
   const logHtml = items => items.length ? items.slice(0, 2).map(i => `<li><span>${i.t}</span>${esc(i.txt)}</li>`).join('') : '<li class="ai-none">Aún no ha pasado nada hoy.</li>';
+  const packedIds = () => { try { return new Set(JSON.parse(localStorage.getItem('almPacked') || '[]')); } catch (e) { return new Set(); } };
+  window.almPackedIds = packedIds;
   const readyCount = () => { let s; try { s = new Set(JSON.parse(localStorage.getItem('almPacked') || '[]')); } catch (e) { s = new Set(); } return pend().filter(x => s.has(x.id)).length; };
   function data3d() {
     return {
       products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
       accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) })),
       pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
-      incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
+      letter: loadedAll() && letterUnread(), incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
     };
   }
   /* panel lateral de cada zona, como la ficha de «Rayon A» del vídeo */
@@ -348,10 +352,11 @@
         `<div class="ap-l">${k === 'stock' ? 'Stock por zonas' : 'Zonas'}</div><div class="ap-list">${racksRows}${extra}</div>`;
     }
     if (k === 'prep') {
-      const l = pend();
-      return pHead('Preparación', 'Por preparar', '', [['Paquetes', l.length], ['Importe', money(sum(l, s => s.price))]]) +
-        `<div class="ap-l">Ventas pendientes de enviar</div><div class="ap-list">${l.length ? l.map(s => `<div class="ap-row"><button class="ap-rm" data-action="sale" data-id="${s.id}"><b>${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</b><span>${esc(accName(s.account, s.accountName))} · ${fmtDate(s.date)}</span></button><button class="btn btn-soft btn-sm" data-action="alm-ship" data-id="${s.id}">Enviada</button></div>`).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
-        ${l.length > 1 ? '<div class="ap-f"><button class="btn btn-main btn-block" data-action="alm-shipall">Marcar todas como enviadas</button></div>' : ''}`;
+      const l = pend(), pk = packedIds(), todo = l.filter(s => !pk.has(s.id)), tub = l.filter(s => pk.has(s.id));
+      const row = (s, chip) => `<div class="ap-row"><button class="ap-rm" data-action="sale" data-id="${s.id}"><b>${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</b><span>${esc(accName(s.account, s.accountName))} · ${money(s.price)}</span></button>${chip}</div>`;
+      return pHead('Preparación', 'Ventas de hoy', 'La vagoneta sale cada día', [['Por preparar', todo.length], ['En la vagoneta', tub.length], ['Importe', money(sum(l, s => s.price))]]) +
+        `<div class="ap-l">Por preparar</div><div class="ap-list">${todo.length ? todo.map(s => row(s, '<span class="ap-chip">Preparando</span>')).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
+        <div class="ap-l">En la vagoneta</div><div class="ap-list">${tub.length ? tub.map(s => row(s, '<span class="ap-chip ok">En la vagoneta</span>')).join('') : '<p class="ap-empty">La vagoneta está vacía.</p>'}</div>`;
     }
     if (k === 'out') {
       const l = sentWeek().sort((a, b) => (b.shippedAt || b.date || '').localeCompare(a.shippedAt || a.date || ''));
@@ -387,7 +392,7 @@
     p.innerHTML = panelHtml(k); p.hidden = false; p.scrollTop = 0;
     activeZ = CATN[k] ? 'stock' : k; document.querySelectorAll('#almBar button').forEach(b => b.classList.toggle('on', b.dataset.z === activeZ));
   }
-  function select(k) { if (world) world.flyTo(k); openPanel(k); }
+  function select(k) { if (k === 'mail') { letterSheet(); return; } if (world) world.flyTo(k); openPanel(k); }
   const tr = (el, xy) => { el.style.transform = `translate(${Math.round(xy[0])}px,${Math.round(xy[1])}px) translate(-50%,-100%)`; el.style.opacity = 1; };
   function place(o) {
     const room = document.getElementById('almRoom'); if (!room) return;
@@ -408,7 +413,6 @@
     return `<div class="alm-bar" id="almBar">${ZBTN.map(([k, l]) => `<button data-action="alm-open" data-id="${k}" data-z="${k}" class="${activeZ === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="alm-zoom"><button data-action="alm-zin" aria-label="Acercar">${IC.plus}</button><button data-action="alm-zout" aria-label="Alejar">${IC.minus}</button><button data-action="alm-open" data-id="overview" aria-label="Vista general">${IC.home}</button></div>
       <div class="alm-dock">
-        <div class="ad-now"><span class="ap-e" id="aiKind">Ahora</span><b id="aiNow">${esc(mood().txt)}</b><div class="ai-bar"><i id="aiBar"></i></div></div>
         <div class="ad-st"><b>${salesT.length}</b><span>ventas hoy</span></div>
         <div class="ad-st"><b>${money0(sum(salesT, s => s.price))}</b><span>facturado hoy</span></div>
         <div class="ad-st"><b id="aiReady">${readyCount()}/${pend().length}</b><span>en la vagoneta</span></div>
@@ -417,7 +421,7 @@
         ${onTheWay().length ? `<div class="ad-st ad-ship"><b>${onTheWay().length} en camino</b><span>${onTheWay().slice(0, 2).map(o => 'día ' + o.n + ' · ' + (o.n >= 12 ? 'descargando' : o.n >= 10 ? 'furgoneta llegando' : 'en avión')).join(' — ')}</span></div>` : ''}
         <div class="ad-log"><span class="ap-e">Hoy</span><ul class="ai-log" id="aiLog">${logHtml(readLog())}</ul></div>
       </div>
-      ${signs}${pins}<div class="alm-mood" style="opacity:0">${esc(mood().txt)}</div>
+      ${signs}${pins}
       <aside class="alm-panel" id="almPanel" ${panelK ? '' : 'hidden'}>${panelK ? panelHtml(panelK) : ''}</aside>`;
   }
   async function mount3d() {
@@ -454,8 +458,7 @@
       const l = pend();
       return openSheet('Por preparar', l.length
         ? `<p class="hint" style="margin:0">Ventas que aún tienes que empaquetar y enviar. Cuando salgan, márcalas como enviadas.</p>
-           <div class="list">${l.map(s => saleRow(s, `<button class="btn btn-soft btn-sm" data-action="alm-ship" data-id="${s.id}">Enviada</button>`)).join('')}</div>
-           ${l.length > 1 ? '<button class="btn btn-main btn-block" data-action="alm-shipall">Marcar todas como enviadas</button>' : ''}`
+           <div class="list">${l.map(s => saleRow(s, '')).join('')}</div>`
         : '<p class="hint" style="margin:0">No hay nada por preparar. Cada venta nueva aparece aquí hasta que la marques como enviada.</p>');
     }
     if (k === 'ret') {
@@ -537,7 +540,7 @@ body.light .alm-3d { --al-g: linear-gradient(180deg, rgba(255,255,255,.95), rgba
 .ad-log { flex: 1.3 1 0; min-width: 0; padding: 6px 10px 6px 14px; border-left: 1px solid var(--al-rim); display: flex; flex-direction: column; justify-content: center; }
 .ai-log { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
 .ai-log li { font-size: 12.5px; font-weight: 500; color: var(--ink2); display: flex; gap: 8px; white-space: nowrap; overflow: hidden; } .ai-log li span { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; flex: none; } .ai-log .ai-none { color: var(--ink3); }
-@media (max-width: 1400px) { .ad-log { display: none; } }
+@media (max-width: 1100px) { .ad-log { display: none; } }
 .ap-e { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); }
 #aiKind { color: var(--accent); }
 /* carteles, avisos y el bocadillo del trabajador */

@@ -256,27 +256,47 @@ export function createWorld(opts) {
   const letterM = new THREE.Group(); letterM.position.set(0, 1.1, -.08); mailG.add(letterM);
   block(.03, .2, .28, M.white, -.015, 0, -.14, letterM); block(.032, .05, .05, M.red, -.016, .12, -.025, letterM);
   let letterOn = false;
-  /* el coche del jardín: un compacto deportivo amarillo con alerón (sin logos) */
+  /* el coche del jardín: compacto deportivo gris mate con alerón, parrilla de lamas, llantas negras y pinzas rojas (sin logos) */
   function hotHatch() {
-    const g = new THREE.Group(), paint = mat('#E3B21F', { roughness: .3, metalness: .35 }), black = mat('#141518', { roughness: .4, metalness: .3 }), glass = M.tint;
-    block(4.4, .5, 1.82, paint, -2.2, .3, -.91, g);                                   // carrocería
-    block(.5, .14, 1.7, paint, 1.62, .8, -.85, g).rotation.z = -.12;                  // capó
-    block(2.2, .48, 1.62, paint, -1.45, .8, -.81, g);                                 // habitáculo
-    block(2.22, .34, 1.66, glass, -1.46, .86, -.83, g);                               // ventanillas
-    const ws = block(.62, .05, 1.56, glass, .58, 1.0, -.78, g); ws.rotation.z = -.62; // parabrisas
-    const rw = block(.42, .05, 1.5, glass, -1.82, .98, -.75, g); rw.rotation.z = .9;   // luneta
-    block(2.0, .05, 1.5, black, -1.35, 1.28, -.75, g);                                // techo negro
-    block(.36, .04, 1.78, black, -1.92, 1.38, -.89, g); for (const z of [-.6, .6]) block(.05, .1, .05, black, -1.8, 1.28, z - .025, g);   // alerón
-    block(4.42, .12, 1.84, black, -2.21, .24, -.92, g);                               // faldones
-    block(.05, .26, .92, black, 2.18, .4, -.46, g); for (let i = 0; i < 9; i++) block(.06, .22, .018, M.chrome, 2.19, .42, -.42 + i * .1, g);   // parrilla de lamas
-    for (const z of [-.86, .52]) { block(.05, .07, .34, M.lamp, 2.17, .68, z, g); block(.05, .09, .36, M.red, -2.23, .66, z - .01, g); }
-    for (const z of [-.42, -.24, .2, .38]) cyl(.045, .12, M.chrome, -2.24, .3, z, g, 0, Math.PI / 2);   // cuatro escapes
-    for (const z of [-.98, .9]) block(.14, .08, .08, black, .55, .95, z, g);           // retrovisores
-    for (const [x, z] of [[1.38, -.86], [1.38, .86], [-1.36, -.86], [-1.36, .86]]) {
-      const w = new THREE.Group(); w.position.set(x, .34, z); g.add(w);
-      const ty = new THREE.Mesh(new THREE.CylinderGeometry(.34, .34, .24, 22), M.tyre); ty.rotation.x = Math.PI / 2; w.add(ty);
-      const rm = new THREE.Mesh(new THREE.CylinderGeometry(.24, .24, .25, 10), black); rm.rotation.x = Math.PI / 2; w.add(rm);
-      block(.12, .14, .02, M.red, -.06, -.02, (z > 0 ? -1 : 1) * .04 - .01, w);       // pinza de freno roja
+    const g = new THREE.Group();
+    const paint = mat('#6F747B', { roughness: .55, metalness: .25 }), gloss = mat('#0E0F11', { roughness: .25, metalness: .4 }), trim = mat('#1A1B1E', { roughness: .6 }), glass = mat('#15181D', { roughness: .08, metalness: .5 });
+    const W2 = .9;   // media anchura
+    const prof = (pts, depth, m, z0, bev) => { const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) s.lineTo(p[0], p[1]); s.closePath();
+      const geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: !!bev, bevelThickness: bev || 0, bevelSize: bev || 0, bevelSegments: 3, curveSegments: 6 }); geo.translate(0, 0, z0);
+      const me = new THREE.Mesh(geo, m); me.castShadow = true; me.receiveShadow = true; g.add(me); return me; };
+    // silueta lateral (x = largo, y = alto): morro bajo, capó largo, parabrisas tumbado, techo que cae a la luneta
+    const body = [[-2.18, .24], [2.12, .24], [2.22, .4], [2.2, .62], [1.95, .72], [1.15, .84], [.78, .9], [-.08, 1.34], [-1.38, 1.33], [-1.9, 1.12], [-2.1, .98], [-2.2, .74]];
+    prof(body, W2 * 2 - .1, paint, -W2 + .05, .05);
+    // cristales: un poco por fuera de la carrocería en los laterales y en los planos inclinados, por debajo del techo
+    prof([[.74, .93], [-.06, 1.3], [-1.35, 1.29], [-1.86, 1.1], [-1.95, .98], [-1.4, .95], [.3, .93]], W2 * 2 + .07, glass, -W2 - .035);
+    // pilar B en color carrocería y moldura de ventanillas
+    for (const z of [W2 + .04, -W2 - .04]) { const b = new THREE.Mesh(new THREE.BoxGeometry(.09, .34, .01), paint); b.position.set(-.55, 1.12, z); g.add(b); const bl = new THREE.Mesh(new THREE.BoxGeometry(2.6, .025, .01), trim); bl.position.set(-.55, .94, z); g.add(bl); }
+    // faldones, pasos de rueda y difusor en negro
+    const box = (sx, sy, sz, m, x, y, z, ry = 0, rz = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); b.position.set(x, y, z); b.rotation.set(0, ry, rz); b.castShadow = true; g.add(b); return b; };
+    for (const z of [W2 + .04, -W2 - .04]) box(2.1, .1, .04, trim, 0, .3, z);
+    box(.5, .16, 1.5, trim, -2.08, .32, 0);                                       // difusor
+    for (const z of [-.62, -.44, .44, .62]) { const e = new THREE.Mesh(new THREE.CylinderGeometry(.055, .055, .14, 16), mat('#9AA0A8', { roughness: .3, metalness: .8 })); e.rotation.z = Math.PI / 2; e.position.set(-2.3, .31, z); g.add(e); }
+    // frontal: parrilla de lamas verticales, tomas laterales y faros finos
+    box(.06, .27, 1.0, gloss, 2.25, .52, 0);
+    for (let i = 0; i < 11; i++) box(.02, .23, .022, M.chrome, 2.285, .52, -.45 + i * .09);
+    for (const z of [-.66, .66]) { box(.05, .16, .3, gloss, 2.25, .36, z); const hl = box(.05, .06, .36, M.lamp, 2.18, .69, z * 1.02, z > 0 ? -.25 : .25); hl.rotation.z = -.12; }
+    box(.08, .05, 1.6, trim, 2.25, .25, 0);                                       // labio delantero
+    // detrás: pilotos LED rojos, alerón de techo negro brillante con aletas
+    const tail = mat('#B3121E', { emissive: '#FF2A2A', emissiveIntensity: .7, roughness: .3 });
+    for (const z of [-.6, .6]) box(.05, .07, .42, tail, -2.26, .86, z);
+    box(.05, .03, .34, tail, -2.26, .52, 0);                                      // luz antiniebla central
+    box(.5, .045, 1.72, gloss, -1.62, 1.42, 0, 0, .1);
+    for (const z of [-.84, .84]) box(.42, .12, .03, gloss, -1.6, 1.37, z);
+    // retrovisores negros
+    for (const z of [W2 + .1, -W2 - .1]) box(.16, .1, .14, gloss, .62, 1.0, z);
+    // ruedas: neumático, llanta negra de radios, pinza roja
+    const caliper = mat('#C8102E', { roughness: .4 });
+    for (const [x, z] of [[1.36, .83], [1.36, -.83], [-1.38, .83], [-1.38, -.83]]) {
+      const wg = new THREE.Group(); wg.position.set(x, .35, z); g.add(wg); const side = z > 0 ? 1 : -1;
+      const ty = new THREE.Mesh(new THREE.CylinderGeometry(.35, .35, .26, 28), M.tyre); ty.rotation.x = Math.PI / 2; wg.add(ty);
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .262, 28), gloss); rim.rotation.x = Math.PI / 2; wg.add(rim); const lip = new THREE.Mesh(new THREE.TorusGeometry(.27, .012, 6, 28), mat('#3A3D42', { roughness: .3, metalness: .6 })); lip.position.z = side * .131; wg.add(lip);
+      for (let i = 0; i < 10; i++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(.035, .24, .02), mat('#2E3035', { roughness: .35, metalness: .5 })); sp.position.set(0, 0, side * .132); sp.rotation.z = i / 10 * Math.PI; wg.add(sp); }
+      const cp = new THREE.Mesh(new THREE.BoxGeometry(.14, .1, .05), caliper); cp.position.set(.1, .12, side * .09); wg.add(cp);
     }
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
     return g;
@@ -296,7 +316,7 @@ export function createWorld(opts) {
     for (const z of [DOOR.z0 - .55, DOOR.z1 + .2]) { block(.4, .3, .36, pot, RX + .25, -.02, z, world); for (let i = 0; i < 5; i++) ball(.07, flower[i % 4], RX + .33 + (i % 3) * .12, .33, z + .08 + (i % 2) * .16, world); ball(.14, M.leaf2, RX + .45, .3, z + .18, world, 1.3, .6, 1); }
     // entrada de coches con el deportivo aparcado
     block(5.6, .03, 2.5, mat('#8C8F96', { roughness: .95 }), RX - 5.6, -.1, RZ + 1.45, world, false);
-    const amg = hotHatch(); amg.position.set(RX - 2.9, -.07, RZ + 2.7); amg.userData.tip = 'Mercedes-AMG A45'; world.add(amg);
+    const amg = hotHatch(); amg.position.set(RX - 2.9, -.08, RZ + 2.7); amg.userData.tip = 'Mercedes-AMG A45'; world.add(amg);
     // banco de madera en la acera
     const bz = 7.2; block(.42, .05, 1.3, M.wood, RX + 1.42, .38, bz, world); block(.06, .38, 1.3, M.wood, RX + 1.78, .43, bz, world);
     for (const dz of [.08, 1.14]) { block(.36, .4, .06, M.dark, RX + 1.46, -.02, bz + dz, world); block(.05, .82, .06, M.dark, RX + 1.8, -.02, bz + dz, world); }

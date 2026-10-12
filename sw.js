@@ -1,5 +1,5 @@
 /* Service worker del Libro de Reventa: abre la app sin conexión y muestra avisos. */
-const VERSION = 'reventa-v26';
+const VERSION = 'reventa-v27';
 const CORE = ['./', 'index.html', 'config.js', 'sync.js', 'remind.js', 'estilo-cristal.css', 'almacen.js', 'manifest.webmanifest', 'vendor/supabase.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

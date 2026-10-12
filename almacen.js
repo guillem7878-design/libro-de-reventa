@@ -408,7 +408,7 @@
   }
   function overlayHtml() {
     const tday = today(), salesT = S.sales.filter(s => s.date === tday && s.status !== 'devuelta');
-    const signs = Object.keys(CATN).filter(k => sum(S.products.filter(p => zoneOf(p) === k), units) > 0).map(k => `<button class="alm-sign" data-action="alm-open" data-id="${k}" data-z="${k}" style="opacity:0"><b>${CATN[k]}</b><span>${sum(S.products.filter(p => zoneOf(p) === k), units)} uds</span></button>`).join('') + '<button class="alm-sign alm-truck" data-action="alm-open" data-id="in" style="opacity:0"><b>Pedido llegando</b><span>Ver recepción</span></button><button class="alm-sign alm-plane" data-action="alm-open" data-id="in" style="opacity:0"><b>Pedido en camino</b><span>' + (onTheWay().filter(o => o.n < 10).map(o => 'día ' + o.n).slice(0, 2).join(' · ') || '') + '</span></button>';
+    const signs = '';   // sin carteles: al tocar cada cosa se abre su ficha
     const pins = alerts().map(p => `<button class="alm-pin" data-action="alm-open" data-id="${p.k}" aria-label="${esc(p.txt)}" style="opacity:0">${IC.pin}<span>${esc(p.txt)}</span></button>`).join('');
     return `<div class="alm-bar" id="almBar">${ZBTN.map(([k, l]) => `<button data-action="alm-open" data-id="${k}" data-z="${k}" class="${activeZ === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="alm-zoom"><button data-action="alm-zin" aria-label="Acercar">${IC.plus}</button><button data-action="alm-zout" aria-label="Alejar">${IC.minus}</button><button data-action="alm-open" data-id="overview" aria-label="Vista general">${IC.home}</button></div>

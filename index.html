@@ -1224,7 +1224,7 @@ function moveRow(m) {
   return `<button class="row" data-action="entry" data-id="${x.id}">${th(p)}<span class="rm"><span class="rt">${esc(x.name)}</span><span class="rs">Entrada de stock</span></span><span class="rv"><b>+${n} uds</b></span></button>`;
 }
 function vMovs() {
-  let h = `<header class="top"><h1>Movimientos</h1></header>`;
+  let h = `<header class="top"><h1>Movimientos</h1><button class="btn btn-soft btn-sm" data-action="orders">${G.bag}Pedidos</button></header>`;
   if (!loadedAll() || S.error) return h + loading();
   const accs = accounts();
   h += `<div class="filters"><div class="search">${G.search}<input id="q-mov" type="search" placeholder="Buscar" value="${esc(S.movQ)}" autocomplete="off"></div>
@@ -1257,7 +1257,8 @@ function vMoviles() {
   if (!accs.length) return h + empty(G.phone, 'Sin móviles', 'Añade uno con su IBAN.', '<button class="btn btn-main btn-sm" data-action="newAccount">Añadir móvil</button>');
   h += `<div class="seg" data-k="accf" role="group" aria-label="Filtrar"><button data-action="accFilter" data-v="all" aria-pressed="${S.accFilter === 'all'}">Todos</button><button data-action="accFilter" data-v="warm" aria-pressed="${S.accFilter === 'warm'}">Calentadas</button><button data-action="accFilter" data-v="cold" aria-pressed="${S.accFilter === 'cold'}">Sin calentar</button></div>`;
   { const tot = accs.map(a => balance(a.id)), ts = r2(sum(tot, x => x.saldo)), tp = r2(sum(tot, x => x.pend));
-    if (ts || tp) h += `<section class="card salsum"><div class="sal"><div><span>Saldo en las cuentas</span><b class="${ts < 0 ? 'neg' : ''}">${money(ts)}</b></div><div><span>Pendiente</span><b>${money(tp)}</b></div></div></section>`; }
+    const nOut = sum(tot, x => x.outs.length);
+    if (ts || tp || nOut) h += `<button class="card salsum" data-action="saldo" style="display:block;width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer"><div class="sal"><div><span>Saldo en las cuentas</span><b class="${ts < 0 ? 'neg' : ''}">${money(ts)}</b></div><div><span>Pendiente</span><b>${money(tp)}</b></div></div><span class="hint" style="display:flex;justify-content:space-between;margin-top:10px">Ver saldo y lo pasado al banco${G.chev}</span></button>`; }
   const list = accs.filter(a => S.accFilter === 'all' || (S.accFilter === 'warm') === !!a.warm);
   if (!list.length) return h + empty(G.phone, S.accFilter === 'warm' ? 'Ninguna calentada' : 'Todas calentadas', '');
   return h + `<div class="list mlist">${list.map(a => `<div class="mcr"><button class="mcr-main" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span><span class="rs">${a.iban ? `<span class="iban">${ibanShort(a.iban)}</span>` : 'Sin IBAN'}${(a.blocks || []).length ? ` · ${(a.blocks || []).length} ${(a.blocks || []).length === 1 ? 'bloqueo' : 'bloqueos'}` : ''}${(() => { const v = balance(a.id).saldo; return v ? ` · saldo ${money(v)}` : ''; })()}</span></span><span class="mr"><b class="mamt">${money(billed(mr, a.id))}</b>${warmChip(a, true)}</span></button><button class="mcr-ed" data-action="renameAccount" data-id="${a.id}" aria-label="Renombrar ${esc(a.name)}">${G.edit}</button></div>`).join('')}</div>
@@ -1349,6 +1350,17 @@ function saldoCard(a) {
   if (B.pendL.length) h += `<div class="sec-h"><h2>Pendiente de cobrar</h2><span>${B.pendL.length}</span></div><div class="list">${B.pendL.slice(0, 8).map(s => `<div class="row"><span class="rm"><span class="rt">${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</span><span class="rs">Al saldo ${inDays(freeOn(s))}</span></span><span class="rv"><b>${money(s.price)}</b></span><button class="btn btn-soft btn-sm" data-action="salePaid" data-id="${s.id}">Ya cobrada</button></div>`).join('')}</div>`;
   if (B.outs.length) h += `<div class="sec-h"><h2>Pasado al banco</h2><span>${money(sum(B.outs, p => p.amount))}</span></div><div class="list">${B.outs.slice(0, 6).map(p => `<div class="row"><span class="th" style="${tint('var(--accent)')}">${G.cash}</span><span class="rm"><span class="rt">${money(p.amount)}</span><span class="rs">${fmtDate(p.date)}${p.iban ? ' · ' + ibanShort(p.iban) : ''}</span></span><button class="px" data-action="delPayout" data-id="${a.id}" data-k="${esc(p.id)}" aria-label="Borrar transferencia" title="Borrar transferencia">${G.x}</button></div>`).join('')}</div>`;
   return h;
+}
+function saldoSheet() {
+  const l = accounts().map(a => ({ a, B: balance(a.id) })), ts = r2(sum(l, x => x.B.saldo)), tp = r2(sum(l, x => x.B.pend));
+  const outs = l.flatMap(x => x.B.outs.map(p => ({ ...p, a: x.a }))).sort((p, q) => (q.date || '').localeCompare(p.date || ''));
+  const mPre = today().slice(0, 7), outM = r2(sum(outs.filter(p => (p.date || '').startsWith(mPre)), p => p.amount));
+  const next = l.flatMap(x => x.B.pendL.map(s => ({ s, a: x.a }))).sort((p, q) => freeOn(p.s).localeCompare(freeOn(q.s)));
+  openSheet('Saldo', `<div class="stat3"><div><span>En el saldo</span><b class="${ts < 0 ? 'neg' : ''}">${money(ts)}</b></div><div><span>Pendiente</span><b>${money(tp)}</b></div><div><span>Al banco este mes</span><b>${money(outM)}</b></div></div>
+    <p class="hint" style="margin:0">Cada venta pasa al saldo a los ${HOLD} días si no hay devolución. Cuando lo pases a tu banco, apúntalo con «Pasar».</p>
+    <div class="sec-h"><h2>Por cuenta</h2></div><div class="list">${l.filter(x => x.B.saldo || x.B.pend).map(x => `<div class="row"><button class="rm" data-action="account" data-id="${x.a.id}" style="text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit"><span class="rt">${esc(x.a.name)}</span><span class="rs">${money(x.B.saldo)} en el saldo${x.B.pend ? ' · ' + money(x.B.pend) + ' pendiente' : ''}</span></button>${x.B.saldo > 0 ? `<button class="btn btn-main btn-sm" data-action="payout" data-id="${x.a.id}">Pasar</button>` : ''}</div>`).join('') || '<div class="row"><span class="rm"><span class="rs">Nada en el saldo ahora mismo.</span></span></div>'}</div>
+    ${next.length ? `<div class="sec-h"><h2>Próximos cobros</h2><span>${money(tp)}</span></div><div class="list">${next.slice(0, 8).map(x => `<div class="row"><span class="rm"><span class="rt">${esc(x.s.name)}${x.s.size ? ' · ' + esc(x.s.size) : ''}</span><span class="rs">${esc(x.a.name)} · al saldo ${inDays(freeOn(x.s))}</span></span><span class="rv"><b>${money(x.s.price)}</b></span></div>`).join('')}</div>` : ''}
+    <div class="sec-h"><h2>Pasado al banco</h2><span>${money(sum(outs, p => p.amount))}</span></div><div class="list">${outs.length ? outs.slice(0, 30).map(p => `<div class="row"><span class="th" style="${tint('var(--accent)')}">${G.cash}</span><span class="rm"><span class="rt">${money(p.amount)}</span><span class="rs">${fmtDate(p.date)} · ${esc(p.a.name)}${p.iban ? ' · ' + ibanShort(p.iban) : ''}</span></span></div>`).join('') : '<div class="row"><span class="rm"><span class="rs">Aún no has pasado nada al banco.</span></span></div>'}</div>`);
 }
 function payoutSheet(id) {
   const a = acc(id); if (!a) return; const B = balance(id);
@@ -1711,10 +1723,10 @@ function saleDetail(id) {
     ${dev ? `<div class="tag neg" style="align-self:flex-start;height:26px;font-size:13px">Devuelta el ${fmtDate(s.returnedAt)}${s.restocked ? ' · volvió al stock' : ''}</div>` : ''}
     <div class="facts"><div class="fact"><span>Móvil</span><b>${esc(accName(s.account, s.accountName))}</b></div>${a && a.iban ? `<div class="fact"><span>IBAN</span><b class="iban">${ibanShort(a.iban)}</b></div>` : ''}
       ${dev ? '' : `<div class="fact"><span>Cobro</span><b>${s.paidAt ? 'Cobrada el ' + fmtDate(s.paidAt) : isFree(s) ? 'En el saldo desde el ' + fmtDate(freeOn(s)) : 'Al saldo el ' + fmtDate(freeOn(s)) + ' (' + inDays(freeOn(s)) + ')'}</b></div>`}
-      ${dev ? '' : `<div class="fact"><span>Envío</span><b>${s.ship === 'pend' ? 'Por preparar' : s.shippedAt ? 'Enviada el ' + fmtDate(s.shippedAt) : 'Enviada'}</b></div>`}
+      ${dev ? '' : `<div class="fact"><span>Envío</span><b>${s.ship === 'pend' && (s.date || '') >= today() ? 'Por preparar' : s.shippedAt ? 'Enviada el ' + fmtDate(s.shippedAt) : 'Enviada'}</b></div>`}
       ${s.cost ? `<div class="fact"><span>Ganas con esta venta</span><b class="pos">+${money(s.price - s.cost)}</b></div>` : ""}</div>
     <div class="btns"><button class="btn btn-soft" data-action="editSale" data-id="${s.id}" ${dev ? 'disabled' : ''}>Editar</button>${dev ? `<button class="btn btn-soft" data-action="unreturn" data-id="${s.id}">Anular devolución</button>` : `<button class="btn btn-soft" data-action="returnSale" data-id="${s.id}">${G.ret}Devolución</button>`}</div>
-    ${!dev && s.ship === 'pend' ? `<button class="btn btn-main btn-block" data-action="alm-ship" data-from="sale" data-id="${s.id}">Marcar como enviada</button>` : ''}
+    ${!dev && s.ship === 'pend' && (s.date || '') >= today() ? `<button class="btn btn-main btn-block" data-action="alm-ship" data-from="sale" data-id="${s.id}">Marcar como enviada</button>` : ''}
     ${dev ? '' : s.paidAt ? `<button class="btn btn-soft btn-block" data-action="saleUnpaid" data-id="${s.id}">Quitar «cobrada»</button>` : !isFree(s) ? `<button class="btn btn-soft btn-block" data-action="salePaid" data-id="${s.id}">Ya me ha llegado el dinero</button>` : ''}
     <button class="btn btn-danger btn-block" data-action="delSale" data-id="${s.id}">Borrar venta</button>`);
 }
@@ -1922,13 +1934,39 @@ function expenseForm(e, preset) {
       paint();
     });
 }
+const isOrder = e => e.category === 'pedido';
+const orderState = e => { const n = days(e.date, today()) || 0; return e.receivedAt ? ['Recibido el ' + fmtDate(e.receivedAt), 'ok'] : n > 30 ? ['Recibido', 'ok'] : ['En camino · día ' + n, 'way']; };
+const invoiceUrl = e => e.invoice ? BLOB_URL + e.invoice : '';
+function ordersSheet() {
+  const l = S.expenses.filter(isOrder).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+  const y = String(new Date().getFullYear()), ly = l.filter(e => (e.date || '').startsWith(y)), way = l.filter(e => orderState(e)[1] === 'way');
+  openSheet('Pedidos al proveedor', l.length ? `<div class="stat3"><div><span>Pedidos ${y}</span><b>${ly.length}</b></div><div><span>Gastado ${y}</span><b>${money0(sum(ly, e => e.amount))}</b></div><div><span>En camino</span><b>${way.length}</b></div></div>
+    <div class="list">${l.map(e => { const [st, k] = orderState(e); return `<button class="row" data-action="expense" data-id="${e.id}"><span class="th" style="${tint(k === 'way' ? 'var(--warn)' : 'var(--ink2)')}">${G.bag}</span><span class="rm"><span class="rt">${esc(e.concept)}</span><span class="rs">${fmtDate(e.date)}${e.units ? ' · ' + e.units + ' uds' : ''} · ${st}${e.invoice ? ' · Factura' : ''}</span></span><span class="rv"><b>${money(e.amount)}</b></span>${G.chev}</button>`; }).join('')}</div>
+    <button class="btn btn-main btn-block" data-action="newExpense">${G.plus}Nuevo pedido</button>`
+    : empty(G.bag, 'Sin pedidos', 'Cuando apuntes una compra al proveedor aparecerá aquí, con su factura.', '<button class="btn btn-main btn-sm" data-action="newExpense">Apuntar pedido</button>'));
+}
+function invoicePick(id) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,image/*';
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    if (f.size > 15 * 1024 * 1024) return toast('El archivo pesa más de 15 MB');
+    const type = f.type === 'application/pdf' ? 'application/pdf' : f.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    toast('Subiendo factura…');
+    try { const r = await assets.upload(f, { type });
+      if (await write(() => db.doc('expenses/' + id).update({ invoice: r.id, invoiceName: f.name, invoiceType: type, invoiceAt: Date.now() }), 'Factura guardada')) setTimeout(() => expenseDetail(id), 300);
+    } catch (e) { toast(e && e.code === 'quota_exceeded' ? 'No queda espacio para archivos' : 'No se pudo subir la factura'); }
+  };
+  inp.click();
+}
 function expenseDetail(id, justCreated) {
   const e = S.expenses.find(x => x.id === id); if (!e) return;
   const ps = S.products.filter(p => p.orderId === id), back = sum(okSales().filter(s => ps.some(p => p.id === s.productId)), s => s.price);
   const per = e.units ? r2(e.amount / e.units) : 0;
-  openSheet(justCreated ? 'Pedido apuntado' : 'Gasto', `<div class="dh"><span class="th" style="${tint(e.category === 'pedido' ? 'var(--warn)' : 'var(--ink2)')}">${EXP_ICON[e.category] || G.coin}</span><div style="min-width:0"><h3>${esc(e.concept)}</h3><p>${EXP_CATS[e.category] || 'Otros'} · ${fmtDate(e.date)}</p></div></div>
+  openSheet(justCreated ? 'Pedido apuntado' : isOrder(e) ? 'Pedido' : 'Gasto', `<div class="dh"><span class="th" style="${tint(e.category === 'pedido' ? 'var(--warn)' : 'var(--ink2)')}">${EXP_ICON[e.category] || G.coin}</span><div style="min-width:0"><h3>${esc(e.concept)}</h3><p>${EXP_CATS[e.category] || 'Otros'} · ${fmtDate(e.date)}</p></div></div>
     <div class="bigv">−${splitC(money(e.amount))}</div>
-    ${e.category === 'pedido' ? `<div class="facts">${e.units ? `<div class="fact"><span>Unidades</span><b>${e.units} · ${money(per)}/ud</b></div>` : ''}<div class="fact"><span>Productos en stock</span><b>${ps.length}</b></div><div class="fact"><span>Recuperado vendiendo</span><b class="${back >= e.amount ? 'pos' : ''}">${money(back)} · ${Math.round(back / e.amount * 100)}%</b></div></div>
+    ${e.category === 'pedido' ? `<div class="facts"><div class="fact"><span>Estado</span><b>${orderState(e)[0]}</b></div>${e.units ? `<div class="fact"><span>Unidades</span><b>${e.units} · ${money(per)}/ud</b></div>` : ''}<div class="fact"><span>Productos en stock</span><b>${ps.length}</b></div><div class="fact"><span>Recuperado vendiendo</span><b class="${back >= e.amount ? 'pos' : ''}">${money(back)} · ${Math.round(back / e.amount * 100)}%</b></div></div>
+      ${e.invoice ? `<div class="btns"><a class="btn btn-main" href="${esc(invoiceUrl(e))}" target="_blank" rel="noopener">${G.receipt}Ver factura</a><button class="btn btn-soft" data-action="invoice" data-id="${e.id}">Cambiar</button></div>` : `<button class="btn btn-soft btn-block" data-action="invoice" data-id="${e.id}">${G.receipt}Añadir factura (PDF o foto)</button>`}
+      ${orderState(e)[1] === 'way' ? `<button class="btn btn-soft btn-block" data-action="orderRecv" data-id="${e.id}">Ha llegado</button>` : ''}
       <button class="btn btn-main btn-block" data-action="orderProduct" data-id="${e.id}">${G.box}Meter productos de este pedido al stock</button>
       ${ps.length ? `<div class="list">${ps.map(p => `<button class="row" data-action="product" data-id="${p.id}">${th(p)}<span class="rm"><span class="rt">${esc(p.name)}</span><span class="rs">${units(p)} uds</span></span>${G.chev}</button>`).join('')}</div>` : ''}` : ''}
     <div class="btns"><button class="btn btn-soft" data-action="editExpense" data-id="${e.id}">Editar</button><button class="btn btn-danger" data-action="delExpense" data-id="${e.id}">Borrar</button></div>`);
@@ -2018,7 +2056,7 @@ function catForm(id) {
 function moreSheet() {
   const look = store.get('look') || 'auto';
   const ex = (w, c, t, s) => `<button class="row" data-action="export" data-what="${w}"><span class="th" style="${tint(c)}">${G.down}</span><span class="rm"><span class="rt">${t}</span><span class="rs">${s}</span></span>${G.chev}</button>`;
-  openSheet('Ajustes', `<div class="list"><button class="row" data-action="cats"><span class="th" style="${tint('var(--ink)')}">${G.layers}</span><span class="rm"><span class="rt">Colecciones</span><span class="rs">${CAT_ORDER.map(k => CATS[k].label).join(' · ')}</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
+  openSheet('Ajustes', `<div class="list"><button class="row" data-action="cats"><span class="th" style="${tint('var(--ink)')}">${G.layers}</span><span class="rm"><span class="rt">Colecciones</span><span class="rs">${CAT_ORDER.map(k => CATS[k].label).join(' · ')}</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="orders"><span class="th" style="${tint('var(--warn)')}">${G.bag}</span><span class="rm"><span class="rt">Pedidos al proveedor</span><span class="rs">Historial con sus facturas</span></span>${G.chev}</button><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
     ${S.desk ? '' : `<div class="fld"><span class="lbl">Al abrir en el móvil</span><div class="seg" data-k="qpref" style="align-self:flex-start">${[['1', 'Botones rápidos'], ['0', 'Panel']].map(([k, l]) => `<button data-action="quickPref" data-v="${k}" aria-pressed="${(store.get('quickStart') || '1') === k}">${l}</button>`).join('')}</div></div>`}
     ${window.SYNC ? window.SYNC.settingsHtml() : ''}
     <div class="fld"><span class="lbl">Apariencia</span><div class="seg" data-k="look" style="align-self:flex-start">${[['auto', 'Auto', G.auto], ['light', 'Claro', G.sun], ['dark', 'Oscuro', G.moon]].map(([k, l, i]) => `<button data-action="look" data-v="${k}" aria-pressed="${look === k}">${i}${l}</button>`).join('')}</div></div>`);
@@ -2140,6 +2178,10 @@ document.addEventListener('click', async ev => {
     case 'quickOn': S.quick = true; S.animate = true; closeSheet(); render(); toTop(); break;
     case 'quickPref': store.set('quickStart', b.dataset.v); moreSheet(); break;
     case 'expense': expenseDetail(id); break;
+    case 'orders': ordersSheet(); break;
+    case 'invoice': invoicePick(id); break;
+    case 'orderRecv': if (await write(() => db.doc('expenses/' + id).update({ receivedAt: today() }), 'Pedido recibido', () => write(() => db.doc('expenses/' + id).update({ receivedAt: '' }), 'Deshecho'))) setTimeout(() => expenseDetail(id), 250); break;
+    case 'saldo': saldoSheet(); break;
     case 'editExpense': expenseForm(S.expenses.find(x => x.id === id)); break;
     case 'delExpense': { const e = S.expenses.find(x => x.id === id); if (!e) break; const copy = strip(e);
       if (await write(() => db.doc('expenses/' + id).delete(), 'Gasto borrado', () => write(() => db.doc('expenses/' + id).set(copy), 'Recuperado'))) closeSheet(); break; }

@@ -10,8 +10,9 @@
 
   /* ---------- datos ---------- */
   const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
-  const pend = () => S.sales.filter(s => s.status !== 'devuelta' && (s.ship === 'pend' || (!s.ship && (s.date || '') >= '2026-10-12'))).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const sentWeek = () => S.sales.filter(s => s.status !== 'devuelta' && s.ship !== 'pend' && (s.shippedAt || s.date || '') >= daysAgo(6));
+  const pendRaw = s => s.status !== 'devuelta' && (s.ship === 'pend' || (!s.ship && (s.date || '') >= '2026-10-12'));
+  const pend = () => S.sales.filter(s => pendRaw(s) && (s.date || '') >= today()).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const sentWeek = () => S.sales.filter(s => s.status !== 'devuelta' && !(pendRaw(s) && (s.date || '') >= today()) && (s.shippedAt || s.date || '') >= daysAgo(6));
   const rets = () => S.sales.filter(s => s.status === 'devuelta' && (s.returnedAt || s.date || '') >= daysAgo(30)).sort((a, b) => (b.returnedAt || '').localeCompare(a.returnedAt || ''));
   const incoming = () => S.expenses.filter(e => e.category === 'pedido' && (e.date || '') >= daysAgo(14)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const zoneOf = p => { const k = CATS[p && p.category] ? p.category : 'otro', kd = CATS[k].kind; return kd === 'shoe' ? 'zapatillas' : kd === 'plush' ? 'jellycat' : kd === 'clothes' ? 'futbol' : 'otro'; };
@@ -361,13 +362,17 @@
       const w = onTheWay(), got = pedidos().filter(e => e.receivedAt && e.receivedAt >= daysAgo(14)).sort((x, y) => y.receivedAt.localeCompare(x.receivedAt));
       const st = n => n >= 12 ? ['Descargando en tu puerta', 'lo'] : n >= 10 ? ['La furgoneta está llegando', 'ok'] : ['En avión · llega hacia el día 12', ''];
       return pHead('Recepción', 'Pedidos de proveedor', '', [['En camino', w.length], ['Unidades', sum(w, o => o.e.units || 0)], ['Recibidos (14 días)', got.length]]) +
-        `<div class="ap-l">En camino</div><div class="ap-list">${w.length ? w.map(o => `<div class="ap-row"><button class="ap-rm" data-action="editExpense" data-id="${o.e.id}"><b>${esc(o.e.concept)}</b><span>Día ${o.n} · ${st(o.n)[0]}${o.e.units ? ' · ' + o.e.units + ' uds' : ''}</span></button><button class="btn btn-soft btn-sm" data-action="alm-recv" data-id="${o.e.id}">Ha llegado</button></div>`).join('') : '<p class="ap-empty">No hay ningún pedido en camino.</p>'}</div>
-        ${got.length ? `<div class="ap-l">Recibidos</div><div class="ap-list">${got.map(e => rowBtn('editExpense', e.id, esc(e.concept), 'Llegó el ' + fmtDate(e.receivedAt) + (e.units ? ' · ' + e.units + ' uds' : ''), '<span class="ap-chip ok">' + money(e.amount) + '</span>')).join('')}</div>` : ''}
+        `<div class="ap-l">En camino</div><div class="ap-list">${w.length ? w.map(o => `<div class="ap-row"><button class="ap-rm" data-action="expense" data-id="${o.e.id}"><b>${esc(o.e.concept)}</b><span>Día ${o.n} · ${st(o.n)[0]}${o.e.units ? ' · ' + o.e.units + ' uds' : ''}</span></button><button class="btn btn-soft btn-sm" data-action="alm-recv" data-id="${o.e.id}">Ha llegado</button></div>`).join('') : '<p class="ap-empty">No hay ningún pedido en camino.</p>'}</div>
+        ${got.length ? `<div class="ap-l">Recibidos</div><div class="ap-list">${got.map(e => rowBtn('expense', e.id, esc(e.concept), 'Llegó el ' + fmtDate(e.receivedAt) + (e.units ? ' · ' + e.units + ' uds' : '') + (e.invoice ? ' · Factura' : ''), '<span class="ap-chip ok">' + money(e.amount) + '</span>')).join('')}</div>` : ''}
+        <div class="ap-l">Historial</div><div class="ap-list">${pedidos().slice().sort((x, y) => (y.date || '').localeCompare(x.date || '')).slice(0, 12).map(e => rowBtn('expense', e.id, esc(e.concept), fmtDate(e.date) + (e.units ? ' · ' + e.units + ' uds' : '') + (e.invoice ? ' · Factura' : ''), '<span class="ap-chip">' + money(e.amount) + '</span>')).join('') || '<p class="ap-empty">Sin pedidos todavía.</p>'}</div>
+        <button class="btn btn-soft btn-block" data-action="orders" style="margin-top:10px">Ver todos los pedidos</button>
         <div class="ap-f"><button class="btn btn-main btn-block" data-action="newExpense">Nueva compra</button></div>`;
     }
     if (k === 'office') {
       const l = accounts(), sal = r2(sum(l, x => balance(x.id).saldo)), pe = r2(sum(l, x => balance(x.id).pend));
+      const outs = l.flatMap(x => (balance(x.id).outs || []).map(p => ({ ...p, a: x }))).sort((p, q) => (q.date || '').localeCompare(p.date || ''));
       return pHead('Escritorio', 'Móviles', l.length + ' cuentas', [['En el saldo', money(sal)], ['Pendiente', money(pe)]]) +
+        `<div class="ap-l">Pasado al banco</div><div class="ap-list">${outs.length ? outs.slice(0, 6).map(p => `<div class="ap-row"><span class="ap-rm"><b>${money(p.amount)}</b><span>${fmtDate(p.date)} · ${esc(p.a.name)}</span></span></div>`).join('') : '<p class="ap-empty">Aún no has pasado nada al banco.</p>'}</div><button class="btn btn-soft btn-block" data-action="saldo" style="margin-top:10px">Ver saldo completo</button>` +
         `<div class="ap-l">Cuentas</div><div class="ap-list">${l.map(x => { const B = balance(x.id); return rowBtn('account', x.id, esc(x.name), (x.warm ? 'Calentada' : 'Sin calentar') + (B.pend ? ' · ' + money(B.pend) + ' pendiente' : ''), '<span class="ap-chip ' + (B.saldo > 0 ? 'ok' : '') + '">' + money(B.saldo) + '</span>'); }).join('')}</div>`;
     }
     if (k === 'ret') {

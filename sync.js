@@ -159,7 +159,7 @@
   /* ---------- Fotos y descargas ---------- */
   const assets = {
     async upload(blob, opts) {
-      failIfOffline(); const path = `${uid}/${uuid()}.jpg`;
+      failIfOffline(); const ty = (opts && opts.type) || 'image/jpeg', path = `${uid}/${uuid()}.${ty === 'application/pdf' ? 'pdf' : ty === 'image/png' ? 'png' : 'jpg'}`;
       const { error } = await sb.storage.from('photos').upload(path, blob, { contentType: (opts && opts.type) || 'image/jpeg', upsert: false });
       if (error) { const e = new Error(error.message); e.code = /exceed|size|quota/i.test(error.message) ? 'quota_exceeded' : 'upload'; throw e; }
       return { id: path };

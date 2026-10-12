@@ -1197,7 +1197,7 @@ function vPanelDesk() {
 
   /* stock */
   const stU = sum(S.products, units), stC = r2(sum(S.products, p => units(p) * (p.cost || 0))), stP = r2(sum(S.products, p => units(p) * (p.price || 0)));
-  const low = S.products.filter(p => units(p) <= 1).sort((a, b) => units(a) - units(b)).slice(0, 5);
+  const low = [];   // sin «Por reponer»
   g += `<section class="card s4"><div class="ch"><h2>Stock</h2><button class="lnk" data-action="tab" data-tab="stock">Ver${G.right}</button></div>
     <div class="stat3"><div><span>Unidades</span><b>${stU}</b></div><div><span>Valor a coste</span><b>${money0(stC)}</b></div><div><span>Valor a venta</span><b>${money0(stP)}</b></div></div>
     ${low.length ? `<div class="sub-h">Por reponer</div><div class="rows">${low.map(p => `<div class="row">${th(p)}<span class="rm"><span class="rt">${esc(p.name)}</span><span class="rs">${units(p) ? units(p) + ' ud' : 'Agotado'}</span></span><button class="qbtn soft" data-action="addUnits" data-id="${p.id}">Reponer</button></div>`).join('')}</div>` : ''}</section>`;

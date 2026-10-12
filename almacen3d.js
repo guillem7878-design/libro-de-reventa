@@ -53,13 +53,27 @@ const BRANDS = {
 };
 const brandOf = n => /jordan/i.test(n) ? 'jordan' : /nike|air ?force|air ?max|dunk|blazer|cortez/i.test(n) ? 'nike' : /adidas|samba|gazelle|campus|spezial|handball|superstar|stan smith/i.test(n) ? 'adidas' : /new ?balance|\bnb\b|\b(550|530|9060|2002r)\b/i.test(n) ? 'nb' : /asics|onitsuka|gel-/i.test(n) ? 'asics' : 'other';
 const shoeMats = {};
+function swoosh(g, x, y, s, col) {   // la «pipa»
+  g.save(); g.translate(x, y); g.scale(s, s); g.fillStyle = col; g.beginPath();
+  g.moveTo(0, 14); g.bezierCurveTo(-6, 22, 2, 26, 12, 20); g.lineTo(46, 4); g.lineTo(13, 14); g.bezierCurveTo(4, 17, 0, 16, 4, 10); g.closePath(); g.fill(); g.restore();
+}
+function brandLogo(g, brand, x, y, w, h) {   // en el rectángulo (x, y, w, h)
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (brand === 'nike') swoosh(g, x + 2, y + h / 2 - 12, w / 50, '#FFFFFF');
+  else if (brand === 'jordan') { g.fillStyle = '#FFFFFF'; g.font = '900 ' + Math.round(h * .32) + 'px Arial Black, Arial, sans-serif'; g.fillText('JORDAN', x + w / 2, y + h * .4); g.fillStyle = '#C8102E'; g.font = '800 ' + Math.round(h * .22) + 'px Arial, sans-serif'; g.fillText('AIR', x + w / 2, y + h * .78); }
+  else if (brand === 'adidas') { g.fillStyle = '#FFFFFF'; for (let i = 0; i < 3; i++) { const bh = h * (.3 + i * .18); g.save(); g.translate(x + w * .22 + i * w * .17, y + h * .62); g.rotate(-.5); g.fillRect(-w * .055, -bh, w * .11, bh); g.restore(); } g.font = '700 ' + Math.round(h * .24) + 'px Arial, sans-serif'; g.fillText('adidas', x + w / 2, y + h * .86); }
+  else if (brand === 'nb') { g.fillStyle = '#C8102E'; g.font = 'italic 900 ' + Math.round(h * .6) + 'px Arial Black, Arial, sans-serif'; g.fillText('NB', x + w / 2, y + h / 2 + 1); }
+  else if (brand === 'asics') { g.fillStyle = '#2C4E9E'; g.font = 'italic 800 ' + Math.round(h * .42) + 'px Arial, sans-serif'; g.fillText('asics', x + w / 2, y + h / 2); }
+  g.restore();
+}
 function shoeboxMats(brand, size) {
   const key = brand + '|' + size; if (shoeMats[key]) return shoeMats[key]; const B = BRANDS[brand];
   const end = tex(256, 128, (g) => { const w = 128, h = 64; g.scale(2, 2); g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
-    if (B.stripes) { g.fillStyle = B.band; for (let i = 0; i < 3; i++) g.fillRect(14 + i * 9, 22, 5, 36); } else { g.fillStyle = B.band; g.fillRect(0, h - 10, w, 10); }
+    if (!B.stripes) { g.fillStyle = B.band; g.fillRect(0, h - 6, w, 6); }
+    brandLogo(g, brand, 4, 20, 48, 38);
     g.fillStyle = '#FFFFFF'; g.fillRect(56, 21, 66, 37); g.fillStyle = '#16171A'; g.font = '800 26px Manrope, Inter, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(size || '—').slice(0, 4), 89, 40.5); noise(g, w, h, 300, .05); });
   const side = tex(256, 64, (g, w, h) => { g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
-    if (B.stripes) { g.fillStyle = B.band; for (let i = 0; i < 3; i++) { g.save(); g.translate(150 + i * 22, 64); g.rotate(-.5); g.fillRect(0, -70, 10, 80); g.restore(); } } else { g.fillStyle = B.band; g.fillRect(0, h - 10, w, 10); } noise(g, w, h, 600, .05); });
+    if (!B.stripes) { g.fillStyle = B.band; g.fillRect(0, h - 6, w, 6); } brandLogo(g, brand, 150, 18, 96, 42); noise(g, w, h, 600, .05); });
   const top = tex(128, 128, (g, w, h) => { g.fillStyle = B.lid; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(0,0,0,.15)'; g.lineWidth = 3; g.strokeRect(2, 2, w - 4, h - 4); noise(g, w, h, 500, .05); });
   const m = o => new THREE.MeshStandardMaterial({ map: o, roughness: .7 });
   return shoeMats[key] = [m(end), m(end), m(top), m(top), m(side), m(side)];      // caras: +x (mira a la habitación), -x, +y, -y, +z, -z
@@ -139,6 +153,14 @@ function walkPose(P, t, carry) { const s = Math.sin(t * 9); P.legL.rotation.x = 
 function standPose(P, carry, t) { P.legL.rotation.x = P.legR.rotation.x = 0; P.g.position.y = 0; P.armL.rotation.x = P.armR.rotation.x = carry ? -1.2 : -.6 + Math.sin(t * 6) * .25; }
 
 // furgoneta de reparto amarilla y roja, del estilo de una Iveco Daily
+function dhlTex(wpx, hpx) {
+  return tex(wpx, hpx, (g, W, H) => { g.clearRect(0, 0, W, H); g.fillStyle = '#D40511';
+    const fs = H * .78; g.font = 'italic 900 ' + fs + 'px Arial Black, Arial, sans-serif'; g.textBaseline = 'middle';
+    const tw = g.measureText('DHL').width, tx = (W - tw) / 2; g.fillText('DHL', tx, H / 2 + H * .04);
+    for (let i = 0; i < 3; i++) { const yy = H * (.3 + i * .16), lh = H * .07; g.fillRect(4, yy, tx - 14 - i * 6, lh); g.fillRect(tx + tw + 10 + i * 6, yy, W - (tx + tw + 10 + i * 6) - 4, lh); }
+  });
+}
+const dhlMat = () => new THREE.MeshBasicMaterial({ map: dhlTex(512, 96), transparent: true, depthWrite: false });
 function van() {
   const g = new THREE.Group(), W = 1.96;
   // caja de carga
@@ -164,6 +186,8 @@ function van() {
     const rm = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, .27, 16), M.rim); rm.rotation.z = Math.PI / 2; w.add(rm); wheels.push(w); }
   // puertas traseras con bisagra
   const doors = [-1, 1].map(sx => { const p = new THREE.Group(); p.position.set(sx * W / 2, .5, -3.5); g.add(p); block(W / 2 - .01, 2.15, .04, M.yellow, sx > 0 ? -(W / 2 - .01) : 0, 0, -.04, p); block(W / 2 - .01, .22, .045, M.red, sx > 0 ? -(W / 2 - .01) : 0, .22, -.045, p); return p; });
+  // logos DHL en los lados de la caja y en las puertas
+  for (const sx of [-1, 1]) { const l = new THREE.Mesh(new THREE.PlaneGeometry(2.6, .5), dhlMat()); l.position.set(sx * (W / 2 + .018), 1.62, -1.75); l.rotation.y = sx * Math.PI / 2; g.add(l); }
   // intermitentes traseros
   const hz = [-1, 1].map(sx => block(.1, .1, .03, M.amber, sx * .85 - .05, .6, -3.53, g));
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
@@ -180,6 +204,7 @@ function plane() {
   block(1.3, .04, .4, M.yellow, -.65, .05, -2.0, body); block(.05, .75, .55, M.red, -.025, .1, -2.15, body);
   for (const sx of [-1, 1]) { const en = new THREE.Mesh(new THREE.CylinderGeometry(.11, .1, .5, 14), mat('#D9DCE0', { roughness: .3, metalness: .5 })); en.rotation.x = Math.PI / 2; en.position.set(sx * .85, -.22, .15); body.add(en); }
   for (let i = 0; i < 6; i++) block(.01, .07, .09, M.tint, .235, .05, .9 - i * .3, body);
+  for (const sx of [-1, 1]) { const l = new THREE.Mesh(new THREE.PlaneGeometry(1.3, .24), dhlMat()); l.position.set(sx * .245, -.02, -.35); l.rotation.y = sx * Math.PI / 2; body.add(l); }
   return g;
 }
 function car(color) {

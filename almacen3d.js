@@ -55,7 +55,7 @@ const brandOf = n => /jordan/i.test(n) ? 'jordan' : /nike|air ?force|air ?max|du
 const shoeMats = {};
 function shoeboxMats(brand, size) {
   const key = brand + '|' + size; if (shoeMats[key]) return shoeMats[key]; const B = BRANDS[brand];
-  const end = tex(128, 64, (g, w, h) => { g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
+  const end = tex(256, 128, (g) => { const w = 128, h = 64; g.scale(2, 2); g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
     if (B.stripes) { g.fillStyle = B.band; for (let i = 0; i < 3; i++) g.fillRect(14 + i * 9, 22, 5, 36); } else { g.fillStyle = B.band; g.fillRect(0, h - 10, w, 10); }
     g.fillStyle = '#FFFFFF'; g.fillRect(70, 24, 48, 28); g.fillStyle = '#222'; g.font = '700 15px Inter, system-ui, sans-serif'; g.fillText(size || '42', 76, 43); for (let i = 0; i < 8; i++) g.fillRect(100 + i * 2, 30, 1, 16); noise(g, w, h, 300, .05); });
   const side = tex(256, 64, (g, w, h) => { g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
@@ -204,6 +204,7 @@ export function createWorld(opts) {
   sun.shadow.bias = -.0006; sun.shadow.normalBias = .035; sun.shadow.radius = 5;
   sun.target.position.set(RX / 2 + 2, 0, RZ / 2); scene.add(sun, sun.target);
 
+  const fill = new THREE.DirectionalLight('#FFFFFF', 0); fill.position.set(14, 4, 2); fill.target.position.set(0, 1, 2); scene.add(fill, fill.target);
   const world = new THREE.Group(); scene.add(world);
   /* ---------- fuera: acera, calle y árboles ---------- */
   block(44, .1, 44, M.grass, -14, -.2, -16, world, false);
@@ -312,11 +313,13 @@ export function createWorld(opts) {
     const track = (p, m) => { (shelfMesh[p.id] = shelfMesh[p.id] || []).push(m); m.userData.tip = p.tip; };
     // zapatillas: una caja por par, de 3 en 3 por hueco, cada producto seguido del anterior
     clear(shoeItems);
-    let slot = 0; const cap = SW.bays * SW.levels * SW.per;
+    const pairs = byCat('zapatillas').reduce((t, p) => t + shown(p), 0), per = Math.min(SW.per, Math.max(1, Math.ceil(pairs / (SW.bays * SW.levels))));
+    const LV = [2, 1, 3, 0, 4];   // orden de baldas: primero la del medio
+    let slot = 0; const cap = SW.bays * SW.levels * per;
     byCat('zapatillas').forEach(p => { const g = new THREE.Group(); g.userData.tip = p.tip; g.userData.rack = 'zapatillas'; shoeItems.add(g);
       const mats = shoeboxMats(brandOf(p.name), p.size); let first = null;
       for (let k = 0; k < shown(p) && slot < cap; k++, slot++) {
-        const cell = Math.floor(slot / SW.per), inCell = slot % SW.per, bay = cell % SW.bays, lvl = Math.floor(cell / SW.bays);
+        const cell = Math.floor(slot / per), inCell = slot % per, bay = cell % SW.bays, lvl = LV[Math.floor(cell / SW.bays)];
         const z = SW.z0 + bay * SW.bay + .04, y = .073 + lvl * SW.lv + inCell * .118; track(p, block(.33, .115, SW.bay - .07, mats, .06, y, z, g));
         if (!first) first = [.35, y + .4, z + .15];
       } slotPos[p.id] = first || [.35, 1, 1]; });
@@ -599,17 +602,22 @@ export function createWorld(opts) {
   const look = new THREE.Vector3(...ZONES.overview.at), lookTo = look.clone();
   let zoom = 1, zoomTo = 1, az = Math.PI / 4, azTo = az, idle = 0, auto = 0;
   const EL = .64, R = 50, VIEW = 11.6;
+  // primer plano: cámara casi a la altura de los ojos, de frente, y un corte que quita lo que hay delante
+  let el = EL, elTo = EL, near = 10, nearTo = 10, front = false;
   let host = null, raf = 0, W = 1, H = 1, last = performance.now(), clock2 = 0;
   function fit() { if (!host) return; const r = host.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height); renderer.setSize(W, H, false); }
   const ro = new ResizeObserver(fit);
   function placeCam(dt) {
     idle += dt;
-    if (idle > 15) { auto += dt; if (auto > 50) { auto = 0; azTo = Math.PI / 4 + (Math.random() * 2 - 1) * .18; } }
+    if (!front && idle > 15) { auto += dt; if (auto > 50) { auto = 0; azTo = Math.PI / 4 + (Math.random() * 2 - 1) * .18; } }
     // se acerca suave y, al llegar, se queda quieta del todo (sin micro-movimientos que hagan temblar la imagen)
     look.lerp(lookTo, Math.min(1, dt * 2.6)); if (look.distanceTo(lookTo) < 4e-3) look.copy(lookTo);
     zoom += (zoomTo - zoom) * Math.min(1, dt * 2.5); if (Math.abs(zoomTo - zoom) < 1e-3) zoom = zoomTo; az += (azTo - az) * Math.min(1, dt * 1.6); if (Math.abs(azTo - az) < 2e-3) az = azTo;
+    el += (elTo - el) * Math.min(1, dt * 2.6); if (Math.abs(elTo - el) < 1e-3) el = elTo;
+    near += (nearTo - near) * Math.min(1, dt * 3); if (Math.abs(nearTo - near) < 1e-2) near = nearTo; cam.near = near;
+    fill.intensity += ((front ? .9 : 0) - fill.intensity) * Math.min(1, dt * 3); P.g.visible = !(front && near > 30);
     const a = W / H; cam.left = -VIEW * a / 2; cam.right = VIEW * a / 2; cam.top = VIEW / 2; cam.bottom = -VIEW / 2; cam.zoom = zoom; cam.updateProjectionMatrix();
-    cam.position.set(look.x + R * Math.sin(az) * Math.cos(EL), look.y + R * Math.sin(EL), look.z + R * Math.cos(az) * Math.cos(EL)); cam.lookAt(look);
+    cam.position.set(look.x + R * Math.sin(az) * Math.cos(el), look.y + R * Math.sin(el), look.z + R * Math.cos(az) * Math.cos(el)); cam.lookAt(look);
   }
   let drag = null;
   canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: false }; canvas.setPointerCapture(e.pointerId); idle = 0; });
@@ -618,11 +626,11 @@ export function createWorld(opts) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
     drag.x = e.clientX; drag.y = e.clientY; idle = 0;
     const k = VIEW / H / zoom, right = new THREE.Vector3(Math.cos(az), 0, -Math.sin(az)), fwd = new THREE.Vector3(-Math.sin(az), 0, -Math.cos(az));
-    lookTo.addScaledVector(right, -dx * k).addScaledVector(fwd, dy * k / Math.sin(EL));
+    if (front) { lookTo.addScaledVector(right, -dx * k); lookTo.y = Math.max(.5, Math.min(2.2, lookTo.y + dy * k)); } else lookTo.addScaledVector(right, -dx * k).addScaledVector(fwd, dy * k / Math.sin(el));
     lookTo.x = Math.max(-1, Math.min(RX + 6, lookTo.x)); lookTo.z = Math.max(-3, Math.min(RZ + 2, lookTo.z)); look.copy(lookTo);
   });
   canvas.addEventListener('pointerup', e => { if (drag && !drag.moved) clickAt(e); drag = null; });
-  canvas.addEventListener('wheel', e => { e.preventDefault(); idle = 0; zoomTo = Math.max(.85, Math.min(3.5, zoomTo * (e.deltaY < 0 ? 1.15 : .87))); }, { passive: false });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); idle = 0; zoomTo = Math.max(.85, Math.min(front ? 6 : 3.5, zoomTo * (e.deltaY < 0 ? 1.15 : .87))); }, { passive: false });
 
   /* ---------- ratón: nombres y clic (sin cambiar colores, para que nada parpadee) ---------- */
   const rc = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -653,7 +661,7 @@ export function createWorld(opts) {
     placeCam(dt); renderer.render(scene, cam);
     if (opts.onFrame) opts.onFrame({
       racks: Object.entries(SIGNS).map(([k, p]) => [k, proj(...p)]),
-      person: proj(P.g.position.x, seated ? 1.75 : 2.1, P.g.position.z), activity: { say, progress: job ? Math.min(1, job.i / job.steps.length) : 0, kind: job ? job.kind : '' },
+      front, person: front ? null : proj(P.g.position.x, seated ? 1.75 : 2.1, P.g.position.z), activity: { say, progress: job ? Math.min(1, job.i / job.steps.length) : 0, kind: job ? job.kind : '' },
       truck: V.g.visible ? proj(V.g.position.x, 3.2, V.g.position.z - 1.2) : null, truckState: vanState,
       plane: PL.visible ? proj(PL.position.x, PL.position.y + .9, PL.position.z) : null,
       pins: pins.map(p => ({ ...p, xy: proj(...(p.at || slotPos[p.productId] || [0, 0, 0])) })), zoom
@@ -665,8 +673,14 @@ export function createWorld(opts) {
     canvas,
     attach(el) { if (host !== el) { if (host) ro.unobserve(host); host = el; ro.observe(el); } if (canvas.parentNode !== el) el.prepend(canvas); fit(); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } },
     update,
-    flyTo(k) { const s = SIGNS[k]; const Zn = ZONES[k] || (s && { at: [s[0] + .6, .7, s[2]], zoom: 2.3 }); if (!Zn) return; lookTo.set(...Zn.at); zoomTo = Zn.zoom; azTo = Math.PI / 4; idle = 0; },
-    zoomBy(f) { zoomTo = Math.max(.85, Math.min(3.5, zoomTo * f)); idle = 0; },
+    flyTo(k) {
+      if (k === 'zapatillas') {          // de frente a la pared de zapatillas, a la altura de las cajas
+        front = true; const len = SW.bays * SW.bay; lookTo.set(.3, SW.levels * SW.lv / 2 + .05, SW.z0 + len / 2 - .85);
+        azTo = Math.PI / 2; elTo = .1; nearTo = R - 1.55; zoomTo = Math.min(5, VIEW / (SW.levels * SW.lv + 1.6)); idle = 0; return;
+      }
+      front = false; elTo = EL; nearTo = 10;
+      const s = SIGNS[k]; const Zn = ZONES[k] || (s && { at: [s[0] + .6, .7, s[2]], zoom: 2.3 }); if (!Zn) return; lookTo.set(...Zn.at); zoomTo = Zn.zoom; azTo = Math.PI / 4; idle = 0; },
+    zoomBy(f) { zoomTo = Math.max(.85, Math.min(front ? 6 : 3.5, zoomTo * f)); idle = 0; },
     state: () => ({ zoom, zoomTo, look: look.toArray(), van: vanState })
   };
 }

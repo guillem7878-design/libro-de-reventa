@@ -175,7 +175,7 @@
       if (p) { const u = units(p), k = Math.max(.4, Math.min(1, u / maxU)), bh = (SH - .4) * k, bw = CW - .45;
         s += carton(.55, y + .22, z + .1, 1.2, bw, bh, 1 - (i % 3) * .05, `class="pbox" data-tip="${esc(p.name)} · ${u} ${u === 1 ? 'ud' : 'uds'}"`);
         s += quad([[1.75, y + .3, z + .1 + bh * .2], [1.75, y + .3 + bw * .25, z + .1 + bh * .2], [1.75, y + .3 + bw * .25, z + .1 + bh * .2 + .18], [1.75, y + .3, z + .1 + bh * .2 + .18]], CAT_HEX[catKey(p)]);
-        if (u <= 2) { const [qx, qy] = P(1.8, y + CW - .25, z + SH - .38); s += `<circle cx="${qx}" cy="${qy}" r="4.2" fill="#F0706A" stroke="rgba(0,0,0,.3)" stroke-width=".6"><title>Quedan ${u}</title></circle>`; } }
+        }
     }
     s += `</g>`;
 
@@ -287,7 +287,6 @@
   const valor = l => r2(sum(l, p => (p.cost || 0) * units(p)));
   function alerts() {
     const a = [];
-    S.products.filter(p => units(p) > 0 && units(p) <= 2).forEach(p => a.push({ productId: p.id, k: catKey(p), txt: p.name + ' · quedan ' + units(p) }));
     const pd = pend().length; if (pd) a.push({ at: [5.4, 1.5, 3.75], k: 'prep', txt: pd + ' por preparar' });
     const rt = rets().filter(s => (s.returnedAt || '') >= daysAgo(7)).length; if (rt) a.push({ at: [8.45, 1.1, 6.0], k: 'ret', txt: rt + (rt > 1 ? ' devoluciones' : ' devolución') + ' esta semana' });
     if (onTheWay().some(o => o.n >= 12)) a.push({ at: [8.85, 1.3, 1.05], k: 'in', txt: 'Pedido en tu puerta: confírmalo' });
@@ -323,14 +322,14 @@
     };
   }
   /* panel lateral de cada zona, como la ficha de «Rayon A» del vídeo */
-  const chip = u => u === 0 ? '<span class="ap-chip no">Agotado</span>' : u <= 2 ? '<span class="ap-chip lo">Quedan ' + u + '</span>' : '<span class="ap-chip ok">' + u + ' uds</span>';
+  const chip = u => u === 0 ? '<span class="ap-chip no">Agotado</span>' : '<span class="ap-chip ok">' + u + ' uds</span>';
   const rowBtn = (act, id, title, sub, right) => `<button class="ap-row" data-action="${act}" data-id="${id}"><span class="ap-rm"><b>${title}</b><span>${sub}</span></span>${right}</button>`;
   const pHead = (eye, title, sub, stats) => `<div class="ap-h"><div><span class="ap-e">${eye}</span><b>${title}</b>${sub ? `<span class="ap-s">${sub}</span>` : ''}</div><button class="ap-x" data-action="alm-close" aria-label="Cerrar">${G.x}</button></div>
       <div class="ap-stats">${stats.map(([l, v]) => `<div><span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
   function panelHtml(k) {
     if (CATN[k]) {
       const ps = S.products.filter(p => catKey(p) === k).sort((a, b) => units(b) - units(a)), low = ps.filter(p => units(p) <= 2).length;
-      return pHead('Stock · ' + SPOTN[k], CATN[k], ps.length + ' productos', [['Unidades', sum(ps, units)], ['Valor del stock', money(valor(ps))], ['Avisos', low ? low + ' con poco stock' : 'Todo bien']]) +
+      return pHead('Stock · ' + SPOTN[k], CATN[k], ps.length + ' productos', [['Unidades', sum(ps, units)], ['Valor del stock', money(valor(ps))], ['Agotados', ps.filter(p => units(p) === 0).length]]) +
         `<div class="ap-l">Inventario</div><div class="ap-list">${ps.length ? ps.map(p => rowBtn('product', p.id, esc(p.name), (p.sizes || []).filter(s => s.q > 0).map(s => esc(s.s) + ' ×' + s.q).join(' · ') || 'Sin unidades', chip(units(p)))).join('') : '<p class="ap-empty">No hay productos en esta estantería.</p>'}</div>
         <div class="ap-f"><button class="btn btn-main btn-block" data-action="newProduct">Añadir producto</button></div>`;
     }
@@ -383,13 +382,15 @@
   const tr = (el, xy) => { el.style.transform = `translate(${Math.round(xy[0])}px,${Math.round(xy[1])}px) translate(-50%,-100%)`; el.style.opacity = 1; };
   function place(o) {
     const room = document.getElementById('almRoom'); if (!room) return;
-    for (const [k, xy] of o.racks) { const t = room.querySelector(`.alm-sign[data-z="${k}"]`); if (t) tr(t, xy); }
-    room.querySelectorAll('.alm-pin').forEach((el, i) => { const p = o.pins[i]; if (p) tr(el, p.xy); });
-    const m = room.querySelector('.alm-mood'); if (m && o.person) { tr(m, o.person); if (o.activity && m.textContent !== o.activity.say) m.textContent = o.activity.say; }
+    room.classList.toggle('alm-front', !!o.front);
+    for (const [k, xy] of o.racks) { const t = room.querySelector(`.alm-sign[data-z="${k}"]`); if (t) { if (o.front) t.style.opacity = 0; else tr(t, xy); } }
+    room.querySelectorAll('.alm-pin').forEach((el, i) => { const p = o.pins[i]; if (o.front) el.style.opacity = 0; else if (p) tr(el, p.xy); });
+    const m = room.querySelector('.alm-mood'); if (m && !o.person) m.style.opacity = 0;
+    if (m && o.person) { tr(m, o.person); if (o.activity && m.textContent !== o.activity.say) m.textContent = o.activity.say; }
     if (o.activity) { const n = document.getElementById('aiNow'); if (n && n.textContent !== o.activity.say) n.textContent = o.activity.say; const bar = document.getElementById('aiBar'); if (bar) bar.style.width = (o.activity.progress * 100).toFixed(1) + '%';
       const kd = document.getElementById('aiKind'); if (kd) kd.textContent = o.activity.kind === 'sale' ? 'Preparando una venta' : 'Sin ventas por preparar'; }
-    const t = room.querySelector('.alm-truck'); if (t) { if (o.truck) { tr(t, o.truck); t.querySelector('b').textContent = o.truckState === 'unload' || o.truckState === 'open' ? 'Descargando tu pedido' : 'Pedido llegando'; } else t.style.opacity = 0; }
-    const pl = room.querySelector('.alm-plane'); if (pl) { if (o.plane) tr(pl, o.plane); else pl.style.opacity = 0; }
+    const t = room.querySelector('.alm-truck'); if (t) { if (o.truck && !o.front) { tr(t, o.truck); t.querySelector('b').textContent = o.truckState === 'unload' || o.truckState === 'open' ? 'Descargando tu pedido' : 'Pedido llegando'; } else t.style.opacity = 0; }
+    const pl = room.querySelector('.alm-plane'); if (pl) { if (o.plane && !o.front) tr(pl, o.plane); else pl.style.opacity = 0; }
   }
   function overlayHtml() {
     const tday = today(), salesT = S.sales.filter(s => s.date === tday && s.status !== 'devuelta');
@@ -404,7 +405,6 @@
         <div class="ad-st"><b id="aiReady">${readyCount()}/${pend().length}</b><span>en la vagoneta</span></div>
         <div class="ad-st"><b>${sum(S.products, units)}</b><span>uds en stock</span></div>
         ${onTheWay().length ? `<div class="ad-st ad-ship"><b>${onTheWay().length} en camino</b><span>${onTheWay().slice(0, 2).map(o => 'día ' + o.n + ' · ' + (o.n >= 12 ? 'descargando' : o.n >= 10 ? 'furgoneta llegando' : 'en avión')).join(' — ')}</span></div>` : ''}
-        ${S.products.filter(p => units(p) > 0 && units(p) <= 2).length ? `<button class="ad-st ad-warn" data-action="alm-open" data-id="stock"><b>${S.products.filter(p => units(p) > 0 && units(p) <= 2).length}</b><span>poco stock</span></button>` : ''}
         <div class="ad-log"><span class="ap-e">Hoy</span><ul class="ai-log" id="aiLog">${logHtml(readLog())}</ul></div>
       </div>
       ${signs}${pins}<div class="alm-mood" style="opacity:0">${esc(mood().txt)}</div>
@@ -531,6 +531,7 @@ body.light .alm-3d { --al-g: linear-gradient(180deg, rgba(255,255,255,.95), rgba
 .ap-e { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); }
 #aiKind { color: var(--accent); }
 /* carteles, avisos y el bocadillo del trabajador */
+.alm-front .alm-sign, .alm-front .alm-pin { pointer-events: none; }
 .alm-sign, .alm-pin, .alm-3d .alm-mood { position: absolute; left: 0; top: 0; z-index: 2; transition: opacity .4s; will-change: transform; }
 .alm-sign { display: flex; gap: 6px; align-items: baseline; padding: 6px 11px; border-radius: 11px; cursor: pointer; white-space: nowrap; }
 .alm-sign b { font-size: 12.5px; font-weight: 700; letter-spacing: -.01em; }

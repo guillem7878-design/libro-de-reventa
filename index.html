@@ -1003,6 +1003,7 @@ function deltaChip(cur, prev, invert) {
 /* ---------- PANEL ---------- */
 /* único aviso de la app: stock bajo (menos de 15 unidades en total) */
 function lowStockAlert() {
+  return '';   // sin avisos de poco stock
   const t = sum(S.products, units);
   if (!S.products.length || t >= 15) return '';
   return `<button class="alert" data-action="goStock" data-c="all"><span class="th" style="${tint('var(--ink2)')}">${G.box}</span><span class="rm"><span class="rt">Quedan ${t} ${t === 1 ? 'unidad' : 'unidades'} en stock</span><span class="rs">Menos de 15 unidades</span></span>${G.chev}</button>`;

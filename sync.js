@@ -190,7 +190,6 @@
   function checkStock() {
     if (!loaded.products) return;
     const t = [...cache.products.values()].reduce((s, p) => s + (p.sizes || []).reduce((a, x) => a + (x.q || 0), 0), 0);
-    if (lastUnits !== null && lastUnits >= 15 && t < 15 && document.visibilityState !== 'visible') showNote('Stock bajo', `Quedan ${t} ${t === 1 ? 'unidad' : 'unidades'} en total.`, 'stock');
     lastUnits = t;
   }
 
@@ -279,7 +278,7 @@
     if (!isStandalone()) h += row('sx-install', IC.phone, 'Instalar la app', installEvt ? 'Icono propio y pantalla completa' : isIOS() ? 'Compartir › Añadir a pantalla de inicio' : 'Menú del navegador › Instalar');
     if (notifSupported()) {
       const p = Notification.permission;
-      h += row('sx-notif', IC.bell, 'Avisos', p === 'denied' ? 'Bloqueados en el navegador' : notifOn() ? 'Activados · toca para desactivar' : 'Ventas desde otro dispositivo y stock bajo');
+      h += row('sx-notif', IC.bell, 'Avisos', p === 'denied' ? 'Bloqueados en el navegador' : notifOn() ? 'Activados · toca para desactivar' : 'Ventas desde otro dispositivo');
     }
     h += row('sx-backup', IC.down, 'Copia de seguridad', 'Descarga todos tus datos en un archivo');
     h += row('sx-auto', IC.down, 'Copias automáticas', 'Una al día, se guardan las de 2 semanas');
@@ -297,7 +296,7 @@
       case 'sx-notif': {
         if (notifOn()) { LS.set('notif', '0'); window.toast('Avisos desactivados'); }
         else if (Notification.permission === 'denied') window.toast('Actívalos en los ajustes del navegador para este sitio');
-        else { const p = await Notification.requestPermission(); if (p === 'granted') { LS.set('notif', '1'); window.toast('Avisos activados'); showNote('Avisos activados', 'Te avisaremos de ventas y stock bajo.', 'hola'); } }
+        else { const p = await Notification.requestPermission(); if (p === 'granted') { LS.set('notif', '1'); window.toast('Avisos activados'); showNote('Avisos activados', 'Te avisaremos de ventasjo.', 'hola'); } }
         if (window.moreSheet) window.moreSheet(); break; }
       case 'sx-warm': location.href = 'calentador/'; break;
       case 'sx-backup': exportBackup(); break;

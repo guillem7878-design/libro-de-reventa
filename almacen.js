@@ -508,7 +508,7 @@ body.light .alm-tag { background: rgba(255,255,255,.9); color: #15171B; border-c
 .alm-mood::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
 .alm-hint { text-align: center; margin: 10px 0 0; }
 .alm-3d { --al-g: linear-gradient(180deg, rgba(30,32,38,.88), rgba(19,21,26,.88)); --al-solid: #15171C; --al-rim: rgba(255,255,255,.09); --al-hi: rgba(255,255,255,.1); --al-field: rgba(255,255,255,.06); --al-drop: rgba(0,0,0,.55);
-  height: calc(100vh - 150px); min-height: 520px; max-width: none; padding: 0; border-radius: 20px; background: #EFEEEA; overflow: hidden;
+  height: calc(100vh - 150px); min-height: 520px; max-width: none; padding: 0; border-radius: 20px; background: #141A28; overflow: hidden;
   border: 1px solid var(--gl-rim, var(--hair)); box-shadow: inset 0 1px 0 var(--gl-hi, transparent), 0 14px 34px -20px var(--gl-drop, rgba(0,0,0,.6)); }
 body.light .alm-3d { --al-g: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.84)); --al-solid: #FFFFFF; --al-rim: rgba(20,20,30,.07); --al-hi: #FFFFFF; --al-field: rgba(20,20,30,.045); --al-drop: rgba(30,30,50,.22); }
 .alm-3d .alm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }

@@ -85,7 +85,7 @@ function shirtMat(i) {
 
 const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .9, metalness: 0, ...o });
 const M = {
-  floor: new THREE.MeshStandardMaterial({ map: parquet, roughness: .55 }), wall: mat('#FAF9F6'), white: mat(WHITE), acc: mat(ACC, { roughness: .6 }), dark: mat(DARK, { roughness: .7 }),
+  floor: new THREE.MeshStandardMaterial({ map: parquet, roughness: .55 }), wall: mat('#2B2F37', { roughness: .9 }), white: mat(WHITE), acc: mat(ACC, { roughness: .6 }), dark: mat(DARK, { roughness: .7 }),
   lgrey: mat('#E6E6E4'), mgrey: mat('#C9CCD1'), wood: mat('#D9B98C'), woodD: mat('#B8925F'), rug: mat('#ECE4D6', { roughness: 1 }),
   glass: mat('#DCE7EF', { roughness: .1, emissive: '#EAF2F8', emissiveIntensity: .4 }), film: new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: .2, transparent: true, opacity: .28, depthWrite: false }),
   frame: mat('#B9BCC2', { roughness: .5, metalness: .3 }), chrome: mat('#D5D8DD', { roughness: .3, metalness: .6 }), skin: mat('#E2BB99'), hair: mat('#D8B56E'),
@@ -198,20 +198,79 @@ export function createWorld(opts) {
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const canvas = renderer.domElement; canvas.className = 'alm-canvas';
   const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight('#FFFFFF', '#E9E6E0', 2.2));
+  const hemi = new THREE.HemisphereLight('#FFFFFF', '#E9E6E0', 2.2); scene.add(hemi);
   const sun = new THREE.DirectionalLight('#FFFFFF', 1.15); sun.position.set(-5, 14, 10);
   sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); Object.assign(sun.shadow.camera, { left: -17, right: 17, top: 17, bottom: -17, near: 2, far: 45 });
   sun.shadow.bias = -.0006; sun.shadow.normalBias = .035; sun.shadow.radius = 5;
   sun.target.position.set(RX / 2 + 2, 0, RZ / 2); scene.add(sun, sun.target);
 
+  /* ---------- día y noche según la hora (de noche: estrellas, luna, farola e interior encendidos) ---------- */
+  const SUN = [[8.4, 18.1], [8.1, 18.6], [7.5, 19.2], [7.6, 20.6], [7.0, 21.1], [6.7, 21.5], [6.9, 21.5], [7.3, 21.0], [7.8, 20.2], [8.2, 19.3], [7.7, 18.0], [8.2, 17.8]];   // salida y puesta aprox. (España)
+  const isNight = () => { const d = new Date(), h = d.getHours() + d.getMinutes() / 60, [up, down] = SUN[d.getMonth()]; return h < up || h >= down; };
+  const C = (x) => new THREE.Color(x);
+  const SKY = { day: C('#C7D0D8'), night: C('#141A28') };
+  const skyScene = new THREE.Scene(); skyScene.background = SKY.day.clone();
+  const ISL = { x0: -2.6, x1: RX + 9.6, z0: -4.6, z1: RZ + 4.6 };
+  const island = [new THREE.Plane(new THREE.Vector3(1, 0, 0), -ISL.x0), new THREE.Plane(new THREE.Vector3(-1, 0, 0), ISL.x1), new THREE.Plane(new THREE.Vector3(0, 0, 1), -ISL.z0), new THREE.Plane(new THREE.Vector3(0, 0, -1), ISL.z1)];
+  const roomLight = new THREE.PointLight('#FFD9A8', 0, 0, 2); roomLight.position.set(5.2, 2.35, 3.4); scene.add(roomLight);
+  const roomLight2 = new THREE.PointLight('#FFD9A8', 0, 0, 2); roomLight2.position.set(1.6, 2.35, 2.2); scene.add(roomLight2);
+  const streetLight = new THREE.PointLight('#FFC978', 0, 0, 2); streetLight.position.set(RX + 1.23, 2.75, 4.66); scene.add(streetLight);
+  // estrellas y luna pegadas a la cámara, al fondo de todo (solo se ven donde hay cielo)
+  const sky = new THREE.Group();
+  const starGeo = new THREE.BufferGeometry(), sp = [];
+  for (let i = 0; i < 520; i++) sp.push((Math.random() - .5) * 60, (Math.random() - .5) * 26, -110);
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+  const starMat = new THREE.PointsMaterial({ color: '#FFFFFF', size: 1.7, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false });
+  const stars = new THREE.Points(starGeo, starMat); sky.add(stars);
+  const starGeo2 = new THREE.BufferGeometry(), sp2 = [];
+  for (let i = 0; i < 90; i++) sp2.push((Math.random() - .5) * 60, (Math.random() - .5) * 26, -110);
+  starGeo2.setAttribute('position', new THREE.Float32BufferAttribute(sp2, 3));
+  const starMat2 = new THREE.PointsMaterial({ color: '#FFF4D6', size: 2.8, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false });
+  sky.add(new THREE.Points(starGeo2, starMat2));
+  const moonMat = new THREE.MeshBasicMaterial({ color: '#F4EEDC', transparent: true, opacity: 0, depthWrite: false });
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(.26, 40), moonMat); moon.position.set(-4.6, 4.55, -109); sky.add(moon);
+  const moonHalo = new THREE.Mesh(new THREE.CircleGeometry(.6, 40), new THREE.MeshBasicMaterial({ color: '#AFC3E8', transparent: true, opacity: 0, depthWrite: false })); moonHalo.position.set(-4.6, 4.55, -109.5); sky.add(moonHalo);
+  const GROUND = [[M.grass, '#E3EBDA', '#2F3B35'], [M.walk, '#ECEBE7', '#4B5058'], [M.road, '#C9CBCF', '#2B2E35'], [M.curb, '#FFFFFF', '#6A707A']].map(([m, d, n]) => [m, C(d), C(n)]);
+  let night = isNight(), nk = night ? 1 : 0, nightT = 0;
+  function tickNight(dt, t) {
+    nightT += dt; if (nightT > 30) { nightT = 0; night = isNight(); }
+    nk += ((night ? 1 : 0) - nk) * Math.min(1, dt * 1.5); const k = nk;
+    skyScene.background.copy(SKY.day).lerp(SKY.night, k);
+    hemi.intensity = 2.2 - 1.55 * k; hemi.color.set('#FFFFFF').lerp(C('#9FB2D6'), k); hemi.groundColor.set('#E9E6E0').lerp(C('#1C2130'), k);
+    sun.intensity = 1.15 - .8 * k; sun.color.set('#FFFFFF').lerp(C('#A9BDE6'), k);
+    roomLight.intensity = 9 * k; roomLight2.intensity = 6 * k; streetLight.intensity = 14 * k;
+    M.lamp.emissiveIntensity = .6 + 2.4 * k; M.lamp.emissive.set('#FFF6DA').lerp(C('#FFC978'), k);
+    M.glass.emissive.set('#EAF2F8').lerp(C('#24324D'), k); M.glass.emissiveIntensity = .4 + .2 * k;
+    starMat.opacity = .85 * k * (.85 + .15 * Math.sin(t * 1.3)); starMat2.opacity = k * (.75 + .25 * Math.sin(t * 2.1 + 1)); moonMat.opacity = k; moonHalo.material.opacity = .1 * k;
+    for (const [m, d, n] of GROUND) m.color.copy(d).lerp(n, k);
+  }
   const fill = new THREE.DirectionalLight('#FFFFFF', 0); fill.position.set(14, 4, 2); fill.target.position.set(0, 1, 2); scene.add(fill, fill.target);
   const world = new THREE.Group(); scene.add(world);
   /* ---------- fuera: acera, calle y árboles ---------- */
-  block(44, .1, 44, M.grass, -14, -.2, -16, world, false);
+  block(ISL.x1 - ISL.x0, .1, ISL.z1 - ISL.z0, M.grass, ISL.x0, -.2, ISL.z0, world, false);
+  block(ISL.x1 - ISL.x0, .7, ISL.z1 - ISL.z0, mat('#3A2F28', { roughness: 1 }), ISL.x0, -.9, ISL.z0, world, false); block(ISL.x1 - ISL.x0, .12, ISL.z1 - ISL.z0, mat('#55473B', { roughness: 1 }), ISL.x0, -.32, ISL.z0, world, false);
   block(2.0, .12, 34, M.walk, RX + .14, -.13, -14, world, false); block(.14, .14, 34, M.curb, RX + 2.14, -.13, -14, world, false);
   block(7.2, .1, 34, M.road, RX + 2.28, -.16, -14, world, false);
   for (let z = -14; z < 20; z += 2.4) block(.14, .01, 1.3, M.lane, RX + 5.88, -.06, z, world, false);
-  for (const z of [-5.5, -.8, 9.2]) { block(.2, .9, .2, M.trunk, RX + 1.0, -.01, z, world); for (const [dx, dy, s] of [[0, 1.6, .7], [.2, 1.95, .45], [-.2, 1.85, .5]]) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), dx ? M.leaf2 : M.leaf); c.position.set(RX + 1.1 + dx, dy, z + .1); c.castShadow = true; world.add(c); } }
+  for (const z of [-3.4, -.8, 9.2]) { block(.2, .9, .2, M.trunk, RX + 1.0, -.01, z, world); for (const [dx, dy, s] of [[0, 1.6, .7], [.2, 1.95, .45], [-.2, 1.85, .5]]) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), dx ? M.leaf2 : M.leaf); c.position.set(RX + 1.1 + dx, dy, z + .1); c.castShadow = true; world.add(c); } }
+  {
+    const hedge = mat('#6E9A6A', { roughness: 1 }), pot = mat('#3A3E47', { roughness: .8 }), flower = ['#E8B4B8', '#F2D398', '#C9B6E4', '#F4F1EA'].map(c => mat(c, { roughness: 1 }));
+    // seto bajo delante de la casa, con huecos
+    for (const [x0, x1] of [[-.1, 3.0], [3.8, 7.6], [8.4, RX - .1]]) { block(x1 - x0, .32, .34, hedge, x0, -.1, RZ + .55, world); for (let x = x0 + .15; x < x1 - .1; x += .3) ball(.17, hedge, x, .22, RZ + .72, world, 1, .7, 1); }
+    // jardineras con flores a los lados de la puerta
+    for (const z of [DOOR.z0 - .55, DOOR.z1 + .2]) { block(.4, .3, .36, pot, RX + .25, -.02, z, world); for (let i = 0; i < 5; i++) ball(.07, flower[i % 4], RX + .33 + (i % 3) * .12, .33, z + .08 + (i % 2) * .16, world); ball(.14, M.leaf2, RX + .45, .3, z + .18, world, 1.3, .6, 1); }
+    // banco de madera en la acera
+    const bz = 7.2; block(.42, .05, 1.3, M.wood, RX + 1.42, .38, bz, world); block(.06, .38, 1.3, M.wood, RX + 1.78, .43, bz, world);
+    for (const dz of [.08, 1.14]) { block(.36, .4, .06, M.dark, RX + 1.46, -.02, bz + dz, world); block(.05, .82, .06, M.dark, RX + 1.8, -.02, bz + dz, world); }
+    // papelera y buzón
+    cyl(.14, .55, M.dark, RX + 1.7, .25, 8.85, world); cyl(.15, .04, M.chrome, RX + 1.7, .54, 8.85, world);
+    block(.08, .9, .08, M.dark, RX + .55, -.02, DOOR.z1 + .9, world); block(.26, .3, .32, mat('#B8913F', { roughness: .5 }), RX + .46, .88, DOOR.z1 + .78, world);
+    // aparcabicis con una bici
+    for (const z of [-2.6, -2.0]) { const r = new THREE.Mesh(new THREE.TorusGeometry(.3, .025, 8, 24, Math.PI), M.chrome); r.position.set(RX + 1.55, 0, z); r.rotation.y = Math.PI / 2; world.add(r); }
+    const bike = new THREE.Group(); bike.position.set(RX + 1.25, 0, -2.3); bike.rotation.y = Math.PI / 2; world.add(bike);
+    for (const x of [-.32, .32]) { const wh = new THREE.Mesh(new THREE.TorusGeometry(.2, .022, 8, 24), M.tyre); wh.position.set(x, .22, 0); bike.add(wh); }
+    block(.62, .035, .035, M.red, -.31, .38, -.017, bike); block(.035, .26, .035, M.red, -.05, .22, -.017, bike); block(.16, .03, .06, M.dark, -.12, .5, -.03, bike); block(.04, .3, .04, M.dark, .28, .38, -.02, bike); block(.04, .04, .3, M.dark, .28, .66, -.15, bike);
+  }
   block(.12, 3.2, .12, M.dark, RX + 1.9, -.01, 4.6, world); block(.9, .08, .14, M.dark, RX + 1.15, 3.1, 4.59, world); block(.36, .1, .22, M.lamp, RX + 1.05, 3.0, 4.55, world);   // farola
 
   /* ---------- la habitación ---------- */
@@ -600,7 +659,8 @@ export function createWorld(opts) {
   }
 
   /* ---------- cámara ---------- */
-  const cam = new THREE.OrthographicCamera(-10, 10, 6, -6, 10, 120);
+  const cam = new THREE.OrthographicCamera(-10, 10, 6, -6, 10, 120); skyScene.add(sky);
+  renderer.autoClear = false;
   const look = new THREE.Vector3(...ZONES.overview.at), lookTo = look.clone();
   let zoom = 1, zoomTo = 1, az = Math.PI / 4, azTo = az, idle = 0, auto = 0;
   const EL = .64, R = 50, VIEW = 11.6;
@@ -660,7 +720,8 @@ export function createWorld(opts) {
     if (!canvas.isConnected) { raf = 0; return; }
     const dt = Math.min(.05, (now - last) / 1000); last = now; clock2 += dt;
     if (D) tickWorker(dt, clock2); tickStreet(dt, clock2);
-    placeCam(dt); renderer.render(scene, cam);
+    tickNight(dt, clock2); placeCam(dt); sky.position.copy(cam.position); sky.quaternion.copy(cam.quaternion); sky.scale.setScalar(1 / zoom);
+    renderer.clear(); renderer.clippingPlanes = []; renderer.render(skyScene, cam); renderer.clearDepth(); renderer.clippingPlanes = island; renderer.render(scene, cam);
     if (opts.onFrame) opts.onFrame({
       racks: Object.entries(SIGNS).map(([k, p]) => [k, proj(...p)]),
       front, person: front ? null : proj(P.g.position.x, seated ? 1.75 : 2.1, P.g.position.z), activity: { say, progress: job ? Math.min(1, job.i / job.steps.length) : 0, kind: job ? job.kind : '' },

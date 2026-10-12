@@ -781,6 +781,7 @@ html body .dk .day { padding: 12px 0 2px; }
 .px:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--neg); }
 .px svg { width: 16px; height: 16px; }
 
+@media (max-width: 899px) and (display-mode: standalone) { html, html body { height: 100vh; height: 100lvh; } }
 /* pantalla fija en el móvil: sin zoom, sin rebote y sin moverse de lado */
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { overscroll-behavior: none; overflow-x: clip; max-width: 100%; }
@@ -795,6 +796,8 @@ img, svg { -webkit-user-drag: none; }
 /* móvil: la página queda clavada; solo se desplaza el contenido por dentro (el body) y sin rebote */
 @media (max-width: 899px) {
   html, html body { height: 100%; overflow: hidden; margin: 0; }
+  html body { position: relative; }
+  html body .sheet, html body .backdrop { position: absolute; }
   .scroller { height: 100%; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: none; }
   body.locked .scroller { overflow: hidden; }
 }
@@ -1340,7 +1343,8 @@ function balance(id) {
   const a = acc(id), mine = S.sales.filter(s => s.account === id && s.status !== 'devuelta');
   const free = mine.filter(isFree), pend = mine.filter(s => !isFree(s)).sort((x, y) => freeOn(x).localeCompare(freeOn(y)));
   const outs = ((a && a.payouts) || []).slice().sort((x, y) => (y.date || '').localeCompare(x.date || ''));
-  return { saldo: r2(sum(free, s => s.price) - sum(outs, p => p.amount)), pend: r2(sum(pend, s => s.price)), pendL: pend, outs };
+  const spent = S.expenses.filter(e => e.account === id && e.fromSaldo);
+  return { saldo: r2(sum(free, s => s.price) - sum(outs, p => p.amount) - sum(spent, e => e.amount)), pend: r2(sum(pend, s => s.price)), pendL: pend, outs, spent };
 }
 function saldoCard(a) {
   const B = balance(a.id); if (!B.pendL.length && !B.outs.length && !B.saldo) return '';
@@ -1365,17 +1369,17 @@ function saldoSheet() {
 function payoutSheet(id) {
   const a = acc(id); if (!a) return; const B = balance(id);
   openSheet('Pasar al banco', `<form class="f" id="payF" novalidate>
-    ${amountField('pay-amt', 'amount', 'Importe', B.saldo)}
+    ${amountField('pay-amt', 'amount', 'Importe', '')}
+    <div class="quick" style="margin-top:-4px">${B.saldo > 0 ? `<button type="button" data-payall="${B.saldo}">Todo · ${money(B.saldo)}</button>` : ''}</div>
     <div class="facts"><div class="fact"><span>En el saldo</span><b>${money(B.saldo)}</b></div><div class="fact"><span>A la cuenta</span><b class="iban">${a.iban ? ibanShort(a.iban) : 'Sin IBAN'}</b></div></div>
     <div class="fld"><label for="pay-date">Fecha</label><input id="pay-date" name="date" type="date" value="${today()}"></div>
     <button class="btn btn-main btn-block">Apuntar transferencia</button></form>`,
     async fd => {
       const amount = r2(num(fd.get('amount')));
       if (!(amount > 0)) return fieldErr('pay-amt', 'Pon el importe');
-      if (amount > B.saldo + 0.005) return fieldErr('pay-amt', 'Es más de lo que hay en el saldo (' + money(B.saldo) + ')');
       const old = a.payouts || [], p = { id: Date.now().toString(36), date: fd.get('date') || today(), amount, iban: a.iban || '' };
       if (await write(() => db.doc('accounts/' + id).update({ payouts: old.concat(p) }), 'Transferencia apuntada · ' + money(amount), () => write(() => db.doc('accounts/' + id).update({ payouts: old }), 'Transferencia deshecha'))) closeSheet();
-    });
+    }, () => { const q = document.querySelector('[data-payall]'); if (q) q.addEventListener('click', () => { const i = $('#pay-amt'); i.value = String(q.dataset.payall).replace('.', ','); i.dispatchEvent(new Event('input', { bubbles: true })); }); setTimeout(() => { const i = $('#pay-amt'); if (i) i.focus(); }, 350); });
 }
 
 const saleProfit = s => r2((s.price || 0) - (s.cost || 0));
@@ -1391,6 +1395,8 @@ function vMovil(id) {
   h += `<section class="hero"><div class="hero-l"><span>Beneficio</span></div><div class="big ${B < 0 ? 'neg' : ''}">${splitC(money(B))}</div>
     <div class="tiles ${ret ? '' : 'two'}"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Ventas</span><b>${uds}</b></div>${ret ? `<div class="tile"><span>Devueltas</span><b>${ret}</b></div>` : ''}</div></section>`;
   h += saldoCard(a);
+  { const ex = S.expenses.filter(e => e.account === id).sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+    if (ex.length) h += `<div class="sec-h"><h2>Compras de esta cuenta</h2><span>${money(sum(ex, e => e.amount))}</span></div><div class="list">${ex.slice(0, 8).map(e => `<button class="row" data-action="expense" data-id="${e.id}"><span class="th" style="${tint('var(--warn)')}">${EXP_ICON[e.category] || G.coin}</span><span class="rm"><span class="rt">${esc(e.concept)}</span><span class="rs">${fmtDate(e.date)}${e.fromSaldo ? ' · con el saldo' : ''}</span></span><span class="rv"><b>−${money(e.amount)}</b></span>${G.chev}</button>`).join('')}</div>`; }
   if (!ss.length) h += empty(G.sell, 'Sin ventas', S.accP === 'all' ? 'Este móvil aún no ha vendido nada.' : 'Nada en este periodo.');
   else {
     /* evolución del móvil */
@@ -1814,13 +1820,15 @@ function expenseForm(e, preset) {
     <div class="grid2"><div class="fld"><label for="e-date">Fecha</label><input id="e-date" name="date" type="date" value="${esc(e.date)}"></div>
       <div class="fld"><label for="e-units">Unidades</label><input id="e-units" name="units" type="number" min="0" inputmode="numeric" placeholder="12" value="${e.units || ''}"></div></div>
     <p class="hint" style="margin:0" id="perU"></p>
+    ${accounts().length ? `<div class="fld"><label for="e-acc">Cuenta (si lo compraste desde una)</label><select id="e-acc" name="account">${accOpts(e.account || '')}</select></div>
+    <label class="chk" style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" name="fromSaldo" value="1" ${e.fromSaldo ? 'checked' : ''}><span>Pagado con el saldo de Vinted de esa cuenta</span></label>` : ''}
     <button class="btn btn-main btn-block">${isNew ? 'Apuntar gasto' : 'Guardar'}</button></form>`,
     async fd => {
       const pedido = fd.get('category') === 'pedido';
       const lines = isNew && pedido ? st.lines.map(l => ({ name: l.name.trim(), cat: l.cat, price: num(l.price), cost: num(l.cost), sizes: l.sizes.map(s => ({ s: String(s.s || '').trim() || 'Única', q: Math.max(0, s.q | 0) })).filter(s => s.q > 0) })).filter(l => l.name || (!isPlush(l.cat) && l.sizes.length)) : [];
       const lu = sum(lines, l => sum(l.sizes, s => s.q));
       const lcost = r2(sum(lines, l => l.cost * sum(l.sizes, s => s.q))), anyCost = lines.some(l => l.cost > 0);
-      const data = { concept: fd.get('concept').trim(), amount: anyCost ? lcost : num(fd.get('amount')), date: fd.get('date') || today(), category: fd.get('category') || 'otros', units: lu || Math.max(0, parseInt(fd.get('units')) || 0) };
+      const data = { concept: fd.get('concept').trim(), amount: anyCost ? lcost : num(fd.get('amount')), date: fd.get('date') || today(), category: fd.get('category') || 'otros', units: lu || Math.max(0, parseInt(fd.get('units')) || 0), account: fd.get('account') || '', fromSaldo: !!fd.get('account') && fd.get('fromSaldo') === '1' };
       if (!(data.amount > 0)) return fieldErr('e-amount', 'Pon el importe');
       if (lines.some(l => !l.name)) return fieldErr('orderBox', 'Ponle nombre a cada producto');
       if (lines.some(l => !l.sizes.length)) return fieldErr('orderBox', 'Pon las tallas y las unidades de cada producto');
@@ -1964,6 +1972,7 @@ function expenseDetail(id, justCreated) {
   const per = e.units ? r2(e.amount / e.units) : 0;
   openSheet(justCreated ? 'Pedido apuntado' : isOrder(e) ? 'Pedido' : 'Gasto', `<div class="dh"><span class="th" style="${tint(e.category === 'pedido' ? 'var(--warn)' : 'var(--ink2)')}">${EXP_ICON[e.category] || G.coin}</span><div style="min-width:0"><h3>${esc(e.concept)}</h3><p>${EXP_CATS[e.category] || 'Otros'} · ${fmtDate(e.date)}</p></div></div>
     <div class="bigv">−${splitC(money(e.amount))}</div>
+    ${e.account ? `<div class="facts"><div class="fact"><span>Cuenta</span><b>${esc(accName(e.account))}</b></div>${e.fromSaldo ? '<div class="fact"><span>Pagado con</span><b>Saldo de Vinted</b></div>' : ''}</div>` : ''}
     ${e.category === 'pedido' ? `<div class="facts"><div class="fact"><span>Estado</span><b>${orderState(e)[0]}</b></div>${e.units ? `<div class="fact"><span>Unidades</span><b>${e.units} · ${money(per)}/ud</b></div>` : ''}<div class="fact"><span>Productos en stock</span><b>${ps.length}</b></div><div class="fact"><span>Recuperado vendiendo</span><b class="${back >= e.amount ? 'pos' : ''}">${money(back)} · ${Math.round(back / e.amount * 100)}%</b></div></div>
       ${e.invoice ? `<div class="btns"><a class="btn btn-main" href="${esc(invoiceUrl(e))}" target="_blank" rel="noopener">${G.receipt}Ver factura</a><button class="btn btn-soft" data-action="invoice" data-id="${e.id}">Cambiar</button></div>` : `<button class="btn btn-soft btn-block" data-action="invoice" data-id="${e.id}">${G.receipt}Añadir factura (PDF o foto)</button>`}
       ${orderState(e)[1] === 'way' ? `<button class="btn btn-soft btn-block" data-action="orderRecv" data-id="${e.id}">Ha llegado</button>` : ''}

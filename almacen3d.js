@@ -298,7 +298,17 @@ export function createWorld(opts) {
       for (let i = 0; i < 10; i++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(.035, .24, .02), mat('#2E3035', { roughness: .35, metalness: .5 })); sp.position.set(0, 0, side * .132); sp.rotation.z = i / 10 * Math.PI; wg.add(sp); }
       const cp = new THREE.Mesh(new THREE.BoxGeometry(.14, .1, .05), caliper); cp.position.set(.1, .12, side * .09); wg.add(cp);
     }
-    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    const star = (r, x, y, rotY) => { const s = new THREE.Group(); s.position.set(x, y, 0); s.rotation.y = rotY; g.add(s);
+      const chrome = mat('#E4E7EB', { roughness: .15, metalness: .9 });
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r, r * .1, 8, 32), chrome); s.add(ring);
+      for (let i = 0; i < 3; i++) { const arm = new THREE.Mesh(new THREE.BoxGeometry(r * .16, r * .95, r * .12), chrome); const ang = i / 3 * Math.PI * 2; arm.position.set(Math.sin(ang) * r * .47, Math.cos(ang) * r * .47, 0); arm.rotation.z = -ang; s.add(arm); }
+      return s; };
+    star(.1, 2.3, .53, Math.PI / 2);      // en la parrilla
+    star(.075, -2.255, .98, -Math.PI / 2);   // en el portón
+    const badge = (txt, wpx, col) => { const t = tex(wpx, 64, (c, W, H) => { c.clearRect(0, 0, W, H); c.fillStyle = col; c.font = '800 44px Manrope, Arial, sans-serif'; c.textBaseline = 'middle'; c.fillText(txt, 4, H / 2 + 2); }); t.colorSpace = THREE.SRGBColorSpace; return new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false }); };
+    const amgP = new THREE.Mesh(new THREE.PlaneGeometry(.26, .07), badge('AMG', 128, '#E9ECF0')); amgP.position.set(-2.262, .83, .32); amgP.rotation.y = -Math.PI / 2; g.add(amgP);
+    const a45P = new THREE.Mesh(new THREE.PlaneGeometry(.3, .07), badge('A45 S', 160, '#E9ECF0')); a45P.position.set(-2.262, .83, -.3); a45P.rotation.y = -Math.PI / 2; g.add(a45P);
+    g.traverse(o => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
     return g;
   }
   /* ---------- fuera: acera, calle y árboles ---------- */
@@ -307,7 +317,7 @@ export function createWorld(opts) {
   block(2.0, .12, 34, M.walk, RX + .14, -.13, -14, world, false); block(.14, .14, 34, M.curb, RX + 2.14, -.13, -14, world, false);
   block(7.2, .1, 34, M.road, RX + 2.28, -.16, -14, world, false);
   for (let z = -14; z < 20; z += 2.4) block(.14, .01, 1.3, M.lane, RX + 5.88, -.06, z, world, false);
-  for (const z of [-3.4, -.8, 9.2]) { block(.2, .9, .2, M.trunk, RX + 1.0, -.01, z, world); for (const [dx, dy, s] of [[0, 1.6, .7], [.2, 1.95, .45], [-.2, 1.85, .5]]) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), dx ? M.leaf2 : M.leaf); c.position.set(RX + 1.1 + dx, dy, z + .1); c.castShadow = true; world.add(c); } }
+  for (const z of [-3.4, -.8]) { block(.2, .9, .2, M.trunk, RX + 1.0, -.01, z, world); for (const [dx, dy, s] of [[0, 1.6, .7], [.2, 1.95, .45], [-.2, 1.85, .5]]) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), dx ? M.leaf2 : M.leaf); c.position.set(RX + 1.1 + dx, dy, z + .1); c.castShadow = true; world.add(c); } }
   {
     const hedge = mat('#6E9A6A', { roughness: 1 }), pot = mat('#3A3E47', { roughness: .8 }), flower = ['#E8B4B8', '#F2D398', '#C9B6E4', '#F4F1EA'].map(c => mat(c, { roughness: 1 }));
     // seto bajo delante de la casa, con huecos
@@ -315,14 +325,18 @@ export function createWorld(opts) {
     // jardineras con flores a los lados de la puerta
     for (const z of [DOOR.z0 - .55, DOOR.z1 + .2]) { block(.4, .3, .36, pot, RX + .25, -.02, z, world); for (let i = 0; i < 5; i++) ball(.07, flower[i % 4], RX + .33 + (i % 3) * .12, .33, z + .08 + (i % 2) * .16, world); ball(.14, M.leaf2, RX + .45, .3, z + .18, world, 1.3, .6, 1); }
     // entrada de coches con el deportivo aparcado
-    block(5.6, .03, 2.5, mat('#8C8F96', { roughness: .95 }), RX - 5.6, -.1, RZ + 1.45, world, false);
-    const amg = hotHatch(); amg.position.set(RX - 2.9, -.08, RZ + 2.7); amg.userData.tip = 'Mercedes-AMG A45'; world.add(amg);
+    const DW = { x0: RX - 5.4, x1: RX + 2.28, z0: RZ + 1.55, z1: RZ + 3.85 };
+    const paver = tex(128, 128, (g, w2, h2) => { g.fillStyle = '#8E9198'; g.fillRect(0, 0, w2, h2); g.strokeStyle = 'rgba(40,42,48,.35)'; g.lineWidth = 2; for (let y = 0; y < h2; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(w2, y); g.stroke(); for (let x = (y / 32) % 2 ? 16 : 0; x < w2; x += 32) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 32); g.stroke(); } } noise(g, w2, h2, 500, .06); }, [(DW.x1 - DW.x0) / 1.2, (DW.z1 - DW.z0) / 1.2]);
+    const drive = new THREE.Mesh(new THREE.BoxGeometry(DW.x1 - DW.x0, .1, DW.z1 - DW.z0), new THREE.MeshStandardMaterial({ map: paver, roughness: .95 }));
+    drive.position.set((DW.x0 + DW.x1) / 2, -.03, (DW.z0 + DW.z1) / 2); drive.receiveShadow = true; world.add(drive);
+    for (const z of [DW.z0 - .06, DW.z1]) block(DW.x1 - DW.x0 - .1, .06, .06, mat('#B5B8BE', { roughness: .9 }), DW.x0, -.01, z, world, false);   // bordillos de la entrada
+    const amg = hotHatch(); amg.position.set(RX - 2.7, .02, RZ + 2.7); amg.userData.tip = 'Mercedes-AMG A45'; world.add(amg);
     // banco de madera en la acera
-    const bz = 7.2; block(.42, .05, 1.3, M.wood, RX + 1.42, .38, bz, world); block(.06, .38, 1.3, M.wood, RX + 1.78, .43, bz, world);
+    const bz = 5.1; block(.42, .05, 1.3, M.wood, RX + 1.42, .38, bz, world); block(.06, .38, 1.3, M.wood, RX + 1.78, .43, bz, world);
     for (const dz of [.08, 1.14]) { block(.36, .4, .06, M.dark, RX + 1.46, -.02, bz + dz, world); block(.05, .82, .06, M.dark, RX + 1.8, -.02, bz + dz, world); }
     // papelera y buzón
-    cyl(.14, .55, M.dark, RX + 1.7, .25, 8.85, world); cyl(.15, .04, M.chrome, RX + 1.7, .54, 8.85, world);
-    mailG.position.set(RX + .6, 0, DOOR.z1 + .94); world.add(mailG);
+    cyl(.14, .55, M.dark, RX + 1.7, .25, 6.75, world); cyl(.15, .04, M.chrome, RX + 1.7, .54, 6.75, world);
+    mailG.position.set(RX + .35, 0, RZ + 1.15); mailG.rotation.y = Math.PI / 2; world.add(mailG);
     // aparcabicis con una bici
     for (const z of [-2.6, -2.0]) { const r = new THREE.Mesh(new THREE.TorusGeometry(.3, .025, 8, 24, Math.PI), M.chrome); r.position.set(RX + 1.55, 0, z); r.rotation.y = Math.PI / 2; world.add(r); }
     const bike = new THREE.Group(); bike.position.set(RX + 1.25, 0, -2.3); bike.rotation.y = Math.PI / 2; world.add(bike);

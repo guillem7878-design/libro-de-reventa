@@ -294,7 +294,7 @@
     const a = [];
     const pd = pend().length; if (pd) a.push({ at: [5.4, 1.5, 3.75], k: 'prep', txt: pd + ' por preparar' });
     const rt = rets().filter(s => (s.returnedAt || '') >= daysAgo(7)).length; if (rt) a.push({ at: [8.45, 1.1, 6.0], k: 'ret', txt: rt + (rt > 1 ? ' devoluciones' : ' devolución') + ' esta semana' });
-    if (typeof letterUnread === 'function' && loadedAll() && letterUnread()) a.push({ at: [10.6, 1.75, 3.3], k: 'mail', txt: 'Ha llegado tu carta' });
+    if (typeof letterUnread === 'function' && loadedAll() && letterUnread()) a.push({ at: [10.35, 1.8, 8.15], k: 'mail', txt: 'Ha llegado tu carta' });
     if (onTheWay().some(o => o.n >= 12)) a.push({ at: [8.85, 1.3, 1.05], k: 'in', txt: 'Pedido en tu puerta: confírmalo' });
     return a;
   }

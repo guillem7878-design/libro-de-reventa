@@ -1,0 +1,672 @@
+/* Almacén en 3D: tu habitación de trabajo, estilo limpio (blanco con el dorado de la marca), hecho con bloques
+   y texturas dibujadas en el momento. Las cantidades son las de verdad, una pieza por unidad:
+   · pared de zapatillas: una caja por par, con diseño inspirado en su marca · peluches Jellycat amontonados en el suelo
+   · camisetas de fútbol colgadas en un burro · otros en una estantería baja · escritorio con los móviles
+   · mesa de embalar · salida: una bolsa gris de envío por cada venta por preparar
+   · recepción: palé con una caja de cartón por unidad que ha llegado · devoluciones en una esquina
+   · fuera, la calle: pasan coches y, si te está llegando un pedido, una furgoneta de reparto llega, descarga y se va.
+   Cámara con zoom, arrastre y vuelo a cada zona; pasea sola cuando no la tocas. 1 unidad = 1 metro. */
+import * as THREE from 'three';
+
+const ACC = '#C9A04E', WHITE = '#FFFFFF', DARK = '#2B2D33';
+const RX = 10, RZ = 7, WH = 2.6;
+const SW = { z0: .35, bays: 9, bay: .38, levels: 5, lv: .4, d: .36, per: 3 };   // pared de zapatillas (3 cajas por hueco)
+const RAIL = { x0: 1.2, x1: 3.4, z: 5.0 };                               // burro de camisetas
+const PILE = { x: 1.15, z: 6.2 };                                        // montón de peluches
+const LOW = { x0: .35, z0: .06, w: 2.4, d: .42 };                        // estantería baja (otros)
+const DESK = [3.4, .08, 2.0, .78];
+const TABLE = [4.4, 3.3, 2.0, .9];
+const DOOR = { z0: 1.3, z1: 2.4 };                                       // puerta a la calle (lado derecho)
+const PALLET = [8.2, .35];                                               // recepción (lo que llega)
+const TUB = [8.5, 3.3, .95, .75];                                        // salida (lo que se va)
+const LANE = RX + 4.3;                                                    // carril de la furgoneta
+export const ZONES = {
+  overview: { at: [5.5, .9, 4.4], zoom: 1 },
+  in: { at: [9.4, .5, 1.2], zoom: 2.6 },
+  stock: { at: [1.6, .8, 3.4], zoom: 2.1 },
+  prep: { at: [5.4, .5, 3.8], zoom: 2.8 },
+  out: { at: [9.0, .5, 3.7], zoom: 2.9 },
+  office: { at: [4.4, .6, .7], zoom: 2.7 },
+  ret: { at: [8.4, .4, 6.0], zoom: 2.9 }
+};
+
+/* ---------- texturas ---------- */
+const rnd = (a, b) => a + Math.random() * (b - a);
+function tex(w, h, draw, rep) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); } return t; }
+const noise = (g, w, h, n, a) => { for (let i = 0; i < n; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? '0,0,0' : '255,255,255'},${Math.random() * a})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); } };
+// parquet de roble claro: tablas desplazadas con veta
+const parquet = tex(1024, 1024, (g, w, h) => {
+  const rows = 14, ph = h / rows;
+  for (let r = 0; r < rows; r++) { let x = -((r * 173) % 300);
+    while (x < w) { const len = rnd(240, 420), b = [rnd(206, 222), rnd(176, 190), rnd(138, 150)];
+      g.fillStyle = `rgb(${b[0] | 0},${b[1] | 0},${b[2] | 0})`; g.fillRect(x, r * ph, len, ph);
+      for (let k = 0; k < 14; k++) { const yy = r * ph + rnd(3, ph - 3); g.strokeStyle = `rgba(120,85,50,${rnd(.04, .12)})`; g.lineWidth = rnd(.6, 1.6); g.beginPath(); g.moveTo(x, yy); for (let xx = x; xx < x + len; xx += 24) g.lineTo(xx, yy + Math.sin(xx * .02 + k) * rnd(.5, 2)); g.stroke(); }
+      g.fillStyle = 'rgba(90,60,35,.35)'; g.fillRect(x, r * ph, 1.5, ph); x += len; }
+    g.fillStyle = 'rgba(90,60,35,.35)'; g.fillRect(0, r * ph, w, 1.5); }
+  noise(g, w, h, 6000, .04);
+}, [3.2, 2.2]);
+// cajas de zapatillas inspiradas en cada marca (colores y diseño, sin logotipos)
+const BRANDS = {
+  nike: { body: '#EE6A2C', lid: '#EE6A2C', band: '#1E1E20' }, jordan: { body: '#1E1E20', lid: '#C8102E', band: '#C8102E' },
+  adidas: { body: '#1F4FA0', lid: '#1F4FA0', band: '#FFFFFF', stripes: true }, nb: { body: '#A3A8AE', lid: '#A3A8AE', band: '#C8102E' },
+  asics: { body: '#F2F2EF', lid: '#2C4E9E', band: '#2C4E9E' }, other: { body: '#2B2D33', lid: '#2B2D33', band: ACC }
+};
+const brandOf = n => /jordan/i.test(n) ? 'jordan' : /nike|air ?force|air ?max|dunk|blazer|cortez/i.test(n) ? 'nike' : /adidas|samba|gazelle|campus|spezial|handball|superstar|stan smith/i.test(n) ? 'adidas' : /new ?balance|\bnb\b|\b(550|530|9060|2002r)\b/i.test(n) ? 'nb' : /asics|onitsuka|gel-/i.test(n) ? 'asics' : 'other';
+const shoeMats = {};
+function shoeboxMats(brand, size) {
+  const key = brand + '|' + size; if (shoeMats[key]) return shoeMats[key]; const B = BRANDS[brand];
+  const end = tex(128, 64, (g, w, h) => { g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
+    if (B.stripes) { g.fillStyle = B.band; for (let i = 0; i < 3; i++) g.fillRect(14 + i * 9, 22, 5, 36); } else { g.fillStyle = B.band; g.fillRect(0, h - 10, w, 10); }
+    g.fillStyle = '#FFFFFF'; g.fillRect(70, 24, 48, 28); g.fillStyle = '#222'; g.font = '700 15px Inter, system-ui, sans-serif'; g.fillText(size || '42', 76, 43); for (let i = 0; i < 8; i++) g.fillRect(100 + i * 2, 30, 1, 16); noise(g, w, h, 300, .05); });
+  const side = tex(256, 64, (g, w, h) => { g.fillStyle = B.body; g.fillRect(0, 0, w, h); g.fillStyle = B.lid; g.fillRect(0, 0, w, 16); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 16, w, 2);
+    if (B.stripes) { g.fillStyle = B.band; for (let i = 0; i < 3; i++) { g.save(); g.translate(150 + i * 22, 64); g.rotate(-.5); g.fillRect(0, -70, 10, 80); g.restore(); } } else { g.fillStyle = B.band; g.fillRect(0, h - 10, w, 10); } noise(g, w, h, 600, .05); });
+  const top = tex(128, 128, (g, w, h) => { g.fillStyle = B.lid; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(0,0,0,.15)'; g.lineWidth = 3; g.strokeRect(2, 2, w - 4, h - 4); noise(g, w, h, 500, .05); });
+  const m = o => new THREE.MeshStandardMaterial({ map: o, roughness: .7 });
+  return shoeMats[key] = [m(end), m(end), m(top), m(top), m(side), m(side)];      // caras: +x (mira a la habitación), -x, +y, -y, +z, -z
+}
+// cartón kraft con cinta y etiqueta (lo que llega)
+const kraftSide = tex(128, 128, (g, w, h) => { g.fillStyle = '#C9A274'; g.fillRect(0, 0, w, h); for (let i = 0; i < 160; i++) { g.strokeStyle = `rgba(${Math.random() < .5 ? '110,75,40' : '235,205,160'},.12)`; g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + 8, y + 1); g.stroke(); } g.fillStyle = 'rgba(232,215,180,.85)'; g.fillRect(56, 0, 16, 40); g.fillStyle = 'rgba(60,40,20,.5)'; g.font = '700 14px Inter, sans-serif'; g.fillText('↑↑', 10, 118); });
+const kraftTop = tex(128, 128, (g, w, h) => { g.fillStyle = '#CDA678'; g.fillRect(0, 0, w, h); noise(g, w, h, 900, .07); g.fillStyle = 'rgba(232,215,180,.9)'; g.fillRect(56, 0, 16, h);
+  g.fillStyle = '#FFFFFF'; g.fillRect(14, 74, 40, 38); g.fillStyle = '#333'; for (let i = 0; i < 4; i++) g.fillRect(18, 80 + i * 7, 26 - i * 4, 3); for (let i = 0; i < 12; i++) g.fillRect(18 + i * 3, 104, i % 3 ? 1 : 2, 6); });
+const kraftMats = (() => { const s = new THREE.MeshStandardMaterial({ map: kraftSide, roughness: .9 }), t = new THREE.MeshStandardMaterial({ map: kraftTop, roughness: .9 }); return [s, s, t, s, s, s]; })();
+// bolsa gris de envío con su etiqueta (lo que se va)
+const bagTop = tex(128, 96, (g, w, h) => { g.fillStyle = '#9EA4AC'; g.fillRect(0, 0, w, h); for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(255,255,255,${rnd(.04, .1)})`; g.fillRect(0, rnd(0, h), w, rnd(2, 6)); } g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(0, 0, w, 8);
+  g.fillStyle = '#FFFFFF'; g.fillRect(58, 24, 56, 52); g.fillStyle = '#26272B'; for (let i = 0; i < 4; i++) g.fillRect(63, 30 + i * 7, 40 - i * 6, 3); for (let i = 0; i < 14; i++) g.fillRect(63 + i * 3, 62, i % 3 ? 1 : 2, 9); });
+const bagMats = (() => { const s = new THREE.MeshStandardMaterial({ color: '#9AA0A8', roughness: .38 }), t = new THREE.MeshStandardMaterial({ map: bagTop, roughness: .38 }); return [s, s, t, s, s, s]; })();
+// camisetas: lisas, a rayas o con franja, con dorsal
+const shirtTex = {};
+function shirtMat(i) {
+  if (shirtTex[i]) return shirtTex[i];
+  const P = [['#C42A3C', null], ['#A50044', '#004D98'], ['#F4F4F2', ACC], ['#2D4F9C', null], ['#1F6E4A', '#F4F4F2'], ['#1E1F23', '#C42A3C'], ['#7EB6E4', null], ['#F2C200', '#1E1F23']][i % 8];
+  const t = tex(128, 128, (g, w, h) => { g.fillStyle = P[0]; g.fillRect(0, 0, w, h); if (P[1]) { g.fillStyle = P[1]; for (let x = 16; x < w; x += 32) g.fillRect(x, 0, 14, h); } noise(g, w, h, 400, .05);
+    g.fillStyle = P[0] === '#F4F4F2' || P[0] === '#F2C200' ? '#1E1F23' : '#FFFFFF'; g.font = '800 46px Inter, sans-serif'; g.textAlign = 'center'; g.fillText(String([10, 7, 9, 11, 8, 4, 5, 14][i % 8]), 64, 84); });
+  return shirtTex[i] = new THREE.MeshStandardMaterial({ map: t, roughness: .85 });
+}
+
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .9, metalness: 0, ...o });
+const M = {
+  floor: new THREE.MeshStandardMaterial({ map: parquet, roughness: .55 }), wall: mat('#FAF9F6'), white: mat(WHITE), acc: mat(ACC, { roughness: .6 }), dark: mat(DARK, { roughness: .7 }),
+  lgrey: mat('#E6E6E4'), mgrey: mat('#C9CCD1'), wood: mat('#D9B98C'), woodD: mat('#B8925F'), rug: mat('#ECE4D6', { roughness: 1 }),
+  glass: mat('#DCE7EF', { roughness: .1, emissive: '#EAF2F8', emissiveIntensity: .4 }), film: new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: .2, transparent: true, opacity: .28, depthWrite: false }),
+  frame: mat('#B9BCC2', { roughness: .5, metalness: .3 }), chrome: mat('#D5D8DD', { roughness: .3, metalness: .6 }), skin: mat('#E2BB99'), hair: mat('#D8B56E'),
+  screen: mat('#1D2027', { emissive: '#9EB7D8', emissiveIntensity: .45 }), leaf: mat('#9CCB8F'), leaf2: mat('#7FB676'), trunk: mat('#B59B7A'),
+  road: mat('#C9CBCF', { roughness: 1 }), walk: mat('#ECEBE7', { roughness: 1 }), curb: mat('#FFFFFF'), lane: new THREE.MeshBasicMaterial({ color: '#FFFFFF' }), grass: mat('#E3EBDA', { roughness: 1 }),
+  plush: ['#D9C7AC', '#A8C9B9', '#EBC2B5', '#C9BCE0', '#F2E2B8', '#BFD3E6', '#E8D5C4'].map(c => mat(c, { roughness: 1 })),
+  yellow: mat('#FFCC00', { roughness: .45 }), red: mat('#D40511', { roughness: .45 }), tyre: mat('#1C1D20', { roughness: .8 }), rim: mat('#BFC3C9', { roughness: .3, metalness: .6 }),
+  tint: mat('#2E3440', { roughness: .1, metalness: .2 }), lamp: mat('#FFFFFF', { emissive: '#FFF6DA', emissiveIntensity: .6 }), amber: mat('#F5A623', { emissive: '#F5A623', emissiveIntensity: 0 })
+};
+// estanterías de hierro de almacén: montantes perforados, largueros y baldas de rejilla
+const perfTex = tex(64, 256, (g, w2, h) => { g.fillStyle = '#A3A9B1'; g.fillRect(0, 0, w2, h); g.fillStyle = '#5E646C'; for (let y = 8; y < h; y += 16) { g.fillRect(14, y, 10, 6); g.fillRect(40, y, 10, 6); } noise(g, w2, h, 200, .06); });
+const STEEL = { up: new THREE.MeshStandardMaterial({ map: perfTex, roughness: .5, metalness: .55 }), beam: new THREE.MeshStandardMaterial({ color: '#B7BCC3', roughness: .35, metalness: .55 }),
+  plate: new THREE.MeshStandardMaterial({ color: '#7A8088', roughness: .5, metalness: .5 }) };
+const deckMat = () => new THREE.MeshStandardMaterial({ color: '#C3C8CE', roughness: .45, metalness: .5 });
+const geo = new THREE.BoxGeometry(1, 1, 1);
+// estantería metálica: axis 'z' (a lo largo de la pared izquierda) o 'x' (a lo largo de la del fondo)
+function rack(parent, o) {
+  const b = (dP, h, aP, dL, hh, aL, m) => o.axis === 'z' ? block(dL, hh, aL, m, o.x0 + dP, h, o.z0 + aP, parent) : block(aL, hh, dL, m, o.x0 + aP, h, o.z0 + dP, parent);
+  const H = o.levels * o.lh + .12, bays = Math.max(1, Math.round(o.len / o.bayW)), bw = o.len / bays, dk = deckMat(o.len, o.depth);
+  for (let i = 0; i <= bays; i++) for (const dP of [0, o.depth - .06]) { b(dP, 0, i * bw - (i === bays ? .06 : 0), .06, H, .06, STEEL.up); b(dP - .01, 0, i * bw - (i === bays ? .07 : -.01), .08, .015, .08, STEEL.plate); }
+  for (let l = 0; l <= o.levels; l++) { const y = .06 + l * o.lh; for (const dP of [0, o.depth - .04]) b(dP, y - .055, 0, .04, .06, o.len, STEEL.beam); const dm = b(.04, y, .02, o.depth - .08, .012, o.len - .04, dk); dm.castShadow = false; }
+  return H;
+}
+function block(w, h, d, m, x, y, z, parent, shadow = true) { const b = new THREE.Mesh(geo, m); b.scale.set(w, h, d); b.position.set(x + w / 2, y + h / 2, z + d / 2); b.castShadow = shadow; b.receiveShadow = true; parent.add(b); return b; }
+const sphere = new THREE.SphereGeometry(1, 18, 14);
+const ball = (r, m, x, y, z, parent, sx = 1, sy = 1, sz = 1) => { const s = new THREE.Mesh(sphere, m); s.position.set(x, y, z); s.scale.set(r * sx, r * sy, r * sz); s.castShadow = s.receiveShadow = true; parent.add(s); return s; };
+const cyl = (r, h, m, x, y, z, parent, rx = 0, rz = 0) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 20), m); c.position.set(x, y, z); c.rotation.set(rx, 0, rz); c.castShadow = c.receiveShadow = true; parent.add(c); return c; };
+const parcel = (w, h, d, x, y, z, parent) => block(w, h, d, kraftMats, x, y, z, parent);
+const bag = (x, y, z, parent, rot = 0) => { const b = block(.4, .085, .3, bagMats, x, y, z, parent); b.rotation.y = rot; return b; };
+
+// persona sencilla, como las del vídeo
+function person(top = DARK, cap) {
+  const g = new THREE.Group(), body = mat(top, { roughness: .95 }), legs = mat('#202227');
+  const legL = new THREE.Group(), legR = new THREE.Group(); legL.position.set(-.09, .82, 0); legR.position.set(.09, .82, 0); g.add(legL, legR);
+  block(.13, .8, .15, legs, -.065, -.8, -.075, legL); block(.13, .8, .15, legs, -.065, -.8, -.075, legR);
+  block(.15, .07, .22, M.white, -.075, -.83, -.085, legL); block(.15, .07, .22, M.white, -.075, -.83, -.085, legR);
+  block(.42, .62, .26, body, -.21, .8, -.13, g);
+  const armL = new THREE.Group(), armR = new THREE.Group(); armL.position.set(-.27, 1.36, 0); armR.position.set(.27, 1.36, 0); g.add(armL, armR);
+  block(.11, .56, .13, body, -.055, -.56, -.065, armL); block(.11, .56, .13, body, -.055, -.56, -.065, armR);
+  block(.1, .1, .11, M.skin, -.05, -.66, -.055, armL); block(.1, .1, .11, M.skin, -.05, -.66, -.055, armR);
+  block(.26, .28, .26, M.skin, -.13, 1.46, -.13, g);
+  if (cap) { block(.29, .1, .29, cap, -.145, 1.7, -.145, g); block(.2, .03, .14, cap, -.1, 1.7, .12, g); }
+  else { block(.28, .1, .28, M.hair, -.14, 1.68, -.14, g); block(.28, .14, .06, M.hair, -.14, 1.6, -.15, g); }
+  const box = new THREE.Group(); parcel(.4, .3, .32, -.2, 1.0, .12, box); box.visible = false; g.add(box);
+  const bg = new THREE.Group(); block(.4, .09, .3, bagMats, -.2, 1.1, .14, bg); bg.visible = false; g.add(bg);
+  const carry = new THREE.Group(); carry.position.set(0, 1.0, .22); g.add(carry);
+  const hand = new THREE.Group(); hand.position.set(0, -.68, .02); armR.add(hand);
+  return { g, legL, legR, armL, armR, box, bag: bg, carry, hand };
+}
+function walkPose(P, t, carry) { const s = Math.sin(t * 9); P.legL.rotation.x = s * .5; P.legR.rotation.x = -s * .5; P.armL.rotation.x = carry ? -1.2 : -s * .4; P.armR.rotation.x = carry ? -1.2 : s * .4; P.g.position.y = Math.abs(Math.cos(t * 9)) * .03; }
+function standPose(P, carry, t) { P.legL.rotation.x = P.legR.rotation.x = 0; P.g.position.y = 0; P.armL.rotation.x = P.armR.rotation.x = carry ? -1.2 : -.6 + Math.sin(t * 6) * .25; }
+
+// furgoneta de reparto amarilla y roja, del estilo de una Iveco Daily
+function van() {
+  const g = new THREE.Group(), W = 1.96;
+  // caja de carga
+  block(W, 2.15, 3.5, M.yellow, -W / 2, .5, -3.5, g);
+  block(W + .03, .22, 3.49, M.red, -W / 2 - .015, .72, -3.495, g); block(W + .03, .05, 3.49, M.red, -W / 2 - .015, 1.02, -3.495, g);
+  block(W + .04, .08, 3.54, mat('#E6B800', { roughness: .5 }), -W / 2 - .02, 2.64, -3.52, g);
+  // cabina con morro inclinado (perfil extruido)
+  const s = new THREE.Shape(); s.moveTo(0, .5); s.lineTo(1.62, .5); s.lineTo(1.72, .8); s.lineTo(1.68, 1.08); s.lineTo(1.42, 1.22); s.lineTo(.92, 2.08); s.lineTo(0, 2.2); s.closePath();
+  const cab = new THREE.Mesh(new THREE.ExtrudeGeometry(s, { depth: W - .04, bevelEnabled: true, bevelSize: .03, bevelThickness: .03, bevelSegments: 2 }), M.yellow);
+  cab.rotation.y = -Math.PI / 2; cab.position.set(W / 2 - .02, 0, 0); cab.castShadow = cab.receiveShadow = true; g.add(cab);
+  // parabrisas inclinado, ventanillas, faros, calandra, paragolpes, retrovisores
+  const ws = new THREE.Mesh(new THREE.PlaneGeometry(W - .2, .98), M.tint); ws.position.set(0, 1.66, 1.19); ws.rotation.x = -Math.atan2(.5, .86); g.add(ws);
+  for (const sx of [-1, 1]) { const sw = new THREE.Mesh(new THREE.PlaneGeometry(.8, .6), M.tint); sw.position.set(sx * (W / 2 + .025), 1.6, .62); sw.rotation.y = sx * Math.PI / 2; g.add(sw); }
+  block(.7, .28, .04, M.dark, -.35, .78, 1.7, g); for (let i = 0; i < 3; i++) block(.66, .02, .045, mat('#55595F'), -.33, .83 + i * .07, 1.705, g);
+  for (const sx of [-1, 1]) { block(.32, .14, .04, M.lamp, sx > 0 ? .5 : -.82, .95, 1.67, g); block(.12, .08, .04, M.amber, sx > 0 ? .78 : -.9, .96, 1.66, g); }
+  block(W + .06, .2, .14, mat('#3A3D44', { roughness: .6 }), -W / 2 - .03, .45, 1.66, g);
+  for (const sx of [-1, 1]) { block(.06, .04, .3, M.dark, sx * (W / 2 + .02) - .03, 1.55, 1.1, g); block(.05, .3, .18, M.dark, sx * (W / 2 + .28) - .025, 1.4, 1.08, g); }
+  block(W - .1, .25, 5.6, M.dark, -W / 2 + .05, .3, -3.6, g);                                       // chasis
+  // ruedas con llanta
+  const wheels = [];
+  for (const [x, z] of [[-.9, 1.15], [.9, 1.15], [-.9, -2.55], [.9, -2.55]]) { const w = new THREE.Group(); w.position.set(x, .38, z); g.add(w);
+    const ty = new THREE.Mesh(new THREE.CylinderGeometry(.38, .38, .26, 24), M.tyre); ty.rotation.z = Math.PI / 2; ty.castShadow = true; w.add(ty);
+    const rm = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, .27, 16), M.rim); rm.rotation.z = Math.PI / 2; w.add(rm); wheels.push(w); }
+  // puertas traseras con bisagra
+  const doors = [-1, 1].map(sx => { const p = new THREE.Group(); p.position.set(sx * W / 2, .5, -3.5); g.add(p); block(W / 2 - .01, 2.15, .04, M.yellow, sx > 0 ? -(W / 2 - .01) : 0, 0, -.04, p); block(W / 2 - .01, .22, .045, M.red, sx > 0 ? -(W / 2 - .01) : 0, .22, -.045, p); return p; });
+  // intermitentes traseros
+  const hz = [-1, 1].map(sx => block(.1, .1, .03, M.amber, sx * .85 - .05, .6, -3.53, g));
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return { g, wheels, doors, hz };
+}
+// avión de carga amarillo y rojo, para los pedidos que aún vienen de camino
+function plane() {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const fus = new THREE.Mesh(new THREE.CylinderGeometry(.24, .2, 3.0, 18), M.yellow); fus.rotation.x = Math.PI / 2; body.add(fus);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(.24, 16, 12), M.yellow); nose.scale.set(1, 1, 1.6); nose.position.z = 1.5; body.add(nose);
+  const tailc = new THREE.Mesh(new THREE.ConeGeometry(.2, .7, 16), M.yellow); tailc.rotation.x = -Math.PI / 2; tailc.position.z = -1.85; body.add(tailc);
+  block(.5, .1, 2.6, M.red, -.25, -.05, -1.3, body);
+  block(3.4, .05, .7, M.yellow, -1.7, -.1, -.1, body); block(3.42, .02, .12, M.red, -1.71, -.07, .48, body);
+  block(1.3, .04, .4, M.yellow, -.65, .05, -2.0, body); block(.05, .75, .55, M.red, -.025, .1, -2.15, body);
+  for (const sx of [-1, 1]) { const en = new THREE.Mesh(new THREE.CylinderGeometry(.11, .1, .5, 14), mat('#D9DCE0', { roughness: .3, metalness: .5 })); en.rotation.x = Math.PI / 2; en.position.set(sx * .85, -.22, .15); body.add(en); }
+  for (let i = 0; i < 6; i++) block(.01, .07, .09, M.tint, .235, .05, .9 - i * .3, body);
+  return g;
+}
+function car(color) {
+  const g = new THREE.Group(), c = mat(color, { roughness: .45 });
+  block(1.7, .5, 3.9, c, -.85, .32, -1.95, g); block(1.5, .5, 2.0, c, -.75, .82, -1.0, g); block(1.52, .34, 1.96, M.tint, -.76, .9, -.98, g);
+  for (const sx of [-1, 1]) { block(.3, .1, .04, M.lamp, sx > 0 ? .45 : -.75, .62, 1.94, g); block(.3, .1, .04, M.red, sx > 0 ? .45 : -.75, .62, -1.98, g); }
+  const wheels = [];
+  for (const [x, z] of [[-.86, -1.2], [.86, -1.2], [-.86, 1.2], [.86, 1.2]]) { const w = new THREE.Group(); w.position.set(x, .32, z); g.add(w); const ty = new THREE.Mesh(new THREE.CylinderGeometry(.32, .32, .22, 18), M.tyre); ty.rotation.z = Math.PI / 2; w.add(ty); const rm = new THREE.Mesh(new THREE.CylinderGeometry(.18, .18, .23, 12), M.rim); rm.rotation.z = Math.PI / 2; w.add(rm); wheels.push(w); }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return { g, wheels };
+}
+
+export function createWorld(opts) {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', logarithmicDepthBuffer: false });
+  renderer.setPixelRatio(2); renderer.outputColorSpace = THREE.SRGBColorSpace;   // siempre a doble resolución: bordes y texturas finas sin temblar
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const canvas = renderer.domElement; canvas.className = 'alm-canvas';
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight('#FFFFFF', '#E9E6E0', 2.2));
+  const sun = new THREE.DirectionalLight('#FFFFFF', 1.15); sun.position.set(-5, 14, 10);
+  sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); Object.assign(sun.shadow.camera, { left: -17, right: 17, top: 17, bottom: -17, near: 2, far: 45 });
+  sun.shadow.bias = -.0006; sun.shadow.normalBias = .035; sun.shadow.radius = 5;
+  sun.target.position.set(RX / 2 + 2, 0, RZ / 2); scene.add(sun, sun.target);
+
+  const world = new THREE.Group(); scene.add(world);
+  /* ---------- fuera: acera, calle y árboles ---------- */
+  block(44, .1, 44, M.grass, -14, -.2, -16, world, false);
+  block(2.0, .12, 34, M.walk, RX + .14, -.13, -14, world, false); block(.14, .14, 34, M.curb, RX + 2.14, -.13, -14, world, false);
+  block(7.2, .1, 34, M.road, RX + 2.28, -.16, -14, world, false);
+  for (let z = -14; z < 20; z += 2.4) block(.14, .01, 1.3, M.lane, RX + 5.88, -.06, z, world, false);
+  for (const z of [-5.5, -.8, 9.2]) { block(.2, .9, .2, M.trunk, RX + 1.0, -.01, z, world); for (const [dx, dy, s] of [[0, 1.6, .7], [.2, 1.95, .45], [-.2, 1.85, .5]]) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), dx ? M.leaf2 : M.leaf); c.position.set(RX + 1.1 + dx, dy, z + .1); c.castShadow = true; world.add(c); } }
+  block(.12, 3.2, .12, M.dark, RX + 1.9, -.01, 4.6, world); block(.9, .08, .14, M.dark, RX + 1.15, 3.1, 4.59, world); block(.36, .1, .22, M.lamp, RX + 1.05, 3.0, 4.55, world);   // farola
+
+  /* ---------- la habitación ---------- */
+  block(RX + .28, .12, RZ + .28, M.floor, -.14, -.12, -.14, world, false);
+  const wall = (w, h, d, x, y, z) => block(w, h, d, M.wall, x, y, z, world);
+  wall(.14, WH, RZ + .14, -.14, 0, -.14);
+  wall(DESK[0] + .2, WH, .14, 0, 0, -.14); wall(1.6, 1.0, .14, DESK[0] + .2, 0, -.14); wall(1.6, .4, .14, DESK[0] + .2, WH - .4, -.14);
+  block(1.6, 1.2, .03, M.glass, DESK[0] + .2, 1.0, -.085, world, false); block(.05, 1.2, .06, M.white, DESK[0] + .98, 1.0, -.1, world); block(1.66, .05, .2, M.white, DESK[0] + .17, .965, -.06, world);
+  wall(RX - (DESK[0] + 1.8), WH, .14, DESK[0] + 1.8, 0, -.14);
+  block(RX + .16, .05, .17, M.acc, -.15, WH, -.155, world); block(.17, .05, RZ + .01, M.acc, -.155, WH, .015, world);
+  block(RX, .08, .025, M.white, 0, 0, .001, world, false); block(.025, .08, RZ, M.white, .001, 0, .03, world, false);
+  // radiador bajo la ventana, enchufe y reloj
+  block(1.1, .5, .07, M.white, DESK[0] + .45, .25, .01, world); for (let i = 0; i < 9; i++) block(.06, .46, .02, M.lgrey, DESK[0] + .5 + i * .12, .27, .08, world);
+  const clock = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .03, 32), M.white); clock.rotation.x = Math.PI / 2; clock.position.set(7.4, 2.05, .02); world.add(clock);
+  const clockFace = new THREE.Mesh(new THREE.CircleGeometry(.15, 32), new THREE.MeshStandardMaterial({ map: tex(128, 128, (g) => { g.fillStyle = '#FFF'; g.fillRect(0, 0, 128, 128); g.fillStyle = '#2B2D33'; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.fillRect(64 + Math.cos(a) * 54 - 2, 64 + Math.sin(a) * 54 - 2, 4, 4); } g.lineWidth = 5; g.strokeStyle = '#2B2D33'; g.beginPath(); g.moveTo(64, 64); g.lineTo(64, 28); g.moveTo(64, 64); g.lineTo(94, 72); g.stroke(); }) }));
+  clockFace.position.set(7.4, 2.05, .037); world.add(clockFace);
+  // marco de la puerta a la calle y felpudo
+  block(.12, 2.15, .1, M.white, RX - .06, 0, DOOR.z0 - .1, world); block(.12, 2.15, .1, M.white, RX - .06, 0, DOOR.z1, world); block(.12, .12, DOOR.z1 - DOOR.z0 + .2, M.acc, RX - .06, 2.15, DOOR.z0 - .1, world);
+  block(.7, .012, 1.0, M.dark, RX - .78, .003, DOOR.z0 + .05, world, false);
+  // decoración: alfombra, lámpara, planta, cuadro de unas zapatillas
+  block(3.2, .01, 2.4, M.rug, TABLE[0] - .6, .003, TABLE[1] - .75, world, false);
+  block(.26, .03, .26, M.dark, DESK[0] + 2.3, 0, .2, world); block(.03, 1.55, .03, M.dark, DESK[0] + 2.415, .03, .315, world); block(.36, .26, .36, M.white, DESK[0] + 2.25, 1.55, .15, world);
+  block(.36, .42, .36, M.white, RX - .5, 0, RZ - .5, world); for (const [dx, dy, dz, s] of [[0, .78, 0, .34], [.1, 1.05, -.06, .25], [-.08, 1.0, .1, .23]]) ball(s, M.leaf, RX - .32 + dx, dy, RZ - .32 + dz, world);
+  block(.8, .6, .025, M.acc, 5.9, 1.3, .002, world);
+  const poster = tex(256, 192, (g, w, h) => { g.fillStyle = '#F7F4EE'; g.fillRect(0, 0, w, h); g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(128, 110, 92, 34, 0, 0, 7); g.fill(); g.strokeStyle = '#1E1E20'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#1E1E20'; for (let i = 0; i < 3; i++) { g.save(); g.translate(110 + i * 16, 120); g.rotate(-.5); g.fillRect(-4, -26, 8, 34); g.restore(); } g.fillStyle = '#C68B59'; g.fillRect(40, 136, 176, 10); });
+  const pm = new THREE.Mesh(new THREE.PlaneGeometry(.72, .52), new THREE.MeshStandardMaterial({ map: poster, roughness: .8 })); pm.position.set(6.3, 1.6, .03); world.add(pm);
+
+  /* ---------- zonas ---------- */
+  const Z = {}; const zone = k => { const g = new THREE.Group(); g.userData.zone = k; world.add(g); Z[k] = g; return g; };
+  zone('stock'); const sub = k => { const g = new THREE.Group(); g.userData.zone = 'stock'; g.userData.rack = k; Z.stock.add(g); return g; };
+  // pared de zapatillas
+  const gz = sub('zapatillas'), zw = SW.bays * SW.bay, zh = SW.levels * SW.lv + .1;
+  rack(gz, { axis: 'z', x0: .02, z0: SW.z0, depth: SW.d + .06, len: zw, levels: SW.levels, lh: SW.lv, bayW: SW.bay * 3 });
+  const shoeItems = new THREE.Group(); gz.add(shoeItems);
+  // peluches en el suelo
+  const gj = sub('jellycat'); const rugJ = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, .012, 40), mat('#F3E9DA', { roughness: 1 })); rugJ.position.set(PILE.x, .009, PILE.z); rugJ.receiveShadow = true; gj.add(rugJ);
+  const plushItems = new THREE.Group(); gj.add(plushItems);
+  // burro de camisetas
+  const gf = sub('futbol'); for (const x of [RAIL.x0, RAIL.x1]) { block(.04, 1.62, .04, M.chrome, x, 0, RAIL.z - .02, gf); block(.04, .03, .5, M.chrome, x, .02, RAIL.z - .25, gf); }
+  cyl(.016, RAIL.x1 - RAIL.x0 + .04, M.chrome, (RAIL.x0 + RAIL.x1) / 2 + .02, 1.62, RAIL.z, gf, 0, Math.PI / 2);
+  const shirtItems = new THREE.Group(); gf.add(shirtItems);
+  // estantería baja (otros)
+  const go = sub('otro'); rack(go, { axis: 'x', x0: LOW.x0, z0: LOW.z0, depth: LOW.d, len: LOW.w, levels: 2, lh: .45, bayW: 1.2 });
+  const otherItems = new THREE.Group(); go.add(otherItems);
+  // escritorio
+  const zoff = zone('office');
+  block(DESK[2], .05, DESK[3], M.white, DESK[0], .74, DESK[1], zoff); block(.05, .74, DESK[3] - .1, M.frame, DESK[0] + .05, 0, DESK[1] + .05, zoff); block(.05, .74, DESK[3] - .1, M.frame, DESK[0] + DESK[2] - .1, 0, DESK[1] + .05, zoff);
+  block(.66, .4, .04, M.dark, DESK[0] + .7, .87, DESK[1] + .12, zoff); block(.62, .35, .012, M.screen, DESK[0] + .72, .895, DESK[1] + .165, zoff); block(.06, .08, .06, M.dark, DESK[0] + 1.0, .79, DESK[1] + .12, zoff); block(.24, .015, .16, M.dark, DESK[0] + .91, .79, DESK[1] + .06, zoff);
+  block(.44, .016, .14, M.lgrey, DESK[0] + .82, .79, DESK[1] + .36, zoff); block(.06, .02, .1, M.lgrey, DESK[0] + 1.34, .79, DESK[1] + .38, zoff);
+  block(.36, .015, .24, M.mgrey, DESK[0] + .15, .79, DESK[1] + .36, zoff); block(.34, .2, .01, M.mgrey, DESK[0] + .16, .805, DESK[1] + .36, zoff);
+  cyl(.045, .1, M.white, DESK[0] + 1.75, .84, DESK[1] + .55, zoff); ball(.08, M.leaf2, DESK[0] + 1.82, .95, DESK[1] + .2, zoff); block(.12, .1, .12, M.white, DESK[0] + 1.76, .79, DESK[1] + .14, zoff);
+  const chair = new THREE.Group(); chair.position.set(DESK[0] + 1.0, 0, DESK[1] + 1.2); zoff.add(chair);
+  block(.5, .07, .48, M.dark, -.25, .44, -.24, chair); block(.48, .5, .06, M.dark, -.24, .5, .2, chair); block(.05, .44, .05, M.frame, -.025, 0, -.025, chair); block(.5, .03, .06, M.frame, -.25, .02, -.03, chair); block(.06, .03, .5, M.frame, -.03, .02, -.25, chair);
+  const phones = new THREE.Group(); zoff.add(phones);
+  // mesa de embalar
+  const zprep = zone('prep');
+  block(TABLE[2], .05, TABLE[3], M.white, TABLE[0], .88, TABLE[1], zprep);
+  for (const [dx, dz] of [[.04, .04], [TABLE[2] - .09, .04], [.04, TABLE[3] - .09], [TABLE[2] - .09, TABLE[3] - .09]]) block(.05, .88, .05, M.frame, TABLE[0] + dx, 0, TABLE[1] + dz, zprep);
+  block(TABLE[2] - .1, .03, TABLE[3] - .1, M.lgrey, TABLE[0] + .05, .25, TABLE[1] + .05, zprep);
+  block(.32, .05, .32, M.dark, TABLE[0] + .12, .93, TABLE[1] + .12, zprep); block(.18, .02, .08, mat('#9FD3A8', { emissive: '#9FD3A8', emissiveIntensity: .35 }), TABLE[0] + .19, .986, TABLE[1] + .16, zprep);
+  cyl(.11, .5, mat('#EEF3F6', { roughness: .2, transparent: true, opacity: .75 }), TABLE[0] + TABLE[2] - .35, .4, TABLE[1] + .45, zprep, 0, Math.PI / 2);   // rollo de plástico de burbujas (balda)
+  const tg = new THREE.Group(); tg.position.set(TABLE[0] + TABLE[2] - .25, .93, TABLE[1] + TABLE[3] - .28); zprep.add(tg); cyl(.065, .05, mat('#E5D7B5'), 0, .07, 0, tg, Math.PI / 2); block(.2, .04, .05, M.red, -.12, .0, -.025, tg); block(.04, .14, .04, M.red, -.12, -.0, -.02, tg);   // pistola de cinta
+  block(.18, .1, .12, M.white, TABLE[0] + .55, .93, TABLE[1] + .1, zprep); block(.14, .005, .06, M.white, TABLE[0] + .57, 1.03, TABLE[1] + .13, zprep);   // impresora de etiquetas
+  for (let i = 0; i < 4; i++) parcel(.5, .02, .38, TABLE[0] + .15, .285 + i * .023, TABLE[1] + .15, zprep);
+  const prepItems = new THREE.Group(); zprep.add(prepItems);
+  // salida: cubo gris con ruedas, una bolsa por envío
+  const zout = zone('out'); const [tx0, tz0, tw, td] = TUB;
+  block(tw, .06, td, M.mgrey, tx0, .12, tz0, zout); block(tw, .3, .04, M.mgrey, tx0, .12, tz0, zout); block(tw, .3, .04, M.mgrey, tx0, .12, tz0 + td - .04, zout); block(.04, .3, td - .08, M.mgrey, tx0 + .002, .12, tz0 + .04, zout); block(.04, .3, td - .08, M.mgrey, tx0 + tw - .042, .12, tz0 + .04, zout);
+  for (const [dx, dz] of [[.08, .08], [tw - .08, .08], [.08, td - .08], [tw - .08, td - .08]]) cyl(.05, .04, M.dark, tx0 + dx, .05, tz0 + dz, zout, 0, Math.PI / 2);
+  const outItems = new THREE.Group(); zout.add(outItems);
+  // recepción: palé de madera
+  const zin = zone('in'); const [px, pz] = PALLET;
+  const palletG = new THREE.Group(); zin.add(palletG);
+  for (const dz of [0, .53, 1.06]) block(1.2, .1, .14, M.woodD, px, 0, pz + dz, palletG);
+  for (let i = 0; i < 7; i++) block(.15, .03, 1.2, M.wood, px + i * .175, .1, pz, palletG);
+  const inItems = new THREE.Group(); zin.add(inItems);
+  // devoluciones: caja grande abierta
+  const zret = zone('ret'); block(1.1, .55, .8, M.white, 7.9, 0, 5.6, zret); block(1.0, .02, .7, M.lgrey, 7.95, .53, 5.65, zret);
+  const retItems = new THREE.Group(); zret.add(retItems);
+
+  /* ---------- gente, furgoneta y coches ---------- */
+  const P = person(); world.add(P.g); P.g.position.set(TABLE[0] + 1.0, 0, TABLE[1] - .4);
+  const courier = person('#FFCC00', M.red); courier.g.visible = false; world.add(courier.g);
+  const V = van(); world.add(V.g); V.g.visible = false; V.g.position.set(LANE, 0, -22);
+  const PL = plane(); PL.scale.setScalar(.42); PL.visible = false; scene.add(PL); let planeOn = false, planeT = 60;
+  const cars = ['#E8E6E1', '#2B2D33', '#B9BCC2', '#8FA3B8', '#A53A3A'].map(c => { const k = car(c); world.add(k.g); k.g.visible = false; return k; });
+  let carT = 3, carI = 0; const carRuns = [];
+
+  /* ---------- datos → objetos (cantidades reales) ---------- */
+  const clear = g => { while (g.children.length) g.remove(g.children[g.children.length - 1]); };
+  let D = null, slotPos = {}, bagCount = 0;
+  function update(d) {
+    D = d; slotPos = {}; shelfMesh = {};
+    // lo vendido que aún no ha preparado sigue físicamente en su sitio hasta que lo coge de verdad
+    const waiting = {};
+    d.pend.forEach(s => { if (!packed.has(s.id) && !(job && job.kind === 'sale' && job.id === s.id && job.picked)) waiting[s.productId] = (waiting[s.productId] || 0) + 1; });
+    const shown = p => p.units + (waiting[p.id] || 0);
+    const byCat = k => d.products.filter(p => p.cat === k && shown(p) > 0);
+    const track = (p, m) => { (shelfMesh[p.id] = shelfMesh[p.id] || []).push(m); m.userData.tip = p.tip; };
+    // zapatillas: una caja por par, de 3 en 3 por hueco, cada producto seguido del anterior
+    clear(shoeItems);
+    let slot = 0; const cap = SW.bays * SW.levels * SW.per;
+    byCat('zapatillas').forEach(p => { const g = new THREE.Group(); g.userData.tip = p.tip; g.userData.rack = 'zapatillas'; shoeItems.add(g);
+      const mats = shoeboxMats(brandOf(p.name), p.size); let first = null;
+      for (let k = 0; k < shown(p) && slot < cap; k++, slot++) {
+        const cell = Math.floor(slot / SW.per), inCell = slot % SW.per, bay = cell % SW.bays, lvl = Math.floor(cell / SW.bays);
+        const z = SW.z0 + bay * SW.bay + .04, y = .073 + lvl * SW.lv + inCell * .118; track(p, block(.33, .115, SW.bay - .07, mats, .06, y, z, g));
+        if (!first) first = [.35, y + .4, z + .15];
+      } slotPos[p.id] = first || [.35, 1, 1]; });
+    // peluches: uno por unidad, amontonados en capas cada vez más pequeñas
+    clear(plushItems);
+    let n = 0; byCat('jellycat').forEach((p, pi) => { const g = new THREE.Group(); g.userData.tip = p.tip; g.userData.rack = 'jellycat'; plushItems.add(g);
+      for (let k = 0; k < shown(p) && n < 70; k++, n++) {
+        const layer = n < 14 ? 0 : n < 24 ? 1 : n < 31 ? 2 : n < 35 ? 3 : 4 + Math.floor((n - 35) / 8), idx = [n, n - 14, n - 24, n - 31, (n - 35) % 8][Math.min(layer, 4)];
+        const cnt = [14, 10, 7, 4, 8][Math.min(layer, 4)], rad = [.62, .45, .28, .12, .5][Math.min(layer, 4)], a = idx / cnt * Math.PI * 2 + layer * .7;
+        const x = PILE.x + Math.cos(a) * rad, z = PILE.z + Math.sin(a) * rad, y = .13 + layer * .19, m = M.plush[(pi * 2 + k) % M.plush.length], s = .9 + (n % 4) * .07;
+        const pl = new THREE.Group(); pl.position.set(x, y, z); pl.rotation.y = -a + Math.PI / 2 + (n % 3) * .3; g.add(pl); pl.userData.kind = 'plush';
+        ball(.13 * s, m, 0, 0, 0, pl, 1, .9, .95); ball(.1 * s, m, 0, .17 * s, .03, pl);
+        ball(.034 * s, m, -.06 * s, .26 * s, .03, pl, .7, 1.7, .6); ball(.034 * s, m, .06 * s, .26 * s, .03, pl, .7, 1.7, .6);
+        ball(.045 * s, m, -.12 * s, .02, .05, pl, .8, 1, 1.2); ball(.045 * s, m, .12 * s, .02, .05, pl, .8, 1, 1.2);
+        ball(.012, M.dark, -.035 * s, .19 * s, .12 * s, pl); ball(.012, M.dark, .035 * s, .19 * s, .12 * s, pl); ball(.016, mat('#8C6A5A'), 0, .16 * s, .125 * s, pl);
+        track(p, pl);
+      } slotPos[p.id] = [PILE.x, .9, PILE.z]; });
+    // camisetas: una por unidad
+    clear(shirtItems);
+    const total = byCat('futbol').reduce((t, p) => t + shown(p), 0), step = Math.min(.14, (RAIL.x1 - RAIL.x0 - .2) / Math.max(1, total - 1));
+    let si = 0; byCat('futbol').forEach((p, pi) => { const g = new THREE.Group(); g.userData.tip = p.tip; g.userData.rack = 'futbol'; shirtItems.add(g); const m = shirtMat(pi);
+      for (let k = 0; k < shown(p) && si < 40; k++, si++) {
+        const x = RAIL.x0 + .1 + si * step, sh = new THREE.Group(); sh.position.set(x, 0, RAIL.z); sh.rotation.y = (si % 2 ? .04 : -.04); g.add(sh); sh.userData.kind = 'shirt'; sh.userData.mat = pi;
+        const hook = new THREE.Mesh(new THREE.TorusGeometry(.04, .006, 6, 12, Math.PI), M.chrome); hook.position.set(0, 1.6, 0); hook.rotation.y = Math.PI / 2; sh.add(hook);
+        block(.035, .08, .4, M.chrome, -.0175, 1.5, -.2, sh);
+        block(.04, .6, .46, m, -.02, .94, -.23, sh); block(.036, .16, .17, m, -.018, 1.36, -.4, sh); block(.036, .16, .17, m, -.018, 1.36, .23, sh);
+        block(.044, .04, .14, M.white, -.022, 1.5, -.07, sh);
+        track(p, sh);
+      } slotPos[p.id] = [(RAIL.x0 + RAIL.x1) / 2, 1.9, RAIL.z]; });
+    // otros: una caja por unidad en la estantería baja
+    clear(otherItems);
+    let oi = 0; byCat('otro').forEach(p => { const g = new THREE.Group(); g.userData.tip = p.tip; g.userData.rack = 'otro'; otherItems.add(g);
+      for (let k = 0; k < shown(p) && oi < 18; k++, oi++) { const shelf = Math.floor(oi / 6), col = oi % 6, x = LOW.x0 + .08 + col * .37, y = [.073, .523, .973][shelf]; track(p, parcel(.3, .26, .3, x, y, LOW.z0 + .06, g)); }
+      slotPos[p.id] = [LOW.x0 + .6, .8, LOW.z0 + .3]; });
+    // recepción: lo recibido esta semana + lo que el repartidor va descargando (una caja por unidad)
+    recvUnits = d.recvUnits; unloadTotal = d.unloadUnits; if (d.vanMode !== 'unload') delivered = 0; drawPallet();
+    // solo hay muebles donde hay algo: sin camisetas no hay burro, sin peluches no hay alfombra…
+    const cnt = k => byCat(k).reduce((t, p) => t + shown(p), 0);
+    gz.visible = cnt('zapatillas') > 0; rugJ.visible = cnt('jellycat') > 0; gf.visible = cnt('futbol') > 0; go.visible = cnt('otro') > 0;
+    zret.visible = d.rets > 0;
+    // devoluciones: una caja por devolución
+    clear(retItems);
+    for (let i = 0; i < Math.min(d.rets, 12); i++) parcel(.26, .18, .22, 8.0 + (i % 3) * .3, .55 + Math.floor(i / 6) * .19, 5.7 + Math.floor(i / 3 % 2) * .3, retItems);
+    // móviles en el escritorio
+    clear(phones);
+    d.accounts.slice(0, 8).forEach((a, i) => { const g = new THREE.Group(); g.userData.tip = a.tip; g.userData.account = a.id; phones.add(g);
+      block(.08, .014, .15, M.dark, DESK[0] + .1 + i * .11, .79, DESK[1] + .6, g); block(.07, .005, .13, a.warm ? mat(ACC, { emissive: ACC, emissiveIntensity: .5 }) : M.screen, DESK[0] + .105 + i * .11, .806, DESK[1] + .61, g); });
+    vanMode = d.vanMode; planeOn = !!d.plane;
+    pins = d.alerts; for (const id of [...packed]) if (!d.pend.some(s => s.id === id)) packed.delete(id); savePacked(); drawTub(); plan();
+  }
+
+  /* ---------- el trabajador: hace lo que pasa de verdad ----------
+     · por cada venta por preparar: va a su sitio, coge ESA unidad de la estantería, la deja en la mesa, la mete en
+       una bolsa gris de su tamaño, la precinta, imprime y pega la etiqueta, la lleva a la vagoneta (que se va llenando)
+       y registra la venta en el ordenador. Lo hecho se guarda: si recargas no lo repite.
+     · sin nada que preparar: tareas de tiempo muerto (calentar cuentas, buscar productos, revisar stock, ordenar, barrer) */
+  const LSP = 'almPacked';
+  const packed = new Set((() => { try { return JSON.parse(localStorage.getItem(LSP) || '[]'); } catch (e) { return []; } })());
+  const savePacked = () => { try { localStorage.setItem(LSP, JSON.stringify([...packed])); } catch (e) {} };
+  let shelfMesh = {};
+  const kindOf = cat => cat === 'zapatillas' ? 'shoe' : cat === 'jellycat' ? 'plush' : cat === 'futbol' ? 'shirt' : 'box';
+  const LIFT = { shoe: .06, plush: .11, shirt: .03, box: .13 };                       // media altura de cada cosa
+  const BAG = { shoe: [.41, .15, .31], plush: [.4, .22, .31], shirt: [.38, .07, .29], box: [.41, .3, .31] };   // bolsas de envío a medida
+  function itemMesh(kind, info = {}) {
+    const g = new THREE.Group();
+    if (kind === 'shoe') block(.33, .115, .21, shoeboxMats(brandOf(info.name || ''), info.size), -.165, -.0575, -.105, g);
+    else if (kind === 'plush') { const m = M.plush[(info.name || '').length % M.plush.length]; ball(.11, m, 0, 0, 0, g, 1, .9, .95); ball(.08, m, 0, .14, .02, g); ball(.028, m, -.05, .22, .02, g, .7, 1.7, .6); ball(.028, m, .05, .22, .02, g, .7, 1.7, .6); }
+    else if (kind === 'shirt') block(.3, .05, .24, shirtMat(info.mat || 0), -.15, -.025, -.12, g);
+    else block(.3, .26, .3, kraftMats, -.15, -.13, -.15, g);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  }
+  function bagMesh(kind) { const g = new THREE.Group(), [bw, bh, bd] = BAG[kind]; block(bw, bh, bd, bagMats, -bw / 2, -bh / 2, -bd / 2, g); g.userData.h = bh; return g; }
+  const labelMesh = () => { const g = new THREE.Group(); block(.1, .006, .07, M.white, -.05, -.003, -.035, g); block(.06, .007, .012, M.dark, -.035, -.003, -.02, g); return g; };
+  // utensilios
+  const clipG = (() => { const g = new THREE.Group(); block(.24, .32, .012, mat('#C9A274'), -.12, -.22, .03, g); block(.2, .26, .004, M.white, -.1, -.19, .043, g); block(.08, .03, .02, M.chrome, -.04, .08, .03, g); return g; })();
+  const phoneG = (() => { const g = new THREE.Group(); block(.075, .15, .012, M.dark, -.037, -.1, .02, g); block(.065, .13, .004, M.screen, -.032, -.09, .033, g); return g; })();
+  // escoba sujeta delante del cuerpo: palo desde las manos hasta el suelo y cepillo con cerdas
+  const broomG = (() => { const g = new THREE.Group(), a = new THREE.Vector3(.1, 1.02, .3), b = new THREE.Vector3(.02, .07, .82), dir = b.clone().sub(a), len = dir.length();
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(.014, .014, len, 10), mat('#B59B7A', { roughness: .6 })); stick.position.copy(a).add(b).multiplyScalar(.5); stick.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()); stick.castShadow = true; g.add(stick);
+    const head = new THREE.Group(); head.position.copy(b); g.add(head); block(.42, .05, .08, M.red, -.21, .0, -.04, head); block(.4, .06, .07, mat('#3A3D44', { roughness: 1 }), -.2, -.06, -.035, head);
+    g.visible = false; return g; })();
+  P.g.add(broomG);
+  const handProp = k => { while (P.hand.children.length) P.hand.remove(P.hand.children[0]); broomG.visible = k === 'broom'; if (k === 'clip') P.hand.add(clipG); if (k === 'phone') P.hand.add(phoneG); };
+  // la mesa y la vagoneta
+  const tableG = new THREE.Group(); tableG.position.set(TABLE[0] + 1.05, .935, TABLE[1] + .4); zprep.add(tableG);
+  const printOut = new THREE.Vector3(TABLE[0] + .64, 1.0, TABLE[1] + .12);
+  function tubLayout(kinds) {                                    // cada bolsa al hueco más bajo: la pila crece de verdad
+    const cells = [[tx0 + .255, tz0 + .21], [tx0 + .695, tz0 + .21], [tx0 + .255, tz0 + .54], [tx0 + .695, tz0 + .54]], hgt = [0, 0, 0, 0];
+    return kinds.map((k, i) => { let c = 0; for (let j = 1; j < 4; j++) if (hgt[j] < hgt[c] - .001) c = j; const h = BAG[k][1], y = .18 + hgt[c] + h / 2; hgt[c] += h; return { x: cells[c][0], y, z: cells[c][1], r: ((i * 37) % 7 - 3) * .01 }; });
+  }
+  const readyList = () => (D ? D.pend : []).filter(s => packed.has(s.id));
+  function drawTub() {
+    clear(outItems); const ready = readyList(), lay = tubLayout(ready.map(s => kindOf(s.cat)));
+    ready.slice(0, 40).forEach((s, i) => { const b = bagMesh(kindOf(s.cat)), L = lay[i]; b.position.set(L.x, L.y, L.z); b.rotation.y = L.r; b.userData.tip = s.tip; const lb = labelMesh(); lb.position.set(.05, b.userData.h / 2 + .003, .02); b.add(lb); outItems.add(b); });
+    zout.visible = (D && D.pend.length > 0) || ready.length > 0;
+  }
+  // movimiento fluido de una cosa entre dos sitios (en coordenadas del mundo)
+  const idQ = new THREE.Quaternion(), wv = new THREE.Vector3();
+  let fl = null;
+  function fly(obj, toFn, dur, done, toQ) { world.attach(obj); fl = { obj, from: obj.position.clone(), fromQ: obj.quaternion.clone(), toFn, t: 0, dur, done, toQ }; }
+  const toCarry = (obj, dur, done) => fly(obj, carryPos, dur, done, P.g.quaternion.clone());
+  function tickFly(dt) {
+    if (!fl) return; const f = fl; f.t += dt; const k = Math.min(1, f.t / f.dur), e = k * k * (3 - 2 * k), to = f.toFn();
+    f.obj.position.lerpVectors(f.from, to, e); f.obj.position.y += Math.sin(k * Math.PI) * .1; f.obj.quaternion.slerpQuaternions(f.fromQ, f.toQ || idQ, e);
+    if (k >= 1) { fl = null; if (f.done) f.done(); }
+  }
+  const carryPos = () => P.carry.getWorldPosition(wv).clone();
+  const holdIn = (obj, parent) => { parent.attach(obj); obj.position.set(0, 0, 0); obj.quaternion.identity(); };
+  let held = null, onTable = null, bagNow = null, label = null;
+  const SPOT = {
+    table: [TABLE[0] + 1.05, TABLE[1] - .38], printer: [TABLE[0] + .64, TABLE[1] - .38], aisle: [TABLE[0] - .5, TABLE[1] - .38],
+    tub: [tx0 - .38, tz0 + td / 2], chair: [DESK[0] + 1.0, DESK[1] + 1.1]
+  };
+  function pickSpot(s) {
+    if (s.cat === 'jellycat') return [[PILE.x + 1.05, PILE.z - .35], -Math.PI / 2, 'el montón de peluches'];
+    if (s.cat === 'futbol') return [[(RAIL.x0 + RAIL.x1) / 2, RAIL.z - .65], 0, 'el burro de camisetas'];
+    if (s.cat === 'otro') return [[LOW.x0 + 1.0, .95], Math.PI, 'la estantería'];
+    const sp = slotPos[s.productId]; return [[1.0, sp ? sp[2] : 2.0], -Math.PI / 2, 'la pared de zapatillas'];
+  }
+  const short = s => s.name + (s.size ? ' · ' + s.size : '');
+  function saleJob(s) {
+    const kind = kindOf(s.cat), info = { kind, name: s.name, size: s.size };
+    const [spot0, face, where] = pickSpot(s);
+    // va justo delante de la unidad que va a coger
+    const target = () => { const list = shelfMesh[s.productId]; return list && list.length ? list[list.length - 1] : null; };
+    const tgt = target(); let spot = spot0;
+    if (tgt && s.cat === 'zapatillas') { tgt.getWorldPosition(wv); spot = [1.0, wv.z]; }
+    if (tgt && s.cat === 'futbol') { tgt.getWorldPosition(wv); spot = [wv.x, RAIL.z - .65]; }
+    if (tgt && s.cat === 'jellycat') { tgt.getWorldPosition(wv); const dx = wv.x - PILE.x, dz = wv.z - PILE.z, l = Math.hypot(dx, dz) || 1; spot = [PILE.x + dx / l * 1.05, PILE.z + dz / l * 1.05]; }
+    const job = { kind: 'sale', id: s.id, picked: false, steps: [] };
+    job.steps = [
+      { go: SPOT.aisle, say: 'Va a por ' + short(s) },
+      { go: spot, say: 'Va a por ' + short(s) + ' a ' + where },
+      { anim: 'pick', t: 2.2, face: s.cat === 'jellycat' ? Math.atan2(PILE.x - spot[0], PILE.z - spot[1]) : face, say: 'Cogiendo ' + short(s),
+        start: () => { const list = shelfMesh[s.productId]; let m = list && list.pop();
+          if (m && m.userData.kind === 'shirt') { const w2 = new THREE.Vector3(); m.getWorldPosition(w2); m.parent.remove(m); m = itemMesh('shirt', { mat: m.userData.mat }); m.position.set(w2.x, 1.24, w2.z); world.add(m); }
+          if (!m) { m = itemMesh(kind, info); P.carry.getWorldPosition(wv); m.position.copy(wv); world.add(m); }
+          held = m; job.picked = true; toCarry(m, 1.6, () => holdIn(m, P.carry)); },
+        end: () => log('Ha cogido ' + short(s) + ' de ' + where) },
+      { go: SPOT.aisle, carry: true, say: 'Lo lleva a la mesa de embalar' },
+      { go: SPOT.table, carry: true, say: 'Lo lleva a la mesa de embalar' },
+      { anim: 'place', t: 1.3, face: 0, say: 'Lo deja en la mesa', start: () => { if (held) fly(held, () => tableG.getWorldPosition(wv).clone().add(new THREE.Vector3(0, LIFT[kind], 0)), 1.1, () => { onTable = held; held = null; }); } },
+      { anim: 'pack', t: 4.2, face: 0, say: 'Lo mete en la bolsa de envío', start: () => { bagNow = bagMesh(kind); bagNow.scale.set(.2, .2, .2); tableG.add(bagNow); bagNow.position.set(0, BAG[kind][1] / 2, 0); }, tick: k => { if (bagNow) bagNow.scale.setScalar(.2 + .8 * k); if (onTable) { if (!onTable.userData.s0) onTable.userData.s0 = onTable.scale.clone(); onTable.scale.copy(onTable.userData.s0).multiplyScalar(1 - .5 * k); onTable.position.y = tableG.position.y + LIFT[kind] - k * .04; } },
+        end: () => { if (onTable) { onTable.parent.remove(onTable); onTable = null; } } },
+      { anim: 'pack', t: 3.6, face: 0, say: 'Cerrando y precintando la bolsa', end: () => log('Empaquetado ' + short(s)) },
+      { go: SPOT.printer, say: 'Imprimiendo la etiqueta de envío' },
+      { anim: 'print', t: 3.6, face: 0, say: 'Imprimiendo la etiqueta de envío', start: () => { label = labelMesh(); label.position.copy(printOut); world.add(label); }, tick: k => { if (label) label.position.set(printOut.x, printOut.y + .02, printOut.z + .02 + k * .1); },
+        end: () => { if (label) holdIn(label, P.hand); } },
+      { go: SPOT.table, say: 'Pegando la etiqueta' },
+      { anim: 'stick', t: 2.0, face: 0, say: 'Pegando la etiqueta', start: () => { if (label && bagNow) fly(label, () => bagNow.getWorldPosition(wv).clone().add(new THREE.Vector3(.05, BAG[kind][1] / 2 + .004, .02)), 1.2, () => { holdIn(label, bagNow); label.position.set(.05, BAG[kind][1] / 2 + .004, .02); label = null; }); },
+        end: () => log('Etiqueta pegada') },
+      { anim: 'place', t: 1.2, face: 0, say: 'Coge el paquete', start: () => { if (bagNow) toCarry(bagNow, 1.0, () => holdIn(bagNow, P.carry)); } },
+      { go: SPOT.tub, carry: true, say: 'Lo lleva a la vagoneta de envíos' },
+      { anim: 'drop', t: 1.6, face: Math.PI / 2, say: 'Lo deja en la vagoneta de envíos',
+        start: () => { const L = tubLayout([...readyList(), s].map(x => kindOf(x.cat))).pop(); if (bagNow) { bagNow.userData.toQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, L.r, 0)); fly(bagNow, () => new THREE.Vector3(L.x, L.y, L.z), 1.3, null, bagNow.userData.toQ); } },
+        end: () => { if (bagNow) { bagNow.parent && bagNow.parent.remove(bagNow); bagNow = null; } packed.add(s.id); savePacked(); drawTub(); log(short(s) + ' listo para enviar'); } },
+      { go: SPOT.aisle, say: 'Va a registrar la venta' },
+      { go: SPOT.chair, say: 'Va a registrar la venta' },
+      { anim: 'type', t: 5, face: Math.PI, sit: true, say: 'Registrando la venta en el ordenador', end: () => log('Venta registrada: ' + short(s)) }
+    ];
+    return job;
+  }
+  const IDLE = [
+    () => ({ kind: 'idle', steps: [{ go: SPOT.chair, say: 'Va a calentar cuentas' }, { anim: 'phone', t: 36, face: Math.PI, sit: true, say: 'Calentando cuentas en los móviles', start: () => handProp('phone'), end: () => { handProp(null); log('Ha calentado las cuentas'); } }] }),
+    () => ({ kind: 'idle', steps: [{ go: SPOT.chair, say: 'Va al portátil' }, { anim: 'type', t: 28, face: Math.PI, sit: true, say: 'Buscando productos ganadores en el portátil', end: () => log('Ha buscado productos ganadores') }] }),
+    () => ({ kind: 'idle', steps: [{ go: SPOT.aisle, say: 'Va a revisar el stock', start: () => handProp('clip') }, { go: [1.0, .9], say: 'Revisando el stock' }, { anim: 'check', t: 3.5, face: -Math.PI / 2, say: 'Revisando el stock' }, { go: [1.0, 2.0], say: 'Revisando el stock' }, { anim: 'check', t: 3.5, face: -Math.PI / 2, say: 'Revisando el stock' }, { go: [1.0, 3.1], say: 'Revisando el stock' }, { anim: 'check', t: 3.5, face: -Math.PI / 2, say: 'Revisando el stock', end: () => { handProp(null); log('Ha revisado el stock'); } }] }),
+    () => ({ kind: 'idle', steps: [{ go: SPOT.aisle, say: 'Va a ordenar la estantería' }, { go: [1.0, 1.6], say: 'Ordenando la estantería' }, { anim: 'organize', t: 12, face: -Math.PI / 2, say: 'Ordenando la estantería', end: () => log('Ha ordenado la estantería') }] }),
+    () => ({ kind: 'idle', steps: [{ go: [3.2, 5.9], say: 'Va a barrer', start: () => handProp('broom') }, { go: [7.2, 5.9], sweep: true, say: 'Barriendo' }, { go: [7.2, 2.6], sweep: true, say: 'Barriendo' }, { go: [3.6, 2.4], sweep: true, say: 'Barriendo', end: () => { handProp(null); log('Ha barrido'); } }] })
+  ];
+  let job = null, idleI = Math.floor(Math.random() * IDLE.length), seated = false, say = '';
+  const log = txt => opts.onLog && opts.onLog(txt);
+  function cleanup() { handProp(null); for (const o of [held, onTable, bagNow, label]) if (o && o.parent) o.parent.remove(o); held = onTable = bagNow = label = null; fl = null; while (P.carry.children.length) P.carry.remove(P.carry.children[0]); }
+  function startNext() {
+    cleanup();
+    const s = D && D.pend.find(x => !packed.has(x.id));
+    job = s ? saleJob(s) : IDLE[idleI++ % IDLE.length](); job.i = 0;
+  }
+  function plan() {
+    // si estaba en una tarea de tiempo muerto y aparece una venta por preparar, la deja y se pone con la venta
+    if (!job || (job.kind === 'idle' && D.pend.some(x => !packed.has(x.id)))) startNext();
+    else if (job.kind === 'sale' && !D.pend.some(x => x.id === job.id)) startNext();     // la marcaste como enviada o la borraste
+  }
+  const SPEED = 1.1, tmp = new THREE.Vector3();
+  const turn = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * Math.min(1, k); };
+  function moveTo(Q, target, dt, t, speed = SPEED) {
+    const p = Q.g.position; tmp.set(target[0] - p.x, 0, target[1] - p.z); const dist = tmp.length();
+    if (dist < .03) return true;
+    tmp.normalize(); p.x += tmp.x * Math.min(dist, speed * dt); p.z += tmp.z * Math.min(dist, speed * dt);
+    Q.g.rotation.y = turn(Q.g.rotation.y, Math.atan2(tmp.x, tmp.z), dt * 10); return false;
+  }
+  function tickWorker(dt, t) {
+    tickFly(dt);
+    if (!job) startNext(); if (!job) return;
+    const st = job.steps[job.i]; if (!st) { startNext(); return; }
+    if (!st._on) { st._on = true; st._t = 0; if (st.start) st.start(); }
+    say = st.say || say; const p = P.g.position;
+    seated = !!st.sit;
+    if (st.go) {
+      if (moveTo(P, st.go, dt, t)) { if (st.end) st.end(); job.i++; return; }
+      walkPose(P, t, !!st.carry);
+      if (st.sweep) { const s2 = Math.sin(t * 4); P.armR.rotation.x = P.armL.rotation.x = -.85; P.armR.rotation.z = s2 * .12; P.armL.rotation.z = s2 * .12; broomG.rotation.y = s2 * .16; P.legL.rotation.x *= .5; P.legR.rotation.x *= .5; }
+      else if (broomG.visible) { P.armR.rotation.x = P.armL.rotation.x = -.85; P.armL.rotation.z = P.armR.rotation.z = 0; broomG.rotation.y = 0; }
+      else if (P.hand.children.length && !st.carry) P.armR.rotation.x = -.5;
+      return;
+    }
+    st._t += dt; if (st.face !== undefined) P.g.rotation.y = turn(P.g.rotation.y, st.face, dt * 8);
+    const k = Math.min(1, st._t / st.t), w = Math.sin(t * 7);
+    if (st.tick) st.tick(k);
+    P.legL.rotation.x = P.legR.rotation.x = 0; p.y = 0; P.armL.rotation.z = P.armR.rotation.z = 0;
+    switch (st.anim) {
+      case 'pick': P.armR.rotation.x = P.armL.rotation.x = -1.45 - Math.sin(k * Math.PI) * .4; break;
+      case 'place': case 'drop': P.armR.rotation.x = P.armL.rotation.x = -1.2 + Math.sin(k * Math.PI) * .4; break;
+      case 'pack': P.armR.rotation.x = -1.1 + w * .25; P.armL.rotation.x = -1.1 - w * .25; break;
+      case 'print': P.armR.rotation.x = -1.0 + Math.sin(t * 3) * .08; P.armL.rotation.x = -.2; break;
+      case 'stick': P.armR.rotation.x = -1.15 + Math.max(0, Math.sin(t * 6)) * .2; P.armL.rotation.x = -1.0; break;
+      case 'check': P.armL.rotation.x = -1.0; P.armR.rotation.x = -.9 + Math.sin(t * 4) * .1; break;
+      case 'organize': P.armR.rotation.x = -2.1 + w * .3; P.armL.rotation.x = -2.1 - w * .3; break;
+      case 'type': case 'phone':
+        p.set(SPOT.chair[0], -.36, SPOT.chair[1]); P.legL.rotation.x = P.legR.rotation.x = -1.45;
+        if (st.anim === 'type') { P.armL.rotation.x = -1.15 + Math.sin(t * 8) * .05; P.armR.rotation.x = -1.15 + Math.sin(t * 8 + 1.6) * .05; }
+        else { P.armR.rotation.x = -2.0 + Math.sin(t * 2) * .05; P.armL.rotation.x = -1.2; }
+        break;
+    }
+    if (st._t >= st.t && !fl) { if (st.end) st.end(); if (st.sit) p.y = 0; job.i++; }
+  }
+
+  /* ---------- calle: coches, el avión y la furgoneta de reparto ---------- */
+  // días 0–9 tras el pedido: avión a lo lejos · 10–11: llega la furgoneta y aparca · 12+: descarga hasta que confirmas
+  let vanMode = null, vanState = 'away', vanT = 2, vanSpeed = 0, recvUnits = 0, unloadTotal = 0, delivered = 0;
+  const STOP = 3.4;
+  const cPath = [[LANE - 1.25, STOP - 4.0], [RX + 1.0, STOP - 4.0], [RX + .6, (DOOR.z0 + DOOR.z1) / 2], [RX - .5, (DOOR.z0 + DOOR.z1) / 2], [px + .6, pz + 1.5]];
+  let cStep = 0, cDir = 1, cWait = 0;
+  function drawPallet() {
+    clear(inItems); const n = Math.min(recvUnits + delivered, 45);
+    palletG.visible = n > 0 || vanMode === 'unload';
+    for (let i = 0; i < n; i++) { const l = Math.floor(i / 9), c = i % 9; parcel(.37, .3, .37, px + .02 + (c % 3) * .39, .13 + l * .305, pz + .02 + Math.floor(c / 3) * .39, inItems); }
+    if (recvUnits && n) block(1.24, .305 * Math.ceil(n / 9) + .02, 1.24, M.film, px - .02, .125, pz - .02, inItems, false);
+  }
+  function spinWheels(ws, d) { for (const w2 of ws) w2.rotation.x += d / .38; }
+  const doorsTo = k => { V.doors[0].rotation.y = -k * 1.9; V.doors[1].rotation.y = k * 1.9; };
+  function tickStreet(dt, t) {
+    carT -= dt;
+    if (carT <= 0) { const c = cars[carI++ % cars.length]; if (!c.g.visible) { let dir = Math.random() < .5 ? 1 : -1; if (dir > 0 && vanState !== 'away') dir = -1;
+      c.g.visible = true; c.g.position.set(dir > 0 ? LANE : RX + 7.5, 0, dir > 0 ? -18 : 22); c.g.rotation.y = dir > 0 ? 0 : Math.PI; carRuns.push({ c, dir }); } carT = 5 + Math.random() * 7; }
+    for (let i = carRuns.length - 1; i >= 0; i--) { const r = carRuns[i]; const d = r.dir * 6.5 * dt; r.c.g.position.z += d; spinWheels(r.c.wheels, Math.abs(d)); if (r.c.g.position.z > 23 || r.c.g.position.z < -19) { r.c.g.visible = false; carRuns.splice(i, 1); } }
+    // avión cruzando el cielo a lo lejos (por la derecha, por encima de la calle, sin tapar la habitación)
+    if (planeOn || PL.visible) { planeT += dt; const cyc = planeT % 90, sx = 1.5 + cyc / 18 * 14, K = 1.2, L = ZONES.overview.at;
+      PL.position.set(L[0] + (sx * 1.414 + K) / 2, 6.9 + Math.sin(planeT * .5) * .08, L[2] + (K - sx * 1.414) / 2); PL.rotation.set(0, Math.PI * .75, Math.sin(planeT * .7) * .04);
+      PL.visible = planeOn && cyc < 18; }
+    // furgoneta
+    const G = V.g;
+    if (vanState === 'away') { vanT -= dt; if (vanMode && vanT <= 0) { vanState = 'arrive'; G.visible = true; G.position.z = -22; doorsTo(0); } }
+    else if (vanState === 'arrive') { const left = STOP - G.position.z; vanSpeed = Math.max(.6, Math.min(7, left * 1.1)); const d = Math.min(left, vanSpeed * dt); G.position.z += d; spinWheels(V.wheels, d); if (left < .01) vanState = 'parked'; }
+    else if (vanState === 'parked') { if (vanMode === 'unload') { vanState = 'open'; vanT = 0; } else if (!vanMode) { vanState = 'leave'; vanSpeed = .5; } }
+    else if (vanState === 'open') { vanT += dt; doorsTo(Math.min(1, vanT / 1.2)); if (vanT >= 1.2) { vanState = 'unload'; courier.g.visible = true; courier.g.position.set(cPath[0][0], 0, cPath[0][1]); cStep = 1; cDir = 1; cWait = 0; } }
+    else if (vanState === 'unload') {
+      const more = delivered < unloadTotal;
+      if (!vanMode && cDir > 0 && cStep <= 1) { cDir = -1; cStep = 0; }                // confirmado: vuelve a la furgoneta
+      if (cWait > 0) { cWait -= dt; standPose(courier, cDir > 0, t); }
+      else if (cStep === 0 && cDir < 0 && moveTo(courier, cPath[0], dt, t, 1.25)) {
+        if (!vanMode) { courier.g.visible = false; vanState = 'close'; vanT = 0; }
+        else if (more) { cDir = 1; cStep = 1; cWait = .8; } else { standPose(courier, false, t); courier.g.rotation.y = 0; }
+      }
+      else if (cStep > 0 || cDir > 0) { const target = cPath[cStep];
+        if (moveTo(courier, target, dt, t, 1.25)) { cStep += cDir;
+          if (cStep >= cPath.length) { delivered++; drawPallet(); cDir = -1; cStep = cPath.length - 2; cWait = .9; }
+          if (cStep < 0) cStep = 0; }
+        else walkPose(courier, t, cDir > 0); }
+      courier.box.visible = cDir > 0 && courier.g.visible;
+    }
+    else if (vanState === 'close') { vanT += dt; doorsTo(1 - Math.min(1, vanT / 1.0)); if (vanT >= 1.0) { vanState = 'leave'; vanSpeed = .5; } }
+    else if (vanState === 'leave') { vanSpeed = Math.min(8, vanSpeed + dt * 3); const d = vanSpeed * dt; G.position.z += d; spinWheels(V.wheels, d); if (G.position.z > 26) { G.visible = false; vanState = 'away'; vanT = 3; } }
+    const parkedish = vanState === 'parked' || vanState === 'open' || vanState === 'unload' || vanState === 'close';
+    M.amber.emissiveIntensity = parkedish && Math.sin(t * 7) > 0 ? 1.2 : 0;
+  }
+
+  /* ---------- cámara ---------- */
+  const cam = new THREE.OrthographicCamera(-10, 10, 6, -6, 10, 120);
+  const look = new THREE.Vector3(...ZONES.overview.at), lookTo = look.clone();
+  let zoom = 1, zoomTo = 1, az = Math.PI / 4, azTo = az, idle = 0, auto = 0;
+  const EL = .64, R = 50, VIEW = 11.6;
+  let host = null, raf = 0, W = 1, H = 1, last = performance.now(), clock2 = 0;
+  function fit() { if (!host) return; const r = host.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height); renderer.setSize(W, H, false); }
+  const ro = new ResizeObserver(fit);
+  function placeCam(dt) {
+    idle += dt;
+    if (idle > 15) { auto += dt; if (auto > 50) { auto = 0; azTo = Math.PI / 4 + (Math.random() * 2 - 1) * .18; } }
+    // se acerca suave y, al llegar, se queda quieta del todo (sin micro-movimientos que hagan temblar la imagen)
+    look.lerp(lookTo, Math.min(1, dt * 2.6)); if (look.distanceTo(lookTo) < 4e-3) look.copy(lookTo);
+    zoom += (zoomTo - zoom) * Math.min(1, dt * 2.5); if (Math.abs(zoomTo - zoom) < 1e-3) zoom = zoomTo; az += (azTo - az) * Math.min(1, dt * 1.6); if (Math.abs(azTo - az) < 2e-3) az = azTo;
+    const a = W / H; cam.left = -VIEW * a / 2; cam.right = VIEW * a / 2; cam.top = VIEW / 2; cam.bottom = -VIEW / 2; cam.zoom = zoom; cam.updateProjectionMatrix();
+    cam.position.set(look.x + R * Math.sin(az) * Math.cos(EL), look.y + R * Math.sin(EL), look.z + R * Math.cos(az) * Math.cos(EL)); cam.lookAt(look);
+  }
+  let drag = null;
+  canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: false }; canvas.setPointerCapture(e.pointerId); idle = 0; });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return hoverAt(e);
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    drag.x = e.clientX; drag.y = e.clientY; idle = 0;
+    const k = VIEW / H / zoom, right = new THREE.Vector3(Math.cos(az), 0, -Math.sin(az)), fwd = new THREE.Vector3(-Math.sin(az), 0, -Math.cos(az));
+    lookTo.addScaledVector(right, -dx * k).addScaledVector(fwd, dy * k / Math.sin(EL));
+    lookTo.x = Math.max(-1, Math.min(RX + 6, lookTo.x)); lookTo.z = Math.max(-3, Math.min(RZ + 2, lookTo.z)); look.copy(lookTo);
+  });
+  canvas.addEventListener('pointerup', e => { if (drag && !drag.moved) clickAt(e); drag = null; });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); idle = 0; zoomTo = Math.max(.85, Math.min(3.5, zoomTo * (e.deltaY < 0 ? 1.15 : .87))); }, { passive: false });
+
+  /* ---------- ratón: nombres y clic (sin cambiar colores, para que nada parpadee) ---------- */
+  const rc = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const skip = new Set([M.floor, M.wall, M.grass, M.road, M.walk, M.curb, M.rug]);
+  function pick(e) {
+    const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    rc.setFromCamera(ndc, cam); const hit = rc.intersectObjects([world, PL], true).find(h => !skip.has(h.object.material));
+    if (!hit) return {}; let o = hit.object, zone = null, tip = null, rack = null;
+    while (o) { if (!tip && o.userData.tip) tip = o.userData.tip; if (!rack && o.userData.rack) rack = o.userData.rack; if (!zone && o.userData.zone) zone = o.userData.zone; o = o.parent; }
+    if (!zone && hit.object && PL.visible) { let q = hit.object; while (q) { if (q === PL) { zone = 'in'; tip = 'Pedido en camino'; break; } q = q.parent; } }
+    if (!zone && hit.object && V.g.visible) { let q = hit.object; while (q) { if (q === V.g) { zone = 'in'; tip = 'Pedido llegando'; break; } q = q.parent; } }
+    return { zone, tip, rack };
+  }
+  let lastHover = 0;
+  function hoverAt(e) { const now = performance.now(); if (now - lastHover < 60) return; lastHover = now; const h = pick(e); canvas.style.cursor = h.zone ? 'pointer' : 'grab'; if (opts.onTip) opts.onTip(h.tip, e); }
+  function clickAt(e) { const h = pick(e); if (h.zone && opts.onSelect) opts.onSelect(h.rack || h.zone, h); }
+  canvas.addEventListener('mouseleave', () => opts.onTip && opts.onTip(null));
+
+  /* ---------- bucle ---------- */
+  let pins = [];
+  const v = new THREE.Vector3();
+  const proj = (x, y, z) => { v.set(x, y, z).project(cam); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; };
+  const SIGNS = { zapatillas: [.3, SW.levels * SW.lv + .5, SW.z0 + SW.bays * SW.bay / 2], jellycat: [PILE.x, 1.25, PILE.z], futbol: [(RAIL.x0 + RAIL.x1) / 2, 2.05, RAIL.z], otro: [LOW.x0 + LOW.w / 2, 1.35, LOW.z0 + .2] };
+  function frame(now) {
+    if (!canvas.isConnected) { raf = 0; return; }
+    const dt = Math.min(.05, (now - last) / 1000); last = now; clock2 += dt;
+    if (D) tickWorker(dt, clock2); tickStreet(dt, clock2);
+    placeCam(dt); renderer.render(scene, cam);
+    if (opts.onFrame) opts.onFrame({
+      racks: Object.entries(SIGNS).map(([k, p]) => [k, proj(...p)]),
+      person: proj(P.g.position.x, seated ? 1.75 : 2.1, P.g.position.z), activity: { say, progress: job ? Math.min(1, job.i / job.steps.length) : 0, kind: job ? job.kind : '' },
+      truck: V.g.visible ? proj(V.g.position.x, 3.2, V.g.position.z - 1.2) : null, truckState: vanState,
+      plane: PL.visible ? proj(PL.position.x, PL.position.y + .9, PL.position.z) : null,
+      pins: pins.map(p => ({ ...p, xy: proj(...(p.at || slotPos[p.productId] || [0, 0, 0])) })), zoom
+    });
+    raf = requestAnimationFrame(frame);
+  }
+
+  return {
+    canvas,
+    attach(el) { if (host !== el) { if (host) ro.unobserve(host); host = el; ro.observe(el); } if (canvas.parentNode !== el) el.prepend(canvas); fit(); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } },
+    update,
+    flyTo(k) { const s = SIGNS[k]; const Zn = ZONES[k] || (s && { at: [s[0] + .6, .7, s[2]], zoom: 2.3 }); if (!Zn) return; lookTo.set(...Zn.at); zoomTo = Zn.zoom; azTo = Math.PI / 4; idle = 0; },
+    zoomBy(f) { zoomTo = Math.max(.85, Math.min(3.5, zoomTo * f)); idle = 0; },
+    state: () => ({ zoom, zoomTo, look: look.toArray(), van: vanState })
+  };
+}

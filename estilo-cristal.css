@@ -112,8 +112,8 @@ html.cristal.cristal body .toast { border-radius: 14px; }
   html.cristal.cristal body .tab.on { background: var(--gl-on); }
 }
 /* sin barra de desplazamiento visible (como en el iPhone) */
-html.cristal.cristal body { scrollbar-width: none; }
-html.cristal.cristal body::-webkit-scrollbar { display: none; }
+html.cristal.cristal body, html.cristal.cristal .scroller { scrollbar-width: none; }
+html.cristal.cristal body::-webkit-scrollbar, html.cristal.cristal .scroller::-webkit-scrollbar { display: none; }
 
 /* colores base translúcidos: todo lo que usaba los grises sólidos de antes (tallas, etiquetas, avisos,
    bloques de formularios, selectores…) pasa a cristal sin tener que tocarlo pieza a pieza */

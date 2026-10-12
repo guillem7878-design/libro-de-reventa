@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><script>document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false }); document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });</script><script>/* estilo cristal: el diseño de la app */try{if(localStorage.getItem('estilo')!=='clasico'){document.documentElement.classList.add('cristal');document.write('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"><link rel="stylesheet" href="estilo-cristal.css">')}}catch(e){}</script><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0D0E11"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Reventa"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="icons/icon-192.png"></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><script>document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false }); document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });</script><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script><script>/* estilo cristal: el diseño de la app */try{if(localStorage.getItem('estilo')!=='clasico'){document.documentElement.classList.add('cristal');document.write('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"><link rel="stylesheet" href="estilo-cristal.css">')}}catch(e){}</script><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0D0E11"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Reventa"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="icons/icon-192.png"></head><body>
 <title>Libro de Reventa</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -204,7 +204,7 @@ button.row:active { transform: none; opacity: .65; }
 
 /* menú inferior pegado al borde, con «+» central */
 .tabbar { --pad: max(8px, calc(env(safe-area-inset-bottom, 0px) - 12px)); --side: max(10px, calc((100% - 500px) / 2));
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(7, 1fr); align-items: center;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(6, 1fr); align-items: center;
   padding: 6px var(--side) var(--pad); border-radius: 24px 24px 0 0; border-top: 1px solid var(--hair);
   background: var(--tabbar); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); box-shadow: 0 -10px 30px -18px rgba(0, 0, 0, .45); }
 .tab { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--ink3); font-size: 10.5px; font-weight: 600; padding: 8px 2px; transition: color .2s; }
@@ -793,23 +793,23 @@ img, svg { -webkit-user-drag: none; }
 
 /* móvil: la página queda clavada; solo se desplaza el contenido por dentro (el body) y sin rebote */
 @media (max-width: 899px) {
-  html { height: 100%; overflow: hidden; }
-  html body { position: fixed; inset: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: none; }
-  html body.locked { overflow: hidden; }
+  html, html body { height: 100%; overflow: hidden; }
+  html body { position: fixed; inset: 0; }
+  .scroller { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: none; }
+  body.locked .scroller { overflow: hidden; }
 }
 
 </style>
 
-<div class="screen">
+<div class="scroller" id="scroller"><div class="screen">
   <div id="demo" class="demo" hidden><span>Estás viendo datos de ejemplo</span><button data-action="clearDemo">Borrar</button></div>
   <main id="view" class="view"></main>
-</div>
+</div></div>
 
 <nav class="tabbar" id="tabbar" aria-label="Secciones">
   <div class="tab-ind" id="tabInd"></div>
   <button class="tab" data-action="tab" data-tab="panel" data-ic="layoutDashboard">Panel</button>
   <button class="tab" data-action="tab" data-tab="stock" data-ic="package">Stock</button>
-  <button class="tab" data-action="sx-warm" data-ic="flame">Calentar</button>
   <button class="fab" data-action="new" aria-label="Apuntar" data-ic="plus"></button>
   <button class="tab" data-action="tab" data-tab="movs" data-ic="arrowLeftRight"><span class="tl">Movimientos</span><span class="ts">Historial</span></button>
   <button class="tab" data-action="tab" data-tab="moviles" data-ic="smartphone">Móviles</button>
@@ -1419,7 +1419,7 @@ function render() {
   if (fid) { const el = document.getElementById(fid); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
   placeSegs(view); placeTab();
 }
-function toTop(smooth) { const o = { top: 0, behavior: smooth ? 'smooth' : 'auto' }; document.body.scrollTo(o); window.scrollTo(o); }
+function toTop(smooth) { const o = { top: 0, behavior: smooth ? 'smooth' : 'auto' }; $('#scroller').scrollTo(o); document.body.scrollTo(o); window.scrollTo(o); }
 /* pestañas visitadas, para el gesto «atrás» */
 let tabHist = [], backing = false;
 function go(tab) { if (!backing && !S.quick && S.tab && S.tab !== tab) { tabHist.push(S.tab); if (tabHist.length > 20) tabHist.shift(); } S.tab = tab; S.accView = ''; S.animate = true; closeSheet(); render(); toTop(); }
@@ -1636,7 +1636,7 @@ function saleForm(opts = {}) {
         if (ed && ed.productId && ed.status !== 'devuelta') bump(ed.productId, ed.size, ed.qty || 1);
         if (data.productId) bump(data.productId, data.size, -data.qty);
         for (const [pid, sizes] of Object.entries(adj)) await db.doc('products/' + pid).update({ sizes });
-        if (ed) await db.doc('sales/' + ed.id).update(data); else await db.collection('sales').add({ ...data, status: 'ok', createdAt: Date.now() });
+        if (ed) await db.doc('sales/' + ed.id).update(data); else await db.collection('sales').add({ ...data, status: 'ok', ship: 'pend', createdAt: Date.now() });
       }, ed ? 'Venta actualizada' : `Venta apuntada · +${money(price)}`);
       if (ok) { closeSheet(); if (!ed) { S.off = 0; S.per = 'month'; go('panel'); } }
     }, () => {
@@ -1688,8 +1688,10 @@ function saleDetail(id) {
     ${dev ? `<div class="tag neg" style="align-self:flex-start;height:26px;font-size:13px">Devuelta el ${fmtDate(s.returnedAt)}${s.restocked ? ' · volvió al stock' : ''}</div>` : ''}
     <div class="facts"><div class="fact"><span>Móvil</span><b>${esc(accName(s.account, s.accountName))}</b></div>${a && a.iban ? `<div class="fact"><span>IBAN</span><b class="iban">${ibanShort(a.iban)}</b></div>` : ''}
       ${dev ? '' : `<div class="fact"><span>Cobro</span><b>${s.paidAt ? 'Cobrada el ' + fmtDate(s.paidAt) : isFree(s) ? 'En el saldo desde el ' + fmtDate(freeOn(s)) : 'Al saldo el ' + fmtDate(freeOn(s)) + ' (' + inDays(freeOn(s)) + ')'}</b></div>`}
+      ${dev ? '' : `<div class="fact"><span>Envío</span><b>${s.ship === 'pend' ? 'Por preparar' : s.shippedAt ? 'Enviada el ' + fmtDate(s.shippedAt) : 'Enviada'}</b></div>`}
       ${s.cost ? `<div class="fact"><span>Ganas con esta venta</span><b class="pos">+${money(s.price - s.cost)}</b></div>` : ""}</div>
     <div class="btns"><button class="btn btn-soft" data-action="editSale" data-id="${s.id}" ${dev ? 'disabled' : ''}>Editar</button>${dev ? `<button class="btn btn-soft" data-action="unreturn" data-id="${s.id}">Anular devolución</button>` : `<button class="btn btn-soft" data-action="returnSale" data-id="${s.id}">${G.ret}Devolución</button>`}</div>
+    ${!dev && s.ship === 'pend' ? `<button class="btn btn-main btn-block" data-action="alm-ship" data-from="sale" data-id="${s.id}">Marcar como enviada</button>` : ''}
     ${dev ? '' : s.paidAt ? `<button class="btn btn-soft btn-block" data-action="saleUnpaid" data-id="${s.id}">Quitar «cobrada»</button>` : !isFree(s) ? `<button class="btn btn-soft btn-block" data-action="salePaid" data-id="${s.id}">Ya me ha llegado el dinero</button>` : ''}
     <button class="btn btn-danger btn-block" data-action="delSale" data-id="${s.id}">Borrar venta</button>`);
 }
@@ -1968,7 +1970,7 @@ function accountForm(a) {
 function moreSheet() {
   const look = store.get('look') || 'auto';
   const ex = (w, c, t, s) => `<button class="row" data-action="export" data-what="${w}"><span class="th" style="${tint(c)}">${G.down}</span><span class="rm"><span class="rt">${t}</span><span class="rs">${s}</span></span>${G.chev}</button>`;
-  openSheet('Ajustes', `<div class="list"><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
+  openSheet('Ajustes', `<div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
     ${S.desk ? '' : `<div class="fld"><span class="lbl">Al abrir en el móvil</span><div class="seg" data-k="qpref" style="align-self:flex-start">${[['1', 'Botones rápidos'], ['0', 'Panel']].map(([k, l]) => `<button data-action="quickPref" data-v="${k}" aria-pressed="${(store.get('quickStart') || '1') === k}">${l}</button>`).join('')}</div></div>`}
     ${window.SYNC ? window.SYNC.settingsHtml() : ''}
     <div class="fld"><span class="lbl">Apariencia</span><div class="seg" data-k="look" style="align-self:flex-start">${[['auto', 'Auto', G.auto], ['light', 'Claro', G.sun], ['dark', 'Oscuro', G.moon]].map(([k, l, i]) => `<button data-action="look" data-v="${k}" aria-pressed="${look === k}">${i}${l}</button>`).join('')}</div></div>`);
@@ -2131,7 +2133,7 @@ document.addEventListener('input', ev => {
 let swY = null, swX = 0;
 document.addEventListener('touchstart', e => { swY = S.quick && !$('#sheet').classList.contains('show') ? e.touches[0].clientY : null; swX = e.touches[0].clientX; }, { passive: true });
 document.addEventListener('touchend', e => { if (swY === null) return; const t = e.changedTouches[0], dy = t.clientY - swY, dx = t.clientX - swX; swY = null;
-  if (dy < -80 && Math.abs(dx) < 70 && innerHeight + scrollY >= document.documentElement.scrollHeight - 8 && document.body.scrollTop + document.body.clientHeight >= document.body.scrollHeight - 8) enterApp(); }, { passive: true });
+  if (dy < -80 && Math.abs(dx) < 70 && innerHeight + scrollY >= document.documentElement.scrollHeight - 8 && (() => { const sc = $('#scroller'); return sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 8; })()) enterApp(); }, { passive: true });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSheet(); });
 
 /* ---------- gestos del móvil ----------
@@ -2209,5 +2211,6 @@ render();
   render();
 })();
 </script>
+<script src="almacen.js"></script>
 
 </body></html>

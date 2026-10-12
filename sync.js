@@ -281,7 +281,6 @@
       const p = Notification.permission;
       h += row('sx-notif', IC.bell, 'Avisos', p === 'denied' ? 'Bloqueados en el navegador' : notifOn() ? 'Activados · toca para desactivar' : 'Ventas desde otro dispositivo y stock bajo');
     }
-    h += row('sx-warm', IC.phone, 'Calentar una cuenta', 'Plan de 31 días · al terminar la envías a Móviles');
     h += row('sx-backup', IC.down, 'Copia de seguridad', 'Descarga todos tus datos en un archivo');
     h += row('sx-auto', IC.down, 'Copias automáticas', 'Una al día, se guardan las de 2 semanas');
     h += row('sx-import', IC.up, 'Importar copia', 'Sube un archivo de copia de seguridad');

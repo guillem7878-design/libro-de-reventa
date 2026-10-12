@@ -1,6 +1,6 @@
 /* Service worker del Libro de Reventa: abre la app sin conexión y muestra avisos. */
-const VERSION = 'reventa-v14';
-const CORE = ['./', 'index.html', 'config.js', 'sync.js', 'remind.js', 'manifest.webmanifest', 'vendor/supabase.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const VERSION = 'reventa-v15';
+const CORE = ['./', 'index.html', 'config.js', 'sync.js', 'remind.js', 'estilo-cristal.css', 'manifest.webmanifest', 'vendor/supabase.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));

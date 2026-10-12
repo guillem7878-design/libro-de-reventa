@@ -95,6 +95,7 @@ Se abre desde el botón **Calentar** del menú de la app (también en **Móviles
 index.html              la app
 sync.js                 conexión con Supabase: login, datos en tiempo real, fotos, avisos, copias
 remind.js               recordatorio diario del calentamiento (lo usan la app y el calentador)
+estilo-cristal.css      diseño de la app: tarjetas de cristal y tipografía Manrope (el calentador tiene el suyo)
 sw.js                   service worker (sin conexión y avisos)
 manifest.webmanifest    datos de instalación
 config.js               tu URL y clave de Supabase

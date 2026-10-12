@@ -1,0 +1,81 @@
+/* Estilo «cristal» del calentador: mismo lenguaje que la app (tarjetas translúcidas, bordes finos de luz,
+   esquinas contenidas, Manrope). Va activado siempre (clase .cristal en <html>). */
+html.cristal.cristal {
+  --font: "Manrope", "Inter", -apple-system, system-ui, sans-serif;
+  --gl-a: rgba(255, 255, 255, .065); --gl-b: rgba(255, 255, 255, .025); --gl-rim: rgba(255, 255, 255, .075);
+  --gl-hi: rgba(255, 255, 255, .10); --gl-drop: rgba(0, 0, 0, .7); --gl-on: rgba(255, 255, 255, .09);
+  --gl-field: rgba(255, 255, 255, .055); --gl-cta: #EDEBE5; --gl-cta-ink: #111215;
+  background: radial-gradient(70% 40% at 95% 0%, rgba(212, 176, 106, .16), transparent 70%), radial-gradient(60% 45% at 0% 35%, rgba(70, 74, 86, .32), transparent 70%), #0B0C0F fixed;
+}
+html.cristal.cristal.light {
+  --gl-a: rgba(255, 255, 255, .92); --gl-b: rgba(255, 255, 255, .7); --gl-rim: rgba(20, 20, 30, .07);
+  --gl-hi: rgba(255, 255, 255, .95); --gl-drop: rgba(30, 30, 50, .16); --gl-on: rgba(20, 20, 30, .06);
+  --gl-field: rgba(20, 20, 30, .04); --gl-cta: #15171B; --gl-cta-ink: #F5F4F0;
+  background: radial-gradient(70% 40% at 95% 0%, rgba(212, 176, 106, .14), transparent 70%), #EFEDE7 fixed;
+}
+html.cristal.cristal body { font-family: var(--font); background: transparent; scrollbar-width: none; }
+html.cristal.cristal body::-webkit-scrollbar { display: none; }
+
+/* superficies de cristal */
+html.cristal.cristal body :is(.card, .kpis .kpi, .pill, #slotBar .slb, .rd, .br) {
+  background: linear-gradient(180deg, var(--gl-a), var(--gl-b)) !important;
+  border: 1px solid var(--gl-rim);
+  box-shadow: inset 0 1px 0 var(--gl-hi), 0 10px 26px -16px var(--gl-drop);
+  backdrop-filter: blur(18px) saturate(130%); -webkit-backdrop-filter: blur(18px) saturate(130%);
+}
+html.cristal.cristal body :is(.card, .kpis .kpi) { border-radius: 20px; }
+html.cristal.cristal body .pill { border-radius: 11px; }
+html.cristal.cristal body #slotBar .slb { border-radius: 14px; }
+html.cristal.cristal body #slotBar .slb.on { background: linear-gradient(180deg, rgba(212, 176, 106, .16), rgba(212, 176, 106, .05)) !important; border-color: rgba(212, 176, 106, .28); color: var(--ink); }
+html.cristal.cristal body #slotBar .slb.on + .sle { color: var(--mut); }
+html.cristal.cristal body .rd { border-radius: 16px; }
+html.cristal.cristal body .rd.done { background: linear-gradient(180deg, rgba(212, 176, 106, .14), rgba(212, 176, 106, .05)) !important; }
+html.cristal.cristal body .rd.cur { background: linear-gradient(180deg, rgba(255, 255, 255, .11), rgba(255, 255, 255, .04)) !important; color: var(--ink); border-color: rgba(255, 255, 255, .14); }
+html.cristal.cristal body .rd.cur :is(.rdd, .rdm) { color: var(--mut); }
+html.cristal.cristal body .rd.cur .bar { background: var(--gl-field); }
+html.cristal.cristal body .rd .rdn { border-radius: 7px; }
+
+/* banner del día: cristal con luz dorada en vez del bloque gris */
+html.cristal.cristal body .banner {
+  border-radius: 22px; color: var(--ink); border: 1px solid var(--gl-rim);
+  background: radial-gradient(90% 120% at 100% 0%, rgba(212, 176, 106, .12), transparent 60%), linear-gradient(180deg, var(--gl-a), var(--gl-b));
+  box-shadow: inset 0 1px 0 var(--gl-hi), 0 14px 34px -18px var(--gl-drop);
+}
+html.cristal.cristal body .banner::before { opacity: .55; }
+html.cristal.cristal body .banner :is(.eyebrow, .bt) { color: var(--ink); }
+html.cristal.cristal body .banner .big small { color: var(--mut); }
+html.cristal.cristal body .banner .bar { background: var(--gl-field); }
+html.cristal.cristal body .chip2 { border-radius: 8px; background: var(--gl-field); border: 1px solid var(--gl-rim); color: var(--ink); }
+html.cristal.cristal body .br { border-radius: 18px; color: var(--ink); }
+html.cristal.cristal body .br svg text { fill: var(--ink) !important; }
+html.cristal.cristal body .br svg text:last-child { fill: var(--mut) !important; }
+html.cristal.cristal body .br svg circle:first-child { stroke: var(--gl-rim); }
+html.cristal.cristal body .badge { border-radius: 8px; }
+
+/* pestañas de arriba */
+html.cristal.cristal body #nav { border-radius: 13px; padding: 3px; background: linear-gradient(180deg, var(--gl-a), var(--gl-b)); border: 1px solid var(--gl-rim); box-shadow: inset 0 1px 0 var(--gl-hi); }
+html.cristal.cristal body #nav button { border-radius: 10px; }
+html.cristal.cristal body #nav button.on { background: var(--gl-on); box-shadow: inset 0 1px 0 var(--gl-hi); color: var(--ink); }
+
+/* botones */
+html.cristal.cristal body :is(button.btn, a.btn) { border-radius: 13px; font-weight: 700; background: var(--gl-cta); color: var(--gl-cta-ink); box-shadow: 0 10px 22px -14px var(--gl-drop); }
+html.cristal.cristal body :is(button.btn.ghost, a.btn.ghost) { background: linear-gradient(180deg, var(--gl-a), var(--gl-b)); color: var(--ink); border: 1px solid var(--gl-rim); box-shadow: inset 0 1px 0 var(--gl-hi); }
+html.cristal.cristal body .tchip { border-radius: 10px; background: var(--gl-field); border: 1px solid var(--gl-rim); }
+html.cristal.cristal body .tchip.on { background: var(--gl-cta); color: var(--gl-cta-ink); border-color: transparent; }
+html.cristal.cristal body .tag { border-radius: 7px; }
+
+/* chat del día */
+html.cristal.cristal body .bub { border-radius: 16px; background: var(--gl-field); border: 1px solid var(--gl-rim); }
+html.cristal.cristal body .msg.me .bub { background: var(--gl-cta); color: var(--gl-cta-ink); border-color: transparent; }
+html.cristal.cristal body .av { border-radius: 9px; }
+html.cristal.cristal body .steps li { border-radius: 12px; }
+
+/* calendario */
+html.cristal.cristal body .tile { border-radius: 10px; background: var(--gl-field); border: 1px solid var(--gl-rim); }
+html.cristal.cristal body .tile.done { background: rgba(212, 176, 106, .85); color: #15171B; border-color: transparent; }
+html.cristal.cristal body .tile.cur { box-shadow: 0 0 0 2px var(--acc); }
+
+/* campos y tablas */
+html.cristal.cristal body :is(input, select, textarea) { border-radius: 11px !important; background: var(--gl-field) !important; border: 1px solid var(--gl-rim) !important; }
+html.cristal.cristal body table th { color: var(--mut); font-weight: 600; }
+html.cristal.cristal body .hrow .hic, html.cristal.cristal body .ic { border-radius: 10px; }

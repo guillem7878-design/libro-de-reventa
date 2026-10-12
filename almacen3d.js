@@ -77,9 +77,9 @@ const bagMats = (() => { const s = new THREE.MeshStandardMaterial({ color: '#9AA
 const shirtTex = {};
 function shirtMat(i) {
   if (shirtTex[i]) return shirtTex[i];
-  const P = [['#C42A3C', null], ['#A50044', '#004D98'], ['#F4F4F2', ACC], ['#2D4F9C', null], ['#1F6E4A', '#F4F4F2'], ['#1E1F23', '#C42A3C'], ['#7EB6E4', null], ['#F2C200', '#1E1F23']][i % 8];
-  const t = tex(128, 128, (g, w, h) => { g.fillStyle = P[0]; g.fillRect(0, 0, w, h); if (P[1]) { g.fillStyle = P[1]; for (let x = 16; x < w; x += 32) g.fillRect(x, 0, 14, h); } noise(g, w, h, 400, .05);
-    g.fillStyle = P[0] === '#F4F4F2' || P[0] === '#F2C200' ? '#1E1F23' : '#FFFFFF'; g.font = '800 46px Inter, sans-serif'; g.textAlign = 'center'; g.fillText(String([10, 7, 9, 11, 8, 4, 5, 14][i % 8]), 64, 84); });
+  const P = ['#1E1F23', '#ECEAE4', '#8E9196', '#C8B79A', '#2B3A55', '#5E6B4A', '#7A5A44', '#B9C4CF'][i % 8];
+  const t = tex(128, 128, (g, w, h) => { g.fillStyle = P; g.fillRect(0, 0, w, h); noise(g, w, h, 500, .05); g.fillStyle = 'rgba(0,0,0,.1)'; g.fillRect(0, h - 10, w, 10);
+    g.fillStyle = ['#ECEAE4', '#C8B79A', '#B9C4CF'].includes(P) ? 'rgba(30,31,35,.55)' : 'rgba(255,255,255,.7)'; g.fillRect(74, 30, 18, 8); });
   return shirtTex[i] = new THREE.MeshStandardMaterial({ map: t, roughness: .85 });
 }
 

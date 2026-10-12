@@ -7,7 +7,7 @@
   const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
   window.BLOB_URL = configured ? cfg.SUPABASE_URL.replace(/\/$/, '') + '/storage/v1/object/public/photos/' : '';
 
-  const COLLS = ['products', 'sales', 'expenses', 'stockmoves', 'accounts', 'catalog'];
+  const COLLS = ['products', 'sales', 'expenses', 'stockmoves', 'accounts', 'catalog', 'cats'];
   const LS = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 20) : Math.random().toString(36).slice(2) + Date.now().toString(36));
   const clean = o => JSON.parse(JSON.stringify(o));

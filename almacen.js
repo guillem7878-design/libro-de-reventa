@@ -10,11 +10,12 @@
 
   /* ---------- datos ---------- */
   const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
-  const pend = () => S.sales.filter(s => s.status !== 'devuelta' && s.ship === 'pend').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const pend = () => S.sales.filter(s => s.status !== 'devuelta' && (s.ship === 'pend' || (!s.ship && (s.date || '') >= '2026-10-12'))).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const sentWeek = () => S.sales.filter(s => s.status !== 'devuelta' && s.ship !== 'pend' && (s.shippedAt || s.date || '') >= daysAgo(6));
   const rets = () => S.sales.filter(s => s.status === 'devuelta' && (s.returnedAt || s.date || '') >= daysAgo(30)).sort((a, b) => (b.returnedAt || '').localeCompare(a.returnedAt || ''));
   const incoming = () => S.expenses.filter(e => e.category === 'pedido' && (e.date || '') >= daysAgo(14)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const stockList = () => S.products.filter(p => units(p) > 0).sort((a, b) => CAT_ORDER.indexOf(catKey(a)) - CAT_ORDER.indexOf(catKey(b)) || units(b) - units(a));
+  const zoneOf = p => { const k = CATS[p && p.category] ? p.category : 'otro', kd = CATS[k].kind; return kd === 'shoe' ? 'zapatillas' : kd === 'plush' ? 'jellycat' : kd === 'clothes' ? 'futbol' : 'otro'; };
+  const stockList = () => S.products.filter(p => units(p) > 0).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a));
   // qué está haciendo ahora el chico, según lo que ha pasado hoy
   function mood() {
     const f = window.ALMACEN && window.ALMACEN.force; if (f) return { k: f, txt: { pack: 'Empaquetando 2 pedidos', unbox: 'Desembalando lo que ha llegado', desk: 'Hoy 3 ventas, todo enviado' }[f] };
@@ -174,7 +175,7 @@
       s += quad([[1.85, y + .08, z + SH - .08], [1.85, y + CW - .08, z + SH - .08], [1.85, y + CW - .08, z + SH - .3], [1.85, y + .08, z + SH - .3]], 'rgba(0,0,0,.18)');
       if (p) { const u = units(p), k = Math.max(.4, Math.min(1, u / maxU)), bh = (SH - .4) * k, bw = CW - .45;
         s += carton(.55, y + .22, z + .1, 1.2, bw, bh, 1 - (i % 3) * .05, `class="pbox" data-tip="${esc(p.name)} · ${u} ${u === 1 ? 'ud' : 'uds'}"`);
-        s += quad([[1.75, y + .3, z + .1 + bh * .2], [1.75, y + .3 + bw * .25, z + .1 + bh * .2], [1.75, y + .3 + bw * .25, z + .1 + bh * .2 + .18], [1.75, y + .3, z + .1 + bh * .2 + .18]], CAT_HEX[catKey(p)]);
+        s += quad([[1.75, y + .3, z + .1 + bh * .2], [1.75, y + .3 + bw * .25, z + .1 + bh * .2], [1.75, y + .3 + bw * .25, z + .1 + bh * .2 + .18], [1.75, y + .3, z + .1 + bh * .2 + .18]], CAT_HEX[zoneOf(p)]);
         }
     }
     s += `</g>`;
@@ -274,8 +275,11 @@
   }
 
   /* ---------- 3D: el almacén con sus paneles ---------- */
-  const CATN = { zapatillas: 'Zapatillas', jellycat: 'Jellycat', futbol: 'Fútbol', otro: 'Otros' };
-  const SPOTN = { zapatillas: 'Pared de zapatillas', jellycat: 'Montón de peluches', futbol: 'Burro de camisetas', otro: 'Estantería baja' };
+  const ZK = { zapatillas: 'shoe', jellycat: 'plush', futbol: 'clothes', otro: 'box' };
+  const zoneName = z => { const ls = CAT_ORDER.filter(k => CATS[k].kind === ZK[z] && S.products.some(p => (CATS[p.category] ? p.category : 'otro') === k && units(p) > 0)).map(k => CATS[k].label);
+    return ls.length ? ls.join(' · ') : { zapatillas: 'Zapatillas', jellycat: 'Peluches', futbol: 'Ropa', otro: 'Otros' }[z]; };
+  const CATN = {}; Object.keys(ZK).forEach(z => Object.defineProperty(CATN, z, { get: () => zoneName(z), enumerable: true }));
+  const SPOTN = { zapatillas: 'Pared de zapatillas', jellycat: 'Montón de peluches', futbol: 'Burro de ropa', otro: 'Estantería baja' };
   const ZBTN = [['overview', 'Vista general'], ['in', 'Recepción'], ['stock', 'Stock'], ['prep', 'Preparación'], ['out', 'Salida'], ['office', 'Escritorio'], ['ret', 'Devoluciones']];
   let world = null, loading3d = null, panelK = null, activeZ = 'overview';
   const IC = {
@@ -315,9 +319,9 @@
   const readyCount = () => { let s; try { s = new Set(JSON.parse(localStorage.getItem('almPacked') || '[]')); } catch (e) { s = new Set(); } return pend().filter(x => s.has(x.id)).length; };
   function data3d() {
     return {
-      products: stockList().map(p => ({ id: p.id, name: p.name, cat: catKey(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', tip: p.name + ' · ' + units(p) + (units(p) === 1 ? ' ud' : ' uds') })),
+      products: stockList().map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', tip: p.name + ' · ' + units(p) + (units(p) === 1 ? ' ud' : ' uds') })),
       accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) })),
-      pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: catKey(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
+      pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
       incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
     };
   }
@@ -328,18 +332,18 @@
       <div class="ap-stats">${stats.map(([l, v]) => `<div><span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
   function panelHtml(k) {
     if (CATN[k]) {
-      const ps = S.products.filter(p => catKey(p) === k).sort((a, b) => units(b) - units(a)), low = ps.filter(p => units(p) <= 2).length;
-      return pHead('Stock · ' + SPOTN[k], CATN[k], ps.length + ' productos', [['Unidades', sum(ps, units)], ['Valor del stock', money(valor(ps))], ['Agotados', ps.filter(p => units(p) === 0).length]]) +
+      const ps = S.products.filter(p => zoneOf(p) === k).sort((a, b) => units(b) - units(a)), low = ps.filter(p => units(p) <= 2).length;
+      return pHead('Stock · ' + SPOTN[k], CATN[k], ps.length + ' productos', [['Unidades', sum(ps, units)], ['Invertido', money(valor(ps))], ['Agotados', ps.filter(p => units(p) === 0).length]]) +
         `<div class="ap-l">Inventario</div><div class="ap-list">${ps.length ? ps.map(p => rowBtn('product', p.id, esc(p.name), (p.sizes || []).filter(s => s.q > 0).map(s => esc(s.s) + ' ×' + s.q).join(' · ') || 'Sin unidades', chip(units(p)))).join('') : '<p class="ap-empty">No hay productos en esta estantería.</p>'}</div>
         <div class="ap-f"><button class="btn btn-main btn-block" data-action="newProduct">Añadir producto</button></div>`;
     }
     if (k === 'stock' || k === 'overview') {
       const all = S.products, sal = r2(sum(accounts(), x => balance(x.id).saldo));
-      const racksRows = Object.keys(CATN).map(c => { const ps = all.filter(p => catKey(p) === c); return rowBtn('alm-open', c, CATN[c] + ' · ' + SPOTN[c].toLowerCase(), ps.length + ' productos · ' + money(valor(ps)), '<span class="ap-chip ok">' + sum(ps, units) + ' uds</span>'); }).join('');
+      const racksRows = Object.keys(CATN).map(c => { const ps = all.filter(p => zoneOf(p) === c); return rowBtn('alm-open', c, CATN[c] + ' · ' + SPOTN[c].toLowerCase(), ps.length + ' productos · ' + money(valor(ps)), '<span class="ap-chip ok">' + sum(ps, units) + ' uds</span>'); }).join('');
       const extra = k === 'overview' ? rowBtn('alm-open', 'prep', 'Preparación', 'Ventas por empaquetar', '<span class="ap-chip ' + (pend().length ? 'lo' : 'ok') + '">' + pend().length + '</span>') +
         rowBtn('alm-open', 'out', 'Salida', 'Enviados esta semana', '<span class="ap-chip ok">' + sentWeek().length + '</span>') +
         rowBtn('alm-open', 'office', 'Escritorio', accounts().length + ' móviles', '<span class="ap-chip ok">' + money(sal) + '</span>') : '';
-      return pHead(k === 'stock' ? 'Almacén' : 'Hoy', k === 'stock' ? 'Estanterías' : 'Vista general', '', [['Unidades', sum(all, units)], ['Valor del stock', money(valor(all))], ['Por preparar', pend().length], ['Saldo en cuentas', money(sal)]]) +
+      return pHead(k === 'stock' ? 'Almacén' : 'Hoy', k === 'stock' ? 'Estanterías' : 'Vista general', '', [['Unidades', sum(all, units)], ['Invertido', money(valor(all))], ['Por preparar', pend().length], ['Saldo en cuentas', money(sal)]]) +
         `<div class="ap-l">${k === 'stock' ? 'Stock por zonas' : 'Zonas'}</div><div class="ap-list">${racksRows}${extra}</div>`;
     }
     if (k === 'prep') {
@@ -394,7 +398,7 @@
   }
   function overlayHtml() {
     const tday = today(), salesT = S.sales.filter(s => s.date === tday && s.status !== 'devuelta');
-    const signs = Object.keys(CATN).filter(k => sum(S.products.filter(p => catKey(p) === k), units) > 0).map(k => `<button class="alm-sign" data-action="alm-open" data-id="${k}" data-z="${k}" style="opacity:0"><b>${CATN[k]}</b><span>${sum(S.products.filter(p => catKey(p) === k), units)} uds</span></button>`).join('') + '<button class="alm-sign alm-truck" data-action="alm-open" data-id="in" style="opacity:0"><b>Pedido llegando</b><span>Ver recepción</span></button><button class="alm-sign alm-plane" data-action="alm-open" data-id="in" style="opacity:0"><b>Pedido en camino</b><span>' + (onTheWay().filter(o => o.n < 10).map(o => 'día ' + o.n).slice(0, 2).join(' · ') || '') + '</span></button>';
+    const signs = Object.keys(CATN).filter(k => sum(S.products.filter(p => zoneOf(p) === k), units) > 0).map(k => `<button class="alm-sign" data-action="alm-open" data-id="${k}" data-z="${k}" style="opacity:0"><b>${CATN[k]}</b><span>${sum(S.products.filter(p => zoneOf(p) === k), units)} uds</span></button>`).join('') + '<button class="alm-sign alm-truck" data-action="alm-open" data-id="in" style="opacity:0"><b>Pedido llegando</b><span>Ver recepción</span></button><button class="alm-sign alm-plane" data-action="alm-open" data-id="in" style="opacity:0"><b>Pedido en camino</b><span>' + (onTheWay().filter(o => o.n < 10).map(o => 'día ' + o.n).slice(0, 2).join(' · ') || '') + '</span></button>';
     const pins = alerts().map(p => `<button class="alm-pin" data-action="alm-open" data-id="${p.k}" aria-label="${esc(p.txt)}" style="opacity:0">${IC.pin}<span>${esc(p.txt)}</span></button>`).join('');
     return `<div class="alm-bar" id="almBar">${ZBTN.map(([k, l]) => `<button data-action="alm-open" data-id="${k}" data-z="${k}" class="${activeZ === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="alm-zoom"><button data-action="alm-zin" aria-label="Acercar">${IC.plus}</button><button data-action="alm-zout" aria-label="Alejar">${IC.minus}</button><button data-action="alm-open" data-id="overview" aria-label="Vista general">${IC.home}</button></div>
@@ -404,6 +408,7 @@
         <div class="ad-st"><b>${money0(sum(salesT, s => s.price))}</b><span>facturado hoy</span></div>
         <div class="ad-st"><b id="aiReady">${readyCount()}/${pend().length}</b><span>en la vagoneta</span></div>
         <div class="ad-st"><b>${sum(S.products, units)}</b><span>uds en stock</span></div>
+        <div class="ad-st"><b>${money0(valor(S.products))}</b><span>invertido</span></div>
         ${onTheWay().length ? `<div class="ad-st ad-ship"><b>${onTheWay().length} en camino</b><span>${onTheWay().slice(0, 2).map(o => 'día ' + o.n + ' · ' + (o.n >= 12 ? 'descargando' : o.n >= 10 ? 'furgoneta llegando' : 'en avión')).join(' — ')}</span></div>` : ''}
         <div class="ad-log"><span class="ap-e">Hoy</span><ul class="ai-log" id="aiLog">${logHtml(readLog())}</ul></div>
       </div>
@@ -517,7 +522,7 @@ body.light .alm-3d { --al-g: linear-gradient(180deg, rgba(255,255,255,.95), rgba
 .alm-zoom svg { width: 17px; height: 17px; }
 /* barra fija de abajo */
 .alm-dock { position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 3; display: flex; align-items: stretch; gap: 8px; padding: 8px; border-radius: 20px; }
-.ad-now { flex: 1.5 1 0; min-width: 0; padding: 6px 8px 6px 10px; display: flex; flex-direction: column; justify-content: center; }
+.ad-now { flex: 1.5 1 0; min-width: 180px; padding: 6px 8px 6px 10px; display: flex; flex-direction: column; justify-content: center; }
 .ad-now b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.02em; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ai-bar { height: 4px; border-radius: 3px; background: var(--al-field); margin-top: 8px; overflow: hidden; } .ai-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .4s; }
 .ad-st { flex: none; min-width: 86px; padding: 9px 12px; border-radius: 14px; background: var(--al-field); display: flex; flex-direction: column; justify-content: center; gap: 1px; border: 0; text-align: left; font: inherit; color: inherit; }
@@ -527,7 +532,7 @@ body.light .alm-3d { --al-g: linear-gradient(180deg, rgba(255,255,255,.95), rgba
 .ad-log { flex: 1.3 1 0; min-width: 0; padding: 6px 10px 6px 14px; border-left: 1px solid var(--al-rim); display: flex; flex-direction: column; justify-content: center; }
 .ai-log { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
 .ai-log li { font-size: 12.5px; font-weight: 500; color: var(--ink2); display: flex; gap: 8px; white-space: nowrap; overflow: hidden; } .ai-log li span { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; flex: none; } .ai-log .ai-none { color: var(--ink3); }
-@media (max-width: 1250px) { .ad-log { display: none; } }
+@media (max-width: 1400px) { .ad-log { display: none; } }
 .ap-e { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); }
 #aiKind { color: var(--accent); }
 /* carteles, avisos y el bocadillo del trabajador */

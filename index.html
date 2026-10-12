@@ -199,6 +199,7 @@ button.row:active { transform: none; opacity: .65; }
 .empty b { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
 .empty p { margin: 0 auto; max-width: 32ch; font-size: 14px; }
 .empty .btn { margin-top: 16px; }
+.pill[data-action="cats"] { display: inline-flex; align-items: center; gap: 4px; } .pill[data-action="cats"] svg { width: 14px; height: 14px; }
 .skel { height: 100px; border-radius: var(--r-xl); background: linear-gradient(90deg, var(--card2) 0%, color-mix(in srgb, var(--card2) 70%, var(--ink) 6%) 50%, var(--card2) 100%); background-size: 200% 100%; animation: skel 1.2s ease-in-out infinite; }
 @keyframes skel { from { background-position: 200% 0 } to { background-position: -200% 0 } }
 
@@ -883,13 +884,32 @@ const G = {
 };
 const DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-const CATS = {
-  zapatillas: { label: 'Zapatillas', color: 'var(--c1)', g: G.shoe, sizes: ['36', '37', '38', '39', '40', '41', '42', '42.5', '43', '44', '45', '46'] },
-  jellycat:   { label: 'Jellycat', color: 'var(--c2)', g: G.bear, sizes: [] },
-  futbol:     { label: 'Fútbol', color: 'var(--c5)', g: G.shirt, sizes: ['S', 'M', 'L', 'XL', 'XXL'] },
-  otro:       { label: 'Otros', color: 'var(--c3)', g: G.tag, sizes: ['Única', 'S', 'M', 'L'] }
+/* colecciones: las 4 de siempre (se pueden renombrar) + las que añadas tú. El «tipo» decide cómo se guarda
+   y dónde va en el almacén: zapatillas (cajas en la pared), peluches (sin tallas, en el montón), ropa (en el burro), otros (cajas en la balda) */
+const KINDS = {
+  shoe:    { label: 'Zapatillas', hint: 'Cajas en la pared de zapatillas', g: G.shoe, sizes: ['36', '37', '38', '39', '40', '41', '42', '42.5', '43', '44', '45', '46'] },
+  plush:   { label: 'Peluches', hint: 'Sin tallas, en el montón del suelo', g: G.bear, sizes: [] },
+  clothes: { label: 'Ropa', hint: 'Colgada en el burro', g: G.shirt, sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
+  box:     { label: 'Otros', hint: 'En cajas, en la estantería baja', g: G.tag, sizes: ['Única', 'S', 'M', 'L'] }
 };
-const CAT_ORDER = ['zapatillas', 'jellycat', 'futbol', 'otro'];
+const CATS_BASE = {
+  zapatillas: { label: 'Zapatillas', color: 'var(--c1)', kind: 'shoe' },
+  jellycat:   { label: 'Jellycat', color: 'var(--c2)', kind: 'plush' },
+  futbol:     { label: 'Ropa', color: 'var(--c5)', kind: 'clothes' },
+  otro:       { label: 'Otros', color: 'var(--c3)', kind: 'box' }
+};
+const CAT_COLORS = ['var(--c4)', 'var(--c1)', 'var(--c2)', 'var(--c5)', 'var(--c3)'];
+const CATS = {}, CAT_ORDER = [];
+const isPlush = k => !!(CATS[k] && CATS[k].kind === 'plush');
+function syncCats() {
+  const docs = (S.cats || []).slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  for (const k of Object.keys(CATS)) delete CATS[k];
+  CAT_ORDER.length = 0;
+  for (const [k, b] of Object.entries(CATS_BASE)) { const o = docs.find(d => d.id === k) || {}, K = KINDS[b.kind]; CATS[k] = { ...b, g: K.g, label: o.label || b.label, sizes: o.sizes || K.sizes }; }
+  const own = docs.filter(d => !CATS_BASE[d.id] && d.label);
+  own.forEach((d, i) => { const K = KINDS[d.kind] || KINDS.box; CATS[d.id] = { label: d.label, kind: KINDS[d.kind] ? d.kind : 'box', color: CAT_COLORS[i % CAT_COLORS.length], g: K.g, sizes: d.sizes || K.sizes, custom: true }; });
+  CAT_ORDER.push('zapatillas', 'jellycat', 'futbol', ...own.map(d => d.id), 'otro');
+}
 const SERIES = ['var(--c1)', 'var(--c3)', 'var(--c5)', 'var(--c4)', 'var(--c2)'];
 const EXP_CATS = { pedido: 'Pedido proveedor', material: 'Material', otros: 'Otros' };
 const EXP_ALL = { ...EXP_CATS, envios: 'Envíos' };
@@ -898,9 +918,10 @@ const MONTHS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov
 const MONTHS_L = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const STALE = 30;
 
-const S = { products: [], sales: [], expenses: [], stockmoves: [], accounts: [], catalog: [],
+const S = { products: [], sales: [], expenses: [], stockmoves: [], accounts: [], catalog: [], cats: [],
   loaded: {}, error: null, tab: 'panel', per: 'month', off: 0, stockQ: '', stockCat: 'all', accView: '', accP: 'month', accOff: 0, accFilter: 'all', stockAcc: 'all', movF: 'all', movAcc: 'all', movQ: '', animate: true, quick: false, desk: false, retQ: '', skQ: '' };
-const COLLS = ['products', 'sales', 'expenses', 'stockmoves', 'accounts', 'catalog'];
+const COLLS = ['products', 'sales', 'expenses', 'stockmoves', 'accounts', 'catalog', 'cats'];
+syncCats();
 let db = null, downloads = null, assets = null;
 
 /* ---------- utilidades ---------- */
@@ -1167,21 +1188,23 @@ function productRow(p) {
 }
 function vStock() {
   const ps = S.products, u = sum(ps, units);
+  const inv = sum(ps, p => (p.cost || 0) * units(p)), noCost = ps.filter(p => units(p) > 0 && !p.cost).length;
   let h = `<header class="top"><div><div class="eyebrow">${loadedAll() ? u + (u === 1 ? ' unidad' : ' unidades') : ''}</div><h1>Stock</h1></div><button class="btn btn-main btn-sm" data-action="newProduct">${G.plus}Producto</button></header>`;
   if (!loadedAll() || S.error) return h + loading();
   if (!ps.length) return h + empty(G.box, 'Sin productos', 'Añade uno con su foto y sus tallas.', '<button class="btn btn-main btn-sm" data-action="newProduct">Añadir producto</button>');
   h += lowStockAlert();
+  h += `<div class="stat3" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px"><div><span>Invertido en stock</span><b>${money0(inv)}</b></div><div><span>Unidades</span><b>${u}</b></div><div><span>Coste medio</span><b>${u ? money(r2(inv / u)) : '—'}</b></div></div>${noCost ? `<p class="hint" style="margin:-4px 4px 12px">${noCost} ${noCost === 1 ? 'producto no tiene' : 'productos no tienen'} precio de coste y no cuentan.</p>` : ''}`;
   const outN = ps.filter(p => !units(p)).length;
   const chips = [['all', 'Todo'], ...CAT_ORDER.filter(k => ps.some(p => catKey(p) === k)).map(k => [k, CATS[k].label]), ...(outN ? [['out', 'Agotados']] : [])];
   h += `<div class="filters"><div class="search">${G.search}<input id="q-stock" type="search" placeholder="Buscar" value="${esc(S.stockQ)}" autocomplete="off"></div>
-    <div class="scroll-x">${chips.map(([k, l]) => `<button class="pill" data-action="stockCat" data-c="${k}" aria-pressed="${S.stockCat === k}">${l}</button>`).join('')}</div></div>`;
+    <div class="scroll-x">${chips.map(([k, l]) => `<button class="pill" data-action="stockCat" data-c="${k}" aria-pressed="${S.stockCat === k}">${esc(l)}</button>`).join('')}<button class="pill" data-action="cats">${G.plus}Colección</button></div></div>`;
   return h + `<div id="stockList">${stockList()}</div>`;
 }
 function stockList() {
   const l = filterProducts(S.stockQ, S.stockCat);
   if (!l.length) return empty(G.search, 'Sin resultados', '');
   if (S.stockCat !== 'all' || S.stockQ.trim()) return `<div class="plist">${l.map(productRow).join('')}</div>`;
-  return CAT_ORDER.filter(k => l.some(p => catKey(p) === k)).map(k => `<div class="grp"><span><i class="sw" style="background:${CATS[k].color};border-radius:50%"></i>${CATS[k].label}</span></div><div class="plist">${l.filter(p => catKey(p) === k).map(productRow).join('')}</div>`).join('');
+  return CAT_ORDER.filter(k => l.some(p => catKey(p) === k)).map(k => `<div class="grp"><span><i class="sw" style="background:${CATS[k].color};border-radius:50%"></i>${esc(CATS[k].label)}</span></div><div class="plist">${l.filter(p => catKey(p) === k).map(productRow).join('')}</div>`).join('');
 }
 
 /* ---------- MOVIMIENTOS ---------- */
@@ -1471,7 +1494,7 @@ const val = v => v === undefined || v === null || v === '' || v === 0 ? '' : Str
 const amountField = (id, name, label, v) => `<div class="amount-w"><label for="${id}">${label}</label><div class="amount"><input id="${id}" name="${name}" inputmode="decimal" placeholder="0" value="${val(v)}" autocomplete="off"><span>€</span></div></div>`;
 const fit = el => { el.style.width = Math.max(1.2, (el.value || el.placeholder).length + .4) + 'ch'; };
 function fitAmounts() { document.querySelectorAll('.amount input').forEach(el => { fit(el); el.addEventListener('input', () => fit(el)); }); }
-const catChips = sel => `<div class="chips" role="radiogroup" aria-label="Categoría">${CAT_ORDER.map(k => `<label><input type="radio" name="category" value="${k}" ${sel === k ? 'checked' : ''}><span>${CATS[k].label}</span></label>`).join('')}</div>`;
+const catChips = sel => `<div class="chips" role="radiogroup" aria-label="Categoría">${CAT_ORDER.map(k => `<label><input type="radio" name="category" value="${k}" ${sel === k ? 'checked' : ''}><span>${esc(CATS[k].label)}</span></label>`).join('')}</div>`;
 const phoneChips = sel => accounts().length ? `<div class="chips" role="radiogroup" aria-label="Móvil">${accounts().map(a => `<label><input type="radio" name="account" value="${a.id}" ${sel === a.id ? 'checked' : ''}><span><i class="wd ${a.warm ? 'ok' : 'no'}" title="${a.warm ? 'Calentada' : 'Sin calentar'}"></i>${esc(a.name)}</span></label>`).join('')}</div>`
   : '<p class="hint" style="margin:0">Aún no tienes móviles. Añádelos en la pestaña Móviles.</p>';
 const accOpts = sel => `<option value="" ${!sel ? 'selected' : ''}>Ninguno</option>` + accounts().map(a => `<option value="${a.id}" ${sel === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
@@ -1543,7 +1566,7 @@ function productForm(p, extra = {}) {
       const box = $('#photoBox'), list = $('#szList'), quick = $('#quick');
       const paintPhoto = () => { box.innerHTML = st.photo ? `<img src="${BLOB_URL}${esc(st.photo)}" alt=""><span class="chg">Cambiar foto</span>` : `<span class="ph">${G.cam}${assets ? 'Añadir foto' : 'Fotos no disponibles aquí'}</span>`; };
       const paintSizes = () => { const cat = (document.querySelector('input[name="category"]:checked') || {}).value || st.cat, addBtn = document.querySelector('[data-addsz]');
-        const jelly = cat === 'jellycat' && (!st.sizes.length || st.sizes.every(x => !x.s || x.s === 'Única'));
+        const jelly = isPlush(cat) && (!st.sizes.length || st.sizes.every(x => !x.s || x.s === 'Única'));
         if (jelly) { if (!st.sizes.length) st.sizes.push({ s: 'Única', q: 1 }); st.sizes.forEach(x => x.s = 'Única');
           list.innerHTML = `<div class="szrow"><span class="lbl" style="flex:1">Unidades</span><div class="stepper"><button type="button" data-step="-1" data-i="0" aria-label="Menos">${G.minus}</button><b>${st.sizes[0].q}</b><button type="button" data-step="1" data-i="0" aria-label="Más">${G.plus}</button></div></div>`;
           quick.innerHTML = ''; if (addBtn) addBtn.hidden = true; return; }
@@ -1559,7 +1582,7 @@ function productForm(p, extra = {}) {
         if (t.dataset.again) { ev.preventDefault(); onSubmit && onSubmit(new FormData($('#prodF')), true); }
       });
       $('#prodF').addEventListener('input', ev => { if (ev.target.dataset.sz !== undefined) st.sizes[+ev.target.dataset.sz].s = ev.target.value; });
-      $('#prodF').addEventListener('change', ev => { if (ev.target.name === 'category') { if (isNew) { if (ev.target.value === 'jellycat') st.sizes = [{ s: 'Única', q: Math.max(1, sum(st.sizes, x => x.q)) }]; else if (st.sizes.length === 1 && st.sizes[0].s === 'Única') st.sizes = []; } paintSizes(); } });
+      $('#prodF').addEventListener('change', ev => { if (ev.target.name === 'category') { if (isNew) { if (isPlush(ev.target.value)) st.sizes = [{ s: 'Única', q: Math.max(1, sum(st.sizes, x => x.q)) }]; else if (st.sizes.length === 1 && st.sizes[0].s === 'Única') st.sizes = []; } paintSizes(); } });
       paintPhoto(); paintSizes();
     });
 }
@@ -1651,7 +1674,7 @@ function saleForm(opts = {}) {
         if (!p) {
           const cats = CAT_ORDER.filter(k => list.some(x => catKey(x) === k));
           hh += `<span class="lbl">¿Qué has vendido?</span><input class="inp" id="s-q" type="search" placeholder="Buscar en tu stock" autocomplete="off" value="${esc(st.q)}">`;
-          if (cats.length > 1) hh += `<div class="scroll-x"><button type="button" class="pill" data-scat="all" aria-pressed="${st.cat === 'all'}">Todo</button>${cats.map(k => `<button type="button" class="pill" data-scat="${k}" aria-pressed="${st.cat === k}">${CATS[k].label}</button>`).join('')}</div>`;
+          if (cats.length > 1) hh += `<div class="scroll-x"><button type="button" class="pill" data-scat="all" aria-pressed="${st.cat === 'all'}">Todo</button>${cats.map(k => `<button type="button" class="pill" data-scat="${k}" aria-pressed="${st.cat === k}">${esc(CATS[k].label)}</button>`).join('')}</div>`;
           hh += `<div class="skgrid" id="pk">${pickerHtml(list, st.q, st.pid, st.cat)}</div>`;
         } else {
           const avail = (p.sizes || []).filter(s => s.q > 0 || (ed && s.s === ed.size));
@@ -1771,7 +1794,7 @@ function expenseForm(e, preset) {
   const isNew = !e; e = e || { date: today(), category: preset || 'pedido' };
   /* un pedido puede traer varios productos, cada uno con sus tallas y unidades */
   const st = { lines: [{ name: '', cat: store.get('lastCat') || 'zapatillas', price: '', sizes: [] }] };
-  const lineUnits = () => sum(st.lines.filter(l => l.name.trim() || l.cat !== 'jellycat'), l => sum(l.sizes, s => s.q));
+  const lineUnits = () => sum(st.lines.filter(l => l.name.trim() || !isPlush(l.cat)), l => sum(l.sizes, s => s.q));
   openSheet(isNew ? (e.category === 'pedido' ? 'Nueva compra' : 'Nuevo gasto') : 'Editar gasto', `<form class="f" id="expF" novalidate>
     ${amountField('e-amount', 'amount', 'Importe total', e.amount)}
     <div class="chips" role="radiogroup" aria-label="Tipo">${Object.entries(EXP_CATS).map(([k, l]) => `<label><input type="radio" name="category" value="${k}" ${(e.category === 'envios' ? 'otros' : e.category) === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
@@ -1783,7 +1806,7 @@ function expenseForm(e, preset) {
     <button class="btn btn-main btn-block">${isNew ? 'Apuntar gasto' : 'Guardar'}</button></form>`,
     async fd => {
       const pedido = fd.get('category') === 'pedido';
-      const lines = isNew && pedido ? st.lines.map(l => ({ name: l.name.trim(), cat: l.cat, price: num(l.price), cost: num(l.cost), sizes: l.sizes.map(s => ({ s: String(s.s || '').trim() || 'Única', q: Math.max(0, s.q | 0) })).filter(s => s.q > 0) })).filter(l => l.name || (l.cat !== 'jellycat' && l.sizes.length)) : [];
+      const lines = isNew && pedido ? st.lines.map(l => ({ name: l.name.trim(), cat: l.cat, price: num(l.price), cost: num(l.cost), sizes: l.sizes.map(s => ({ s: String(s.s || '').trim() || 'Única', q: Math.max(0, s.q | 0) })).filter(s => s.q > 0) })).filter(l => l.name || (!isPlush(l.cat) && l.sizes.length)) : [];
       const lu = sum(lines, l => sum(l.sizes, s => s.q));
       const lcost = r2(sum(lines, l => l.cost * sum(l.sizes, s => s.q))), anyCost = lines.some(l => l.cost > 0);
       const data = { concept: fd.get('concept').trim(), amount: anyCost ? lcost : num(fd.get('amount')), date: fd.get('date') || today(), category: fd.get('category') || 'otros', units: lu || Math.max(0, parseInt(fd.get('units')) || 0) };
@@ -1821,16 +1844,16 @@ function expenseForm(e, preset) {
       const catNow = () => (form.querySelector('input[name="category"]:checked') || {}).value;
       const names = [...new Set(S.products.map(p => p.name))];
       const lineHtml = (l, i) => `<div class="oline"><div class="oline-h"><input class="inp" data-ln="${i}" placeholder="Producto (Nike Dunk Low…)" value="${esc(l.name)}" autocapitalize="sentences" autocomplete="off">${st.lines.length > 1 ? `<button type="button" class="x" data-rmline="${i}" aria-label="Quitar producto">${G.x}</button>` : ''}</div>
-        <div class="scroll-x">${CAT_ORDER.map(k => `<button type="button" class="pill" data-lcat="${i}:${k}" aria-pressed="${l.cat === k}">${CATS[k].label}</button>`).join('')}</div>
+        <div class="scroll-x">${CAT_ORDER.map(k => `<button type="button" class="pill" data-lcat="${i}:${k}" aria-pressed="${l.cat === k}">${esc(CATS[k].label)}</button>`).join('')}</div>
         <div class="costf"><label for="lc${i}">Coste por unidad</label><input class="inp" id="lc${i}" data-lc="${i}" inputmode="decimal" placeholder="0 €" value="${esc(l.cost)}" autocomplete="off"></div>
-        ${l.cat === 'jellycat' ? `<div class="szrow"><span class="lbl" style="flex:1">Unidades</span><div class="stepper"><button type="button" data-lstep="${i}:0:-1" aria-label="Menos">${G.minus}</button><b>${l.sizes[0].q}</b><button type="button" data-lstep="${i}:0:1" aria-label="Más">${G.plus}</button></div></div>` : `<div class="quick">${CATS[l.cat].sizes.map(s => `<button type="button" data-lqs="${i}:${esc(s)}">${esc(s)}</button>`).join('')}</div>`}
-        ${l.cat === 'jellycat' ? '' : l.sizes.length ? `<div class="szlist">${l.sizes.map((s, j) => `<div class="szrow"><input class="inp" data-lsz="${i}:${j}" value="${esc(s.s)}" placeholder="Talla" aria-label="Talla"><div class="stepper"><button type="button" data-lstep="${i}:${j}:-1" aria-label="Menos">${G.minus}</button><b>${s.q}</b><button type="button" data-lstep="${i}:${j}:1" aria-label="Más">${G.plus}</button></div><button type="button" class="x" data-lrm="${i}:${j}" aria-label="Quitar talla">${G.x}</button></div>`).join('')}</div>` : '<p class="hint" style="margin:0">Toca las tallas que compras. Cada toque suma una unidad.</p>'}
+        ${isPlush(l.cat) ? `<div class="szrow"><span class="lbl" style="flex:1">Unidades</span><div class="stepper"><button type="button" data-lstep="${i}:0:-1" aria-label="Menos">${G.minus}</button><b>${l.sizes[0].q}</b><button type="button" data-lstep="${i}:0:1" aria-label="Más">${G.plus}</button></div></div>` : `<div class="quick">${CATS[l.cat].sizes.map(s => `<button type="button" data-lqs="${i}:${esc(s)}">${esc(s)}</button>`).join('')}</div>`}
+        ${isPlush(l.cat) ? '' : l.sizes.length ? `<div class="szlist">${l.sizes.map((s, j) => `<div class="szrow"><input class="inp" data-lsz="${i}:${j}" value="${esc(s.s)}" placeholder="Talla" aria-label="Talla"><div class="stepper"><button type="button" data-lstep="${i}:${j}:-1" aria-label="Menos">${G.minus}</button><b>${s.q}</b><button type="button" data-lstep="${i}:${j}:1" aria-label="Más">${G.plus}</button></div><button type="button" class="x" data-lrm="${i}:${j}" aria-label="Quitar talla">${G.x}</button></div>`).join('')}</div>` : '<p class="hint" style="margin:0">Toca las tallas que compras. Cada toque suma una unidad.</p>'}
         <p class="hint olsub" data-lsub="${i}" style="margin:0"></p></div>`;
       const upd = () => {
         const pedido = box && catNow() === 'pedido', amt = $('#e-amount');
         const lu = pedido ? lineUnits() : 0;
         if (lu) { units.value = lu; units.readOnly = true; } else units.readOnly = false;
-        const named = pedido ? st.lines.filter(l => l.name.trim() || (l.cat !== 'jellycat' && l.sizes.length)) : [];
+        const named = pedido ? st.lines.filter(l => l.name.trim() || (!isPlush(l.cat) && l.sizes.length)) : [];
         const live = named.map(l => ({ n: l.name.trim() || 'producto', c: num(l.cost), u: sum(l.sizes, x => x.q) }));
         const anyCost = live.some(l => l.c > 0), tot = r2(sum(live, l => l.c * l.u));
         if (anyCost) { amt.value = tot ? val(tot) : ''; amt.readOnly = true; fit(amt); } else { if (amt.readOnly) { amt.value = st.manualAmt || ''; fit(amt); } amt.readOnly = false; }
@@ -1852,7 +1875,7 @@ function expenseForm(e, preset) {
       const paint = () => {
         if (!box) { upd(); return; }
         box.hidden = catNow() !== 'pedido';
-        st.lines.forEach(l => { if (l.cat === 'jellycat') l.sizes = [{ s: 'Única', q: Math.max(1, sum(l.sizes, x => x.q)) }]; });
+        st.lines.forEach(l => { if (isPlush(l.cat)) l.sizes = [{ s: 'Única', q: Math.max(1, sum(l.sizes, x => x.q)) }]; });
         box.innerHTML = `<div id="catBox"></div><span class="lbl" style="margin-top:6px">Qué compras</span>${st.lines.map(lineHtml).join('')}<button type="button" class="btn btn-soft btn-sm" data-addline style="align-self:flex-start">+ Otro producto</button>`;
         paintCat(); upd();
       };
@@ -1868,12 +1891,12 @@ function expenseForm(e, preset) {
           const c = cats[+d.addcat];
           if (c && inLines(c)) { st.lines = st.lines.filter(l => l.name.trim().toLowerCase() !== c.name.toLowerCase()); if (!st.lines.length) st.lines.push({ name: '', cat: c.cat, price: '', sizes: [] }); }
           else if (c) { const nl = { name: c.name, cat: c.cat, cost: c.cost ? String(c.cost).replace('.', ',') : '', price: c.price ? String(c.price).replace('.', ',') : '', sizes: c.sizes.map(x => ({ ...x })) };
-            const blank = st.lines.length === 1 && !st.lines[0].name.trim() && (st.lines[0].cat === 'jellycat' || !st.lines[0].sizes.length); if (blank) st.lines = [nl]; else st.lines.push(nl); }
+            const blank = st.lines.length === 1 && !st.lines[0].name.trim() && (isPlush(st.lines[0].cat) || !st.lines[0].sizes.length); if (blank) st.lines = [nl]; else st.lines.push(nl); }
           haptic(1); paint();
         }
         else if (d.addline !== undefined || t.hasAttribute('data-addline')) { st.lines.push({ name: '', cat: st.lines[st.lines.length - 1].cat, price: '', sizes: [] }); paint(); }
         else if (d.rmline !== undefined) { st.lines.splice(+d.rmline, 1); paint(); }
-        else if (d.lcat) { const [i, k] = d.lcat.split(':'), l = st.lines[+i]; if (l.cat === 'jellycat' && k !== 'jellycat') l.sizes = []; l.cat = k; paint(); }
+        else if (d.lcat) { const [i, k] = d.lcat.split(':'), l = st.lines[+i]; if (isPlush(l.cat) && !isPlush(k)) l.sizes = []; l.cat = k; paint(); }
         else if (d.lqs) { const [i, ...r] = d.lqs.split(':'), sz = r.join(':'), l = st.lines[+i], x = l.sizes.find(s => s.s === sz); if (x) x.q++; else l.sizes.push({ s: sz, q: 1 }); haptic(1); paint(); }
         else if (d.lstep) { const [i, j, dd] = d.lstep.split(':'), s = st.lines[+i].sizes[+j]; s.q = Math.max(1, s.q + +dd); paint(); }
         else if (d.lrm) { const [i, j] = d.lrm.split(':'); st.lines[+i].sizes.splice(+j, 1); paint(); }
@@ -1968,10 +1991,35 @@ function accountForm(a) {
       else if (await write(() => db.doc('accounts/' + a.id).update(data), 'Guardado')) { closeSheet(); setTimeout(() => accountSheet(a.id), 450); }
     }, () => { const i = $('#a-iban'); i.addEventListener('input', () => { const end = i.selectionStart === i.value.length; i.value = ibanFmt(i.value); if (end) try { i.setSelectionRange(i.value.length, i.value.length); } catch (e) {} }); });
 }
+function catsSheet() {
+  const row = k => { const c = CATS[k], ps = S.products.filter(p => catKey(p) === k), u = sum(ps, units);
+    return `<button class="row" data-action="catEdit" data-id="${k}"><span class="th" style="${tint(c.color)}">${c.g}</span><span class="rm"><span class="rt">${esc(c.label)}</span><span class="rs">${KINDS[c.kind].label} · ${ps.length} ${ps.length === 1 ? 'producto' : 'productos'} · ${u} uds</span></span>${G.chev}</button>`; };
+  openSheet('Colecciones', `<div class="list">${CAT_ORDER.map(row).join('')}</div>
+    <button class="btn btn-main btn-block" data-action="catEdit" data-id="">${G.plus}Nueva colección</button>
+    <p class="hint" style="margin:0">Cada producto va en una colección. El tipo decide si lleva tallas y dónde se coloca en el almacén.</p>`);
+}
+function catForm(id) {
+  const isNew = !id, c = isNew ? { label: '', kind: 'box', sizes: KINDS.box.sizes } : CATS[id], base = !!CATS_BASE[id];
+  const used = id ? S.products.filter(p => catKey(p) === id).length : 0;
+  openSheet(isNew ? 'Nueva colección' : 'Editar colección', `<form class="f" id="catF" novalidate>
+    <div class="fld"><label for="c-name">Nombre</label><input id="c-name" name="label" placeholder="Sudaderas, Pokémon, Gafas…" value="${esc(c.label)}" autocapitalize="sentences" autocomplete="off"></div>
+    ${base ? '' : `<div class="fld"><span class="lbl">Tipo</span><div class="chips" role="radiogroup" aria-label="Tipo">${Object.entries(KINDS).map(([k, K]) => `<label><input type="radio" name="kind" value="${k}" ${c.kind === k ? 'checked' : ''}><span>${K.label}</span></label>`).join('')}</div><span class="hint" id="c-kh">${KINDS[c.kind].hint}</span></div>`}
+    <div class="fld"><label for="c-sizes">Tallas que usas</label><input id="c-sizes" name="sizes" placeholder="S, M, L, XL" value="${esc((c.sizes || []).join(', '))}" autocomplete="off"><span class="hint">Separadas por comas. Déjalo vacío si no lleva tallas.</span></div>
+    <button class="btn btn-main btn-block">${isNew ? 'Crear colección' : 'Guardar'}</button>
+    ${!isNew && !base ? `<button type="button" class="btn btn-soft btn-block" data-action="catDel" data-id="${id}">${used ? 'Borrar (sus ' + used + ' productos pasan a Otros)' : 'Borrar colección'}</button>` : ''}</form>`,
+    async fd => {
+      const label = String(fd.get('label') || '').trim(), kind = base ? CATS_BASE[id].kind : (fd.get('kind') || 'box');
+      const sizes = String(fd.get('sizes') || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!label) return fieldErr('c-name', 'Ponle un nombre');
+      const data = { label, kind, sizes: kind === 'plush' ? [] : sizes };
+      const key = id || 'c' + Date.now().toString(36);
+      if (await write(() => S.cats.some(d => d.id === key) ? db.doc('cats/' + key).update(data) : db.doc('cats/' + key).set({ ...data, createdAt: Date.now() }), isNew ? 'Colección creada' : 'Guardado')) setTimeout(catsSheet, 300);
+    }, () => { const f = $('#catF'); f.addEventListener('change', ev => { if (ev.target.name === 'kind') { $('#c-kh').textContent = KINDS[ev.target.value].hint; $('#c-sizes').value = KINDS[ev.target.value].sizes.join(', '); } }); });
+}
 function moreSheet() {
   const look = store.get('look') || 'auto';
   const ex = (w, c, t, s) => `<button class="row" data-action="export" data-what="${w}"><span class="th" style="${tint(c)}">${G.down}</span><span class="rm"><span class="rt">${t}</span><span class="rs">${s}</span></span>${G.chev}</button>`;
-  openSheet('Ajustes', `<div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
+  openSheet('Ajustes', `<div class="list"><button class="row" data-action="cats"><span class="th" style="${tint('var(--ink)')}">${G.layers}</span><span class="rm"><span class="rt">Colecciones</span><span class="rs">${CAT_ORDER.map(k => CATS[k].label).join(' · ')}</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
     ${S.desk ? '' : `<div class="fld"><span class="lbl">Al abrir en el móvil</span><div class="seg" data-k="qpref" style="align-self:flex-start">${[['1', 'Botones rápidos'], ['0', 'Panel']].map(([k, l]) => `<button data-action="quickPref" data-v="${k}" aria-pressed="${(store.get('quickStart') || '1') === k}">${l}</button>`).join('')}</div></div>`}
     ${window.SYNC ? window.SYNC.settingsHtml() : ''}
     <div class="fld"><span class="lbl">Apariencia</span><div class="seg" data-k="look" style="align-self:flex-start">${[['auto', 'Auto', G.auto], ['light', 'Claro', G.sun], ['dark', 'Oscuro', G.moon]].map(([k, l, i]) => `<button data-action="look" data-v="${k}" aria-pressed="${look === k}">${i}${l}</button>`).join('')}</div></div>`);
@@ -2110,6 +2158,11 @@ document.addEventListener('click', async ev => {
     case 'accOff': S.accOff = Math.min(0, S.accOff + +b.dataset.d); S.animate = true; haptic(1); render(); break;
     case 'accAllMovs': S.movAcc = id; S.movF = 'all'; S.movQ = ''; go('movs'); break;
     case 'newAccount': accountForm(); break;
+    case 'cats': catsSheet(); break;
+    case 'catEdit': catForm(b.dataset.id || ''); break;
+    case 'catDel': { const id = b.dataset.id, ps = S.products.filter(p => p.category === id);
+      if (armed(b, '¿Seguro?')) { if (await write(async () => { for (const p of ps) await db.doc('products/' + p.id).update({ category: 'otro' }); await db.doc('cats/' + id).delete(); }, 'Colección borrada')) setTimeout(catsSheet, 300); }
+      break; }
     case 'editAccount': accountForm(acc(id)); break;
     case 'renameAccount': renameSheet(id, b.dataset.back === '1'); break;
     case 'accFilter': S.accFilter = b.dataset.v; render(); break;
@@ -2207,7 +2260,7 @@ render();
   if (!db) { S.error = 'Falta conectar la base de datos. Revisa config.js y el README.'; render(); return; }
   const fail = e => { S.error = e && e.code === 'revoked' ? 'Ya no tienes acceso a estos datos.' : 'Se perdió la conexión. Recarga la página.'; render(); };
   let rt; const later = () => { clearTimeout(rt); rt = setTimeout(() => { render(); if (catRefresh) catRefresh(); }, 30); };
-  COLLS.forEach(c => db.collection(c).onSnapshot(s => { S[c] = s.docs.map(d => ({ id: d.id, ...d.data() })); const first = !loadedAll(); S.loaded[c] = true; if (first && loadedAll()) S.animate = true; later(); }, fail));
+  COLLS.forEach(c => db.collection(c).onSnapshot(s => { S[c] = s.docs.map(d => ({ id: d.id, ...d.data() })); if (c === 'cats') syncCats(); const first = !loadedAll(); S.loaded[c] = true; if (first && loadedAll()) S.animate = true; later(); }, fail));
   [downloads, assets] = await Promise.all([window.claude.use('downloads'), window.claude.use('assets')]);
   render();
 })();

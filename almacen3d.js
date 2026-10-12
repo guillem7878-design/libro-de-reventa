@@ -238,7 +238,7 @@ function mergeChildren(g) {   // junta los hijos de un grupo que comparten mater
 }
 export function createWorld(opts) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', logarithmicDepthBuffer: false });
-  let pr = Math.min(2, Math.max(1.5, devicePixelRatio)); renderer.setPixelRatio(pr); renderer.outputColorSpace = THREE.SRGBColorSpace;   // algo más de resolución que la pantalla: bordes sin temblar
+  let pr = Math.min(2, Math.max(1.25, devicePixelRatio)); renderer.setPixelRatio(pr); renderer.outputColorSpace = THREE.SRGBColorSpace;   // algo más de resolución que la pantalla: bordes sin temblar
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
   const canvas = renderer.domElement; canvas.className = 'alm-canvas';
   const scene = new THREE.Scene();
@@ -256,8 +256,9 @@ export function createWorld(opts) {
   const skyScene = new THREE.Scene(); skyScene.background = SKY.day.clone();
   const ISL = { x0: -2.6, x1: RX + 9.6, z0: -4.6, z1: RZ + 4.6 };
   const island = [new THREE.Plane(new THREE.Vector3(1, 0, 0), -ISL.x0), new THREE.Plane(new THREE.Vector3(-1, 0, 0), ISL.x1), new THREE.Plane(new THREE.Vector3(0, 0, 1), -ISL.z0), new THREE.Plane(new THREE.Vector3(0, 0, -1), ISL.z1)];
-  const roomLight = new THREE.PointLight('#FFD9A8', 0, 0, 2); roomLight.position.set(4.2, 2.4, 3.0); scene.add(roomLight);
-  const streetLight = new THREE.PointLight('#FFC978', 0, 0, 2); streetLight.position.set(RX + 1.23, 2.75, 4.66); scene.add(streetLight);
+  const glowTex = tex(256, 256, (g, W, H) => { const r = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.45, 'rgba(255,255,255,.45)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, W, H); });
+  const glow = (col, size, x, y, z) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: glowTex, color: col, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 2; scene.add(m); return m; };
+  const roomGlow = glow('#FFC98A', 9.5, 4.6, .022, 3.4), streetGlow = glow('#FFB860', 4.2, RX + 1.25, .03, 4.65);
   // estrellas y luna pegadas a la cámara, al fondo de todo (solo se ven donde hay cielo)
   const sky = new THREE.Group();
   const starGeo = new THREE.BufferGeometry(), sp = [];
@@ -281,13 +282,13 @@ export function createWorld(opts) {
     skyScene.background.copy(SKY.day).lerp(SKY.night, k);
     hemi.intensity = 2.2 - 1.55 * k; hemi.color.set('#FFFFFF').lerp(C('#9FB2D6'), k); hemi.groundColor.set('#E9E6E0').lerp(C('#1C2130'), k);
     sun.intensity = 1.15 - .8 * k; sun.color.set('#FFFFFF').lerp(C('#A9BDE6'), k);
-    roomLight.intensity = 12 * k; streetLight.intensity = 14 * k;
+    roomGlow.material.opacity = .32 * k; streetGlow.material.opacity = .55 * k; M.floor.emissive.set('#3A2A18'); M.floor.emissiveIntensity = .55 * k;
     M.lamp.emissiveIntensity = .6 + 2.4 * k; M.lamp.emissive.set('#FFF6DA').lerp(C('#FFC978'), k);
     M.glass.emissive.set('#EAF2F8').lerp(C('#24324D'), k); M.glass.emissiveIntensity = .4 + .2 * k;
     starMat.opacity = .85 * k * (.85 + .15 * Math.sin(t * 1.3)); starMat2.opacity = k * (.75 + .25 * Math.sin(t * 2.1 + 1)); moonMat.opacity = k; moonHalo.material.opacity = .1 * k;
     for (const [m, d, n] of GROUND) m.color.copy(d).lerp(n, k);
   }
-  const fill = new THREE.DirectionalLight('#FFFFFF', 0); fill.position.set(14, 4, 2); fill.target.position.set(0, 1, 2); scene.add(fill, fill.target);
+  const fill = new THREE.DirectionalLight('#FFFFFF', 0); fill.visible = false; fill.position.set(14, 4, 2); fill.target.position.set(0, 1, 2); scene.add(fill, fill.target);
   const world = new THREE.Group(); scene.add(world);
   /* buzón (cada lunes trae la carta de la semana) */
   const mailG = new THREE.Group(); mailG.userData.zone = 'mail'; mailG.userData.tip = 'Buzón';
@@ -823,7 +824,7 @@ export function createWorld(opts) {
     zoom += (zoomTo - zoom) * Math.min(1, dt * 2.5); if (Math.abs(zoomTo - zoom) < 1e-3) zoom = zoomTo; az += (azTo - az) * Math.min(1, dt * 1.6); if (Math.abs(azTo - az) < 2e-3) az = azTo;
     el += (elTo - el) * Math.min(1, dt * 2.6); if (Math.abs(elTo - el) < 1e-3) el = elTo;
     near += (nearTo - near) * Math.min(1, dt * 3); if (Math.abs(nearTo - near) < 1e-2) near = nearTo; cam.near = near;
-    fill.intensity += ((front ? .9 : 0) - fill.intensity) * Math.min(1, dt * 3); P.g.visible = !(front && near > 30);
+    fill.intensity += ((front ? .9 : 0) - fill.intensity) * Math.min(1, dt * 3); fill.visible = fill.intensity > .01; P.g.visible = !(front && near > 30);
     const a = W / H; cam.left = -VIEW * a / 2; cam.right = VIEW * a / 2; cam.top = VIEW / 2; cam.bottom = -VIEW / 2; cam.zoom = zoom; cam.updateProjectionMatrix();
     cam.position.set(look.x + R * Math.sin(az) * Math.cos(el), look.y + R * Math.sin(el), look.z + R * Math.cos(az) * Math.cos(el)); cam.lookAt(look);
   }
@@ -867,7 +868,7 @@ export function createWorld(opts) {
     if (!canvas.isConnected) { raf = 0; return; }
     const raw = (now - last) / 1000, dt = Math.min(.05, raw); last = now; clock2 += dt;
     shT += dt; if (shT > .05) { shT = 0; renderer.shadowMap.needsUpdate = true; }
-    if (raw < .5) { slow = slow * .95 + raw * .05; perfT += raw; if (perfT > 2.5) { perfT = 0; if (slow > .026 && pr > 1) { pr = Math.max(1, pr - .25); renderer.setPixelRatio(pr); fit(); } } }
+    if (raw < .5) { slow = slow * .95 + raw * .05; perfT += raw; if (perfT > 2.5) { perfT = 0; if (slow > .021 && pr > 1) { pr = Math.max(1, pr - .25); renderer.setPixelRatio(pr); fit(); } } }
     if (D) tickWorker(dt, clock2); tickStreet(dt, clock2);
     letterM.visible = letterOn; flag.rotation.z = letterOn ? 0 : -1.5; if (letterOn) letterM.position.y = 1.1 + Math.sin(clock2 * 2) * .015;
     tickNight(dt, clock2); placeCam(dt); sky.position.copy(cam.position); sky.quaternion.copy(cam.quaternion); sky.scale.setScalar(1 / zoom);

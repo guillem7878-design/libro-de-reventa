@@ -1001,8 +1001,8 @@ const costV = r => sum(okSales().filter(s => inR(s.date, r)), s => s.cost || 0);
 const gasG = r => sum(S.expenses.filter(e => e.category !== 'pedido' && inR(e.date, r)), e => e.amount);
 const ben = r => r2(fac(r) - costV(r) - gasG(r));
 const daysIn = r => { const t = today(); return Math.max(1, (t >= r[0] && t < r[1] ? days(r[0], t) + 1 : days(r[0], r[1])) || 1); };
-const heroTiles = (r, F) => { const C = r2(costV(r) + gasG(r)), B = ben(r), t = today(), isNow = t >= r[0] && t < r[1], bh = isNow ? ben([t, addDays(t, 1)]) : null;
-  return `<div class="tiles"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Por día</span><b class="${B < 0 ? 'neg' : ''}">${money0(B / daysIn(r))}</b>${bh !== null ? `<small style="display:block;font-size:11px;color:var(--ink2);margin-top:2px">hoy ${money0(bh)}</small>` : ''}</div><div class="tile"><span>Gastos</span><b>${money0(C)}</b><small style="display:block;font-size:11px;color:var(--ink2);margin-top:2px">producto + otros</small></div></div>`; };
+const heroTiles = (r, F) => { const C = r2(costV(r) + gasG(r)), t = today(), bh = ben([t, addDays(t, 1)]);   // beneficio de hoy, sea el periodo que sea
+  return `<div class="tiles"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Beneficio hoy</span><b class="${bh < 0 ? 'neg' : ''}">${money(bh)}</b></div><div class="tile"><span>Gastos</span><b>${money0(C)}</b><small style="display:block;font-size:11px;color:var(--ink2);margin-top:2px">producto + otros</small></div></div>`; };
 const thumbOf = x => x && x.photo ? `<img src="${BLOB_URL}${esc(x.photo)}" alt="" loading="lazy">` : `<span style="color:${catOf(x).color}">${catOf(x).g}</span>`;
 const th = (x, extra) => `<span class="th" ${extra || ''}>${thumbOf(x)}</span>`;
 const tint = c => `background:color-mix(in srgb, ${c} 16%, transparent);color:${c}`;

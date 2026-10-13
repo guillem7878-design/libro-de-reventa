@@ -997,6 +997,12 @@ const periodName = off => { const d = periodR(off)[2]; return S.per === 'year' ?
 const billed = (r, id) => sum(okSales().filter(s => inR(s.date, r) && (!id || s.account === id)), s => s.price);
 const fac = r => sum(okSales().filter(s => inR(s.date, r)), s => s.price);
 const gas = r => sum(S.expenses.filter(e => inR(e.date, r)), e => e.amount);
+const costV = r => sum(okSales().filter(s => inR(s.date, r)), s => s.cost || 0);
+const gasG = r => sum(S.expenses.filter(e => e.category !== 'pedido' && inR(e.date, r)), e => e.amount);
+const ben = r => r2(fac(r) - costV(r) - gasG(r));
+const daysIn = r => { const t = today(); return Math.max(1, (t >= r[0] && t < r[1] ? days(r[0], t) + 1 : days(r[0], r[1])) || 1); };
+const heroTiles = (r, F) => { const C = r2(costV(r) + gasG(r)), B = ben(r), t = today(), isNow = t >= r[0] && t < r[1], bh = isNow ? ben([t, addDays(t, 1)]) : null;
+  return `<div class="tiles"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Por día</span><b class="${B < 0 ? 'neg' : ''}">${money0(B / daysIn(r))}</b>${bh !== null ? `<small style="display:block;font-size:11px;color:var(--ink2);margin-top:2px">hoy ${money0(bh)}</small>` : ''}</div><div class="tile"><span>Gastos</span><b>${money0(C)}</b><small style="display:block;font-size:11px;color:var(--ink2);margin-top:2px">producto + otros</small></div></div>`; };
 const thumbOf = x => x && x.photo ? `<img src="${BLOB_URL}${esc(x.photo)}" alt="" loading="lazy">` : `<span style="color:${catOf(x).color}">${catOf(x).g}</span>`;
 const th = (x, extra) => `<span class="th" ${extra || ''}>${thumbOf(x)}</span>`;
 const tint = c => `background:color-mix(in srgb, ${c} 16%, transparent);color:${c}`;
@@ -1117,12 +1123,12 @@ function vPanel() {
   let h = `<header class="top"><h1>Panel</h1><div style="display:flex;gap:8px"><button class="round" data-action="quickOn" aria-label="Botones rápidos">${G.zap}</button><button class="round" data-action="more" aria-label="Ajustes">${G.dots}</button></div></header>` + periodCtl();
   if (!loadedAll() || S.error) return h + loading();
   const r = periodR(S.off), pr = periodR(S.off - 1);
-  const F = fac(r), Gs = gas(r), B = r2(F - Gs), pB = r2(fac(pr) - gas(pr));
+  const F = fac(r), Gs = gas(r), B = ben(r), pB = ben(pr);
   const sl = okSales().filter(s => inR(s.date, r)), cnt = sl.length;
   const dB = B === pB ? '' : `<span class="delta ${B > pB ? 'up' : 'down'}">${B > pB ? '▲ +' : '▼ −'}${money0(Math.abs(B - pB))}</span>`;
   h += `<section class="hero"><div class="hero-l"><span>Beneficio</span>${dB}</div>
       <div class="big ${B < 0 ? 'neg' : ''}" id="heroNum" data-to="${B}">${splitC(money(B))}</div>
-      <div class="tiles two"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Gastos</span><b>${money0(Gs)}</b></div></div></section>${S.off === 0 ? `<div class="qa"><button class="btn btn-main" data-action="newSale">${G.sell}Apuntar venta</button><button class="btn btn-soft" data-action="newExpense">${G.bag}Gasto</button></div>` : ""}`;
+      ${heroTiles(r, F)}</section>${S.off === 0 ? `<div class="qa"><button class="btn btn-main" data-action="newSale">${G.sell}Apuntar venta</button><button class="btn btn-soft" data-action="newExpense">${G.bag}Gasto</button></div>` : ""}`;
   h += totalCard();
   h += letterCard();
   if (!cnt && !Gs) return h + empty(G.sell, 'Sin actividad', S.off === 0 ? 'Toca + cuando vendas algo.' : '', S.off === 0 ? '<button class="btn btn-main btn-sm" data-action="newSale">Apuntar venta</button>' : '');
@@ -1130,7 +1136,7 @@ function vPanel() {
   const nG = S.per === 'year' ? 12 : 6;
   const groups = Array.from({ length: nG }, (_, i) => {
     const rr = S.per === 'year' ? (() => { const y = periodR(S.off)[2].getFullYear(), d = new Date(y, i, 1); return [ymd(d), ymd(new Date(y, i + 1, 1)), d]; })() : monthR(S.off - (nG - 1) + i);
-    const f = fac(rr), g = gas(rr);
+    const f = fac(rr), g = r2(costV(rr) + gasG(rr));
     return { label: MONTHS[rr[2].getMonth()], vals: [f, g], cur: S.per === 'month' ? i === nG - 1 : false, tip: `${MONTHS_L[rr[2].getMonth()]} ${rr[2].getFullYear()}\nFacturación ${money(f)}\nGastos ${money(g)}\nBeneficio ${money(f - g)}` };
   });
   h += `<section class="card"><div class="ch"><h2>Evolución</h2><div class="legend"><span><i class="sw" style="background:var(--accent)"></i>Facturación</span><span><i class="sw" style="background:var(--mute)"></i>Gastos</span></div></div>
@@ -1159,7 +1165,7 @@ function vPanelDesk() {
   if (!loadedAll() || S.error) return h + loading();
   const r = periodR(S.off), pr = periodR(S.off - 1);
   const sl = okSales().filter(s => inR(s.date, r)), psl = okSales().filter(s => inR(s.date, pr));
-  const F = fac(r), Gs = gas(r), B = r2(F - Gs), pF = fac(pr), pB = r2(pF - gas(pr));
+  const F = fac(r), Gs = gas(r), B = ben(r), pF = fac(pr), pB = ben(pr);
   const uds = sum(sl, s => s.qty || 1), pu = sum(psl, s => s.qty || 1);
   const tk = sl.length ? r2(F / sl.length) : 0, ptk = psl.length ? r2(pF / psl.length) : 0;
   const wc = sl.filter(s => s.cost > 0), wcF = sum(wc, s => s.price), mg = wcF ? Math.round(sum(wc, saleProfit) / wcF * 100) : null;
@@ -1167,7 +1173,7 @@ function vPanelDesk() {
   const dB = B === pB ? '' : `<span class="delta ${B > pB ? 'up' : 'down'}">${B > pB ? '▲ +' : '▼ −'}${money0(Math.abs(B - pB))}</span>`;
   let g = `<section class="hero s5"><div class="hero-l"><span>Beneficio · ${periodName(S.off)}</span>${dB}</div>
       <div class="big ${B < 0 ? 'neg' : ''}" id="heroNum" data-to="${B}">${splitC(money(B))}</div>
-      <div class="tiles two"><div class="tile"><span>Facturación</span><b>${money0(F)}</b></div><div class="tile"><span>Gastos</span><b>${money0(Gs)}</b></div></div></section>`;
+      ${heroTiles(r, F)}</section>`;
   g += `<div class="kgrid s7">${kpi('Unidades vendidas', uds, deltaChip(uds, pu), `${sl.length} ${sl.length === 1 ? 'venta' : 'ventas'}`)}${kpi('Ticket medio', money(tk), deltaChip(tk, ptk), 'por venta')}${kpi('Margen', mg === null ? '—' : mg + ' %', '', mg === null ? 'Sin costes guardados' : 'de lo vendido con coste')}${kpi('Devoluciones', dev, '', dev ? Math.round(dev / (sl.length + dev) * 100) + ' % de las ventas' : 'Ninguna')}</div>`;
 
   /* evolución: 12 meses */

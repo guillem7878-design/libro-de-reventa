@@ -199,6 +199,7 @@ button.row:active { transform: none; opacity: .65; }
 .empty b { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
 .empty p { margin: 0 auto; max-width: 32ch; font-size: 14px; }
 .empty .btn { margin-top: 16px; }
+#saleF #pk { max-height: min(42vh, 330px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; border-radius: 14px; }
 /* carta de la semana */
 .lettercard { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; padding: 14px 16px; margin-bottom: 12px; }
 .lettercard .rm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .lettercard .rt { font-weight: 700; font-size: 15px; } .lettercard .rs { font-size: 12.5px; color: var(--ink2); }
@@ -1215,6 +1216,13 @@ function vPanelDesk() {
 }
 
 /* ---------- INICIO RÁPIDO (móvil) ---------- */
+/* los botones rápidos salen al abrir la app, antes de que lleguen tus datos: si aún no han llegado, la hoja espera
+   (así la venta ya trae tus móviles y tu stock) */
+function whenLoaded(title, fn) {
+  if (loadedAll()) return fn();
+  openSheet(title, '<p class="hint" style="margin:0">Cargando tus móviles y tu stock…</p><div class="skel"></div><div class="skel"></div>');
+  const t = setInterval(() => { if (!$('#sheet').classList.contains('show')) return clearInterval(t); if (loadedAll()) { clearInterval(t); fn(); } }, 120);
+}
 function vQuick() {
   const btn = (act, glyph, title) => `<button class="qk" data-action="${act}"><span class="qk-i">${glyph}</span><b>${title}</b></button>`;
   return `<div class="qs-grid">${btn('newSale', G.sell, 'Venta')}${btn('newBuy', G.cart, 'Compra')}${btn('qReturn', G.ret, 'Devolución')}${btn('qStock', G.inbox, 'Añadir stock')}</div>
@@ -2228,7 +2236,7 @@ document.addEventListener('click', async ev => {
     case 'delCat': if (catCur && await catRemove(catCur)) { closeSheet(); setTimeout(catalogSheet, 450); } break;
     case 'orderProduct': { const e = S.expenses.find(x => x.id === id); productForm(null, { orderId: id, cost: e && e.units ? r2(e.amount / e.units) : '' }); break; }
     // ventas
-    case 'newSale': saleForm(); break;
+    case 'newSale': whenLoaded('Nueva venta', () => saleForm()); break;
     case 'sale': saleDetail(id); break;
     // saldo
     case 'payout': payoutSheet(id); break;
@@ -2253,12 +2261,12 @@ document.addEventListener('click', async ev => {
         () => write(async () => { if (re) await setSizes(s.productId, sz => bumpSize(sz, s.size, -(s.qty || 1))); await db.doc('sales/' + id).set(copy); }, 'Venta recuperada'))) closeSheet(); break; }
     // gastos
     case 'newExpense': expenseForm(); break;
-    case 'newBuy': expenseForm(null, 'pedido'); break;
+    case 'newBuy': whenLoaded('Nueva compra', () => expenseForm(null, 'pedido')); break;
     case 'newGasto': expenseForm(null, 'otros'); break;
     // inicio rápido
-    case 'qReturn': returnPicker(); break;
+    case 'qReturn': whenLoaded('Devolución', returnPicker); break;
     case 'pickReturn': returnSheet(id); break;
-    case 'qStock': stockPicker(); break;
+    case 'qStock': whenLoaded('Añadir stock', stockPicker); break;
     case 'pickStock': addUnitsForm(id); break;
     case 'enterApp': enterApp(); break;
     case 'quickOn': S.quick = true; S.animate = true; closeSheet(); render(); toTop(); break;

@@ -2171,8 +2171,14 @@ function toast(msg, undoFn) {
   t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
   clearTimeout(tt); tt = setTimeout(() => { t.classList.remove('show'); undoAction = null; }, undoFn ? 6000 : 2400);
 }
+let hapT = 0;
+/* vibración sutil al tocar los controles: pestañas, +, botones rápidos, selectores, tallas, móviles, +/− */
+const HAP_SEL = '.tab, .fab, .qk, .round, .pill, .seg button, .chips label, .stepper button, .sk, .quick button, .mnav button, .btn-main, .lettercard, .x';
+document.addEventListener('click', ev => { const t = ev.target.closest && ev.target.closest(HAP_SEL); if (t && !t.disabled) haptic(1); }, true);
 function haptic(n = 1) {
+  const now = Date.now(); if (n === 1 && now - hapT < 90) return; hapT = now;   // sin dobles toques seguidos
   try { if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+    if (n === 1 && navigator.vibrate && !/iP(hone|ad|od)/.test(navigator.userAgent)) { navigator.vibrate(6); return; }
     if (navigator.vibrate && !/iP(hone|ad|od)/.test(navigator.userAgent)) { navigator.vibrate(n === 1 ? 10 : n === 2 ? [10, 110, 10] : [10, 90, 10, 90, 10]); return; }
     const l = document.createElement('label'), i = document.createElement('input'); i.type = 'checkbox'; i.setAttribute('switch', ''); l.style.display = 'none'; l.appendChild(i); document.head.appendChild(l); l.click(); l.remove(); } catch (e) {}
 }

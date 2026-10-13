@@ -363,7 +363,7 @@ export function createWorld(opts) {
     const drive = new THREE.Mesh(new THREE.BoxGeometry(DW.x1 - DW.x0, .1, DW.z1 - DW.z0), new THREE.MeshStandardMaterial({ map: paver, roughness: .95 }));
     drive.position.set((DW.x0 + DW.x1) / 2, -.03, (DW.z0 + DW.z1) / 2); drive.receiveShadow = true; world.add(drive);
     for (const z of [DW.z0 - .06, DW.z1]) block(DW.x1 - DW.x0 - .1, .06, .06, mat('#B5B8BE', { roughness: .9 }), DW.x0, -.01, z, world, false);   // bordillos de la entrada
-    const amg = hotHatch(); amg.position.set(RX - 2.7, .02, RZ + 2.7); amg.userData.tip = 'Mercedes-AMG A45'; world.add(amg);
+    // (sin coche aparcado)
     // banco de madera en la acera
     const bz = 5.1; block(.42, .05, 1.3, M.wood, RX + 1.42, .38, bz, world); block(.06, .38, 1.3, M.wood, RX + 1.78, .43, bz, world);
     for (const dz of [.08, 1.14]) { block(.36, .4, .06, M.dark, RX + 1.46, -.02, bz + dz, world); block(.05, .82, .06, M.dark, RX + 1.8, -.02, bz + dz, world); }

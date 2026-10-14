@@ -332,9 +332,32 @@
     idb.set('session', { r: session.refresh_token });
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
     sb.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_OUT') { idb.set('session', null); location.reload(); } else if (s && s.refresh_token) idb.set('session', { r: s.refresh_token }); });
-    sb.channel('docs-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, onRealtime).subscribe();
+    /* sincronización entre dispositivos: tiempo real + reconexión sola + repaso cada 15 s por si se pierde algún aviso */
+    let chan = null, lastAt = '';
+    const subscribe = () => { try { if (chan) sb.removeChannel(chan); } catch (e) {}
+      chan = sb.channel('docs-sync-' + Date.now()).on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, p => { const r = p.new || {}; if (r.updated_at && r.updated_at > lastAt) lastAt = r.updated_at; onRealtime(p); })
+        .subscribe(st => { if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') setTimeout(() => { if (document.visibilityState === 'visible') subscribe(); }, 4000); }); };
+    subscribe();
+    async function pullChanges() {   // trae lo que ha cambiado en otro dispositivo desde la última vez
+      if (!COLLS.every(c => loaded[c]) || navigator.onLine === false) return;
+      try {
+        if (!lastAt) { const { data } = await sb.from('docs').select('updated_at').order('updated_at', { ascending: false }).limit(1); lastAt = (data && data[0] && data[0].updated_at) || new Date(0).toISOString(); return; }
+        const { data, error } = await sb.from('docs').select('coll,id,data,updated_at').in('coll', COLLS).gt('updated_at', lastAt).order('updated_at', { ascending: true }).limit(500);
+        if (error || !data || !data.length) return;
+        const touched = new Set();
+        data.forEach(r => { if (!cache[r.coll]) return; cache[r.coll].set(r.id, r.data); touched.add(r.coll); if (r.updated_at > lastAt) lastAt = r.updated_at; });
+        touched.forEach(c => emit(c));
+      } catch (e) {}
+    }
+    function refreshAll() {          // recarga completa (así también se enteran los borrados)
+      COLLS.forEach(c => { if (!subs[c].length) return; const old = cache[c]; loaded[c] = false; loading[c] = null; cache[c] = new Map(); loadColl(c).catch(() => { cache[c] = old; loaded[c] = true; }); });
+    }
+    setInterval(() => { if (document.visibilityState === 'visible') pullChanges(); }, 15000);
+    setInterval(() => { if (document.visibilityState === 'visible' && COLLS.every(c => loaded[c])) refreshAll(); }, 120000);   // cada 2 min, repaso completo (borrados)
+    window.addEventListener('online', () => { subscribe(); refreshAll(); });
+    window.addEventListener('focus', () => pullChanges());
     // al volver a la app tras un rato, recarga por si se perdió algún evento
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - (window.__hiddenAt || Date.now()) > 30000) COLLS.forEach(c => { loaded[c] = false; loading[c] = null; cache[c] = new Map(); if (subs[c].length) loadColl(c).catch(() => {}); }); else if (document.visibilityState === 'hidden') window.__hiddenAt = Date.now(); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { const away = Date.now() - (window.__hiddenAt || Date.now()); if (away > 5000) { subscribe(); refreshAll(); } } else window.__hiddenAt = Date.now(); });
     // copia automática del día, cuando ya están cargados todos los datos
     { const t = setInterval(() => { if (COLLS.every(c => loaded[c])) { clearInterval(t); autoBackup(); } }, 3000); setTimeout(() => clearInterval(t), 120000); }
     // recordatorio diario del calentamiento (remind.js)

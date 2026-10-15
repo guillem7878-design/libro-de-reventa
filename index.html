@@ -1227,10 +1227,11 @@ function whenLoaded(title, fn) {
 }
 function quickExpense(kind, e) {
   const feat = kind === 'destacado', isNew = !e; e = e || {};
-  const what = feat ? String(e.concept || '').replace(/^Destacado( · )?/, '') : e.concept || '';
+  const what = feat ? (e.note != null ? e.note : e.productId ? '' : String(e.concept || '').replace(/^Destacado( · )?/, '')) : e.concept || '';
   openSheet(isNew ? (feat ? 'Destacado' : 'Nueva compra') : 'Editar', `<form class="f" id="qeF" novalidate>
     ${amountField('qe-amt', 'amount', feat ? 'Lo que te cuesta destacar' : 'Importe', e.amount || '')}
-    <div class="fld"><label for="qe-what">${feat ? 'Qué artículo (opcional)' : 'Qué has comprado'}</label><input id="qe-what" name="what" placeholder="${feat ? 'Samba Glitter Gold' : 'Escribe lo que has comprado'}" value="${esc(what)}" autocapitalize="sentences" autocomplete="off"></div>
+    ${feat && S.products.some(p => units(p) > 0) ? `<div class="fld"><label for="qe-prod">Artículo de tu stock</label><select id="qe-prod" name="productId"><option value="">— Ninguno —</option>${S.products.filter(p => units(p) > 0 || p.id === e.productId).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}" ${e.productId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : ''}
+    <div class="fld"><label for="qe-what">${feat ? 'Nota (opcional)' : 'Qué has comprado'}</label><input id="qe-what" name="what" placeholder="${feat ? 'Samba Glitter Gold' : 'Escribe lo que has comprado'}" value="${esc(what)}" autocapitalize="sentences" autocomplete="off"></div>
     ${accounts().length ? `<div class="fld" id="qeAcc"><span class="lbl">¿En qué móvil?</span>${phoneChips(e.account || lastAcc())}</div>` : ''}
     <div class="fld"><label for="qe-date">Fecha</label><input id="qe-date" name="date" type="date" value="${esc(e.date || today())}"></div>
     <button class="btn btn-main btn-block">${isNew ? 'Apuntar' : 'Guardar'}</button></form>`,
@@ -1240,7 +1241,8 @@ function quickExpense(kind, e) {
       if (!feat && !txt) return fieldErr('qe-what', 'Escribe qué has comprado');
       if (!account && accounts().length) return fieldErr('qeAcc', 'Elige el móvil');
       if (account) store.set('lastAcc', account);
-      const data = { concept: feat ? 'Destacado' + (txt ? ' · ' + txt : '') : txt, amount, category: kind, account, date: fd.get('date') || today(), units: 0 };
+      const pid = feat ? fd.get('productId') || '' : '', pp = pid && prod(pid);
+      const data = { concept: feat ? 'Destacado' + (pp ? ' · ' + pp.name : txt ? ' · ' + txt : '') : txt, amount, category: kind, account, date: fd.get('date') || today(), units: 0, productId: pid, note: feat ? txt : '' };
       const ok = await write(() => isNew ? db.collection('expenses').add({ ...data, createdAt: Date.now() }) : db.doc('expenses/' + e.id).update(data), isNew ? (feat ? 'Destacado apuntado' : 'Compra apuntada') + ' · −' + money(amount) : 'Guardado');
       if (ok) closeSheet();
     }, () => { fitAmounts(); setTimeout(() => { const i = $('#qe-amt'); if (i && isNew) i.focus(); }, 350); });

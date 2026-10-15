@@ -322,12 +322,18 @@
   const packedIds = () => { try { return new Set(JSON.parse(localStorage.getItem('almPacked') || '[]')); } catch (e) { return new Set(); } };
   window.almPackedIds = packedIds;
   const readyCount = () => { let s; try { s = new Set(JSON.parse(localStorage.getItem('almPacked') || '[]')); } catch (e) { s = new Set(); } return pend().filter(x => s.has(x.id)).length; };
+  const weekStart = () => { const t = today(), dow = (new Date(t + 'T00:00:00').getDay() + 6) % 7; return addDays(t, -dow); };
+  const weekSales = () => S.sales.filter(s => s.status !== 'devuelta' && (s.date || '') >= weekStart() && (s.date || '') <= today());
+  const FEAT_DAYS = 3;   // un destacado de Vinted dura 3 días
+  const featsAll = () => S.expenses.filter(e => e.category === 'destacado').sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const featLeft = e => FEAT_DAYS - (days(e.date, today()) || 0);
+  const featsActive = () => featsAll().filter(e => featLeft(e) > 0);
   function data3d() {
     return {
       products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
       accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) })),
       pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
-      letter: loadedAll() && letterUnread(), incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
+      letter: loadedAll() && letterUnread(), weekUnits: sum(weekSales(), s => s.qty || 1), feats: featsActive().filter(e => e.productId).map(e => ({ productId: e.productId, tip: 'Destacado · ' + (prod(e.productId) || {}).name + ' · quedan ' + featLeft(e) + (featLeft(e) === 1 ? ' día' : ' días') })), incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
     };
   }
   /* panel lateral de cada zona, como la ficha de «Rayon A» del vídeo */
@@ -357,6 +363,21 @@
       return pHead('Preparación', 'Ventas de hoy', 'La vagoneta sale cada día', [['Por preparar', todo.length], ['En la vagoneta', tub.length], ['Importe', money(sum(l, s => s.price))]]) +
         `<div class="ap-l">Por preparar</div><div class="ap-list">${todo.length ? todo.map(s => row(s, '<span class="ap-chip">Preparando</span>')).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
         <div class="ap-l">En la vagoneta</div><div class="ap-list">${tub.length ? tub.map(s => row(s, '<span class="ap-chip ok">En la vagoneta</span>')).join('') : '<p class="ap-empty">La vagoneta está vacía.</p>'}</div>`;
+    }
+    if (k === 'week') {
+      const l = weekSales().slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')), u = sum(l, s => s.qty || 1), fac = sum(l, s => s.price), bn = sum(l, s => (s.price || 0) - (s.cost || 0));
+      const byDay = {}; l.forEach(s => (byDay[s.date] = byDay[s.date] || []).push(s));
+      return pHead('Esta semana', 'Ventas de la semana', 'Desde el lunes ' + fmtDate(weekStart()), [['Ventas', l.length], ['Unidades', u], ['Facturado', money(fac)], ['Ganado', money(bn)]]) +
+        (l.length ? Object.keys(byDay).sort().reverse().map(d => `<div class="ap-l">${dayLabel(d)}</div><div class="ap-list">${byDay[d].map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), esc(accName(s.account, s.accountName)), '<span class="ap-chip ok">' + money(s.price) + '</span>')).join('')}</div>`).join('') : '<p class="ap-empty">Aún no has vendido nada esta semana.</p>');
+    }
+    if (k === 'feat') {
+      const all = featsAll(), act = featsActive(), wk = all.filter(e => (e.date || '') >= weekStart()), mo = all.filter(e => (e.date || '').slice(0, 7) === today().slice(0, 7));
+      const row = e => { const p = prod(e.productId), left = featLeft(e), sold = p ? S.sales.some(s => s.productId === p.id && s.status !== 'devuelta' && (s.date || '') >= e.date) : false;
+        return rowBtn('expense', e.id, esc(p ? p.name : String(e.concept || 'Destacado').replace(/^Destacado( · )?/, '') || 'Destacado'), esc(accName(e.account)) + ' · ' + fmtDate(e.date) + (sold ? ' · vendido después' : ''), '<span class="ap-chip ' + (left > 0 ? 'ok' : 'no') + '">' + (left > 0 ? 'Activo · ' + left + (left === 1 ? ' día' : ' días') : money(e.amount)) + '</span>'); };
+      return pHead('Destacados', 'Artículos destacados', 'Cada destacado dura ' + FEAT_DAYS + ' días', [['Activos', act.length], ['Esta semana', money(sum(wk, e => e.amount))], ['Este mes', money(sum(mo, e => e.amount))], ['En total', all.length]]) +
+        `<div class="ap-l">Activos</div><div class="ap-list">${act.length ? act.map(row).join('') : '<p class="ap-empty">Ningún artículo destacado ahora mismo.</p>'}</div>` +
+        (all.length > act.length ? `<div class="ap-l">Anteriores</div><div class="ap-list">${all.filter(e => featLeft(e) <= 0).slice(0, 12).map(row).join('')}</div>` : '') +
+        '<div class="ap-f"><button class="btn btn-main btn-block" data-action="qFeat">Destacar un artículo</button></div>';
     }
     if (k === 'out') {
       const l = sentWeek().sort((a, b) => (b.shippedAt || b.date || '').localeCompare(a.shippedAt || a.date || ''));
@@ -414,6 +435,8 @@
       <div class="alm-zoom"><button data-action="alm-zin" aria-label="Acercar">${IC.plus}</button><button data-action="alm-zout" aria-label="Alejar">${IC.minus}</button><button data-action="alm-open" data-id="overview" aria-label="Vista general">${IC.home}</button></div>
       <div class="alm-dock">
         <div class="ad-st"><b>${salesT.length}</b><span>ventas hoy</span></div>
+        <button class="ad-st" data-action="alm-open" data-id="week" style="cursor:pointer"><b>${weekSales().length}</b><span>esta semana</span></button>
+        ${featsActive().length ? `<button class="ad-st ad-ship" data-action="alm-open" data-id="feat" style="cursor:pointer"><b>${featsActive().length} ${featsActive().length === 1 ? 'destacado' : 'destacados'}</b><span>${featsActive().length === 1 ? 'activo ahora' : 'activos ahora'}</span></button>` : ''}
         <div class="ad-st"><b>${money0(sum(salesT, s => s.price))}</b><span>facturado hoy</span></div>
         <div class="ad-st"><b id="aiReady">${readyCount()}/${pend().length}</b><span>en la vagoneta</span></div>
         <div class="ad-st"><b>${sum(S.products, units)}</b><span>uds en stock</span></div>

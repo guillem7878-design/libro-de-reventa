@@ -19,9 +19,10 @@ const TABLE = [4.4, 3.3, 2.0, .9];
 const DOOR = { z0: 1.3, z1: 2.4 };                                       // puerta a la calle (lado derecho)
 const PALLET = [8.2, .35];                                               // recepción (lo que llega)
 const TUB = [8.5, 3.3, .95, .75];                                        // salida (lo que se va)
-const LANE = RX + 3.3;                                                    // carril de la furgoneta
+const LANE = RX + 4.3;                                                    // carril de la furgoneta
 export const ZONES = {
   overview: { at: [6.1, .7, 5.5], zoom: 1 },
+  week: { at: [RX - 3.2, .5, RZ + 2.75], zoom: 3 },
   in: { at: [9.4, .5, 1.2], zoom: 2.6 },
   stock: { at: [1.6, .8, 3.4], zoom: 2.1 },
   prep: { at: [5.4, .5, 3.8], zoom: 2.8 },
@@ -243,7 +244,7 @@ export function createWorld(opts) {
   const C = (x) => new THREE.Color(x);
   const SKY = { day: C('#C7D0D8'), night: C('#141A28') };
   const skyScene = new THREE.Scene(); skyScene.background = SKY.day.clone();
-  const ISL = { x0: -2.6, x1: RX + 4.6, z0: -4.6, z1: RZ + 4.6 };
+  const ISL = { x0: -2.6, x1: RX + 9.6, z0: -4.6, z1: RZ + 4.6 };
   const island = [new THREE.Plane(new THREE.Vector3(1, 0, 0), -ISL.x0), new THREE.Plane(new THREE.Vector3(-1, 0, 0), ISL.x1), new THREE.Plane(new THREE.Vector3(0, 0, 1), -ISL.z0), new THREE.Plane(new THREE.Vector3(0, 0, -1), ISL.z1)];
   const roomLight = new THREE.PointLight('#FFD9A8', 0, 0, 2); roomLight.position.set(5.2, 2.35, 3.4); scene.add(roomLight);
   const roomLight2 = new THREE.PointLight('#FFD9A8', 0, 0, 2); roomLight2.position.set(1.6, 2.35, 2.2); scene.add(roomLight2);
@@ -348,6 +349,8 @@ export function createWorld(opts) {
   block(ISL.x1 - ISL.x0, .1, ISL.z1 - ISL.z0, M.grass, ISL.x0, -.2, ISL.z0, world, false);
   block(ISL.x1 - ISL.x0, .7, ISL.z1 - ISL.z0, mat('#3A2F28', { roughness: 1 }), ISL.x0, -.9, ISL.z0, world, false); block(ISL.x1 - ISL.x0, .12, ISL.z1 - ISL.z0, mat('#55473B', { roughness: 1 }), ISL.x0, -.32, ISL.z0, world, false);
   block(2.0, .12, 34, M.walk, RX + .14, -.13, -14, world, false); block(.14, .14, 34, M.curb, RX + 2.14, -.13, -14, world, false);
+  block(7.2, .1, 34, M.road, RX + 2.28, -.16, -14, world, false);
+  for (let z = -14; z < 20; z += 2.4) block(.14, .01, 1.3, M.lane, RX + 5.88, -.06, z, world, false);
   for (const z of [-3.4, -.8]) { block(.2, .9, .2, M.trunk, RX + 1.0, -.01, z, world); for (const [dx, dy, s] of [[0, 1.6, .7], [.2, 1.95, .45], [-.2, 1.85, .5]]) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), dx ? M.leaf2 : M.leaf); c.position.set(RX + 1.1 + dx, dy, z + .1); c.castShadow = true; world.add(c); } }
   {
     const hedge = mat('#6E9A6A', { roughness: 1 }), pot = mat('#3A3E47', { roughness: .8 }), flower = ['#E8B4B8', '#F2D398', '#C9B6E4', '#F4F1EA'].map(c => mat(c, { roughness: 1 }));
@@ -355,12 +358,6 @@ export function createWorld(opts) {
     for (const [x0, x1] of [[-.1, 3.0], [3.8, 7.6], [8.4, RX - .1]]) { block(x1 - x0, .32, .34, hedge, x0, -.1, RZ + .55, world); for (let x = x0 + .15; x < x1 - .1; x += .3) ball(.17, hedge, x, .22, RZ + .72, world, 1, .7, 1); }
     // jardineras con flores a los lados de la puerta
     for (const z of [DOOR.z0 - .55, DOOR.z1 + .2]) { block(.4, .3, .36, pot, RX + .25, -.02, z, world); for (let i = 0; i < 5; i++) ball(.07, flower[i % 4], RX + .33 + (i % 3) * .12, .33, z + .08 + (i % 2) * .16, world); ball(.14, M.leaf2, RX + .45, .3, z + .18, world, 1.3, .6, 1); }
-    // entrada de coches con el deportivo aparcado
-    const DW = { x0: RX - 5.4, x1: RX + 2.28, z0: RZ + 1.55, z1: RZ + 3.85 };
-    const paver = tex(128, 128, (g, w2, h2) => { g.fillStyle = '#8E9198'; g.fillRect(0, 0, w2, h2); g.strokeStyle = 'rgba(40,42,48,.35)'; g.lineWidth = 2; for (let y = 0; y < h2; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(w2, y); g.stroke(); for (let x = (y / 32) % 2 ? 16 : 0; x < w2; x += 32) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 32); g.stroke(); } } noise(g, w2, h2, 500, .06); }, [(DW.x1 - DW.x0) / 1.2, (DW.z1 - DW.z0) / 1.2]);
-    const drive = new THREE.Mesh(new THREE.BoxGeometry(DW.x1 - DW.x0, .1, DW.z1 - DW.z0), new THREE.MeshStandardMaterial({ map: paver, roughness: .95 }));
-    drive.position.set((DW.x0 + DW.x1) / 2, -.03, (DW.z0 + DW.z1) / 2); drive.receiveShadow = true; world.add(drive);
-    for (const z of [DW.z0 - .06, DW.z1]) block(DW.x1 - DW.x0 - .1, .06, .06, mat('#B5B8BE', { roughness: .9 }), DW.x0, -.01, z, world, false);   // bordillos de la entrada
     // (sin coche aparcado)
     // banco de madera en la acera
     const bz = 5.1; block(.42, .05, 1.3, M.wood, RX + 1.42, .38, bz, world); block(.06, .38, 1.3, M.wood, RX + 1.78, .43, bz, world);
@@ -454,15 +451,17 @@ export function createWorld(opts) {
   const zret = zone('ret'); block(1.1, .55, .8, M.white, 7.9, 0, 5.6, zret); block(1.0, .02, .7, M.lgrey, 7.95, .53, 5.65, zret);
   const retItems = new THREE.Group(); zret.add(retItems);
 
-  /* pila de la semana: un paquete por cada unidad vendida desde el lunes */
-  const weekG = new THREE.Group(); weekG.userData.zone = 'week'; weekG.userData.tip = 'Ventas de esta semana'; world.add(weekG);
-  const WP = [.4, RZ + 2.3];
-  for (const dz of [0, .5, 1.0]) block(1.25, .1, .14, M.woodD, WP[0], 0, WP[1] + dz, weekG);
-  for (let i = 0; i < 7; i++) block(.15, .03, 1.14, M.wood, WP[0] + i * .183, .1, WP[1], weekG);
+  /* carro de la semana: una caja por cada unidad vendida desde el lunes, apiladas en un carro de plataforma */
+  const weekG = new THREE.Group(); weekG.userData.zone = 'week'; weekG.userData.tip = 'Ventas de esta semana'; weekG.position.set(RX - 3.2, 0, RZ + 2.75); weekG.rotation.y = -.18; world.add(weekG);
+  { const deck = mat('#3A3F48', { roughness: .6, metalness: .3 }), rub = mat('#22252B', { roughness: .9 });
+    block(1.5, .06, .9, deck, -.75, .2, -.45, weekG); block(1.54, .02, .94, rub, -.77, .26, -.47, weekG);           // plataforma con alfombrilla
+    for (const [x, z] of [[-.62, -.34], [.62, -.34], [-.62, .34], [.62, .34]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(.09, .09, .06, 16), M.tyre); w.rotation.x = Math.PI / 2; w.position.set(x, .09, z); weekG.add(w); block(.04, .1, .04, M.chrome, x - .02, .12, z - .02, weekG); }
+    for (const z of [-.42, .42]) block(.035, .95, .035, M.chrome, -.78, .26, z - .0175, weekG); block(.035, .035, .88, M.chrome, -.78, 1.2, -.44, weekG);   // asa
+  }
   const weekBoxes = new THREE.Group(); weekG.add(weekBoxes);
-  function drawWeek(n) { clear(weekBoxes); n = Math.min(n, 60);
-    for (let i = 0; i < n; i++) { const lay = Math.floor(i / 6), k = i % 6, col = k % 3, row = Math.floor(k / 3), rot = ((i * 7) % 5 - 2) * .03;
-      const b = parcel(.36, .26, .5, WP[0] + .04 + col * .4, .13 + lay * .27, WP[1] + .04 + row * .54, weekBoxes); b.rotation.y = rot; b.castShadow = true; } }
+  function drawWeek(n) { clear(weekBoxes); n = Math.min(n, 42);
+    for (let i = 0; i < n; i++) { const lay = Math.floor(i / 6), k = i % 6, col = k % 3, row = Math.floor(k / 3), rot = ((i * 7) % 5 - 2) * .04;
+      const b = parcel(.4, .24, .38, -.66 + col * .44, .28 + lay * .25, -.41 + row * .42, weekBoxes); b.rotation.y = rot; b.castShadow = true; } }
   /* destacados: una estrella dorada que gira encima del artículo */
   const featG = new THREE.Group(); world.add(featG);
   const featMat = mat('#E9C46A', { emissive: '#D4A23A', emissiveIntensity: .9, roughness: .3, metalness: .4 });
@@ -475,13 +474,50 @@ export function createWorld(opts) {
       const g = new THREE.Group(); g.position.set(p.x + (p.x < .8 ? .45 : 0), p.y + .32, p.z); g.userData = { zone: 'feat', tip: f.tip, y: g.position.y, ph: i * 1.3 }; featG.add(g);
       const st = new THREE.Mesh(featGeo, featMat); g.add(st);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(.17, .008, 6, 32), featMat); ring.rotation.x = Math.PI / 2; ring.position.y = -.12; g.add(ring); }); }
+  /* tele de destacados: pantalla en directo con todo lo gastado en destacar */
+  const tvC = document.createElement('canvas'); tvC.width = 640; tvC.height = 360; const tvX = tvC.getContext('2d');
+  const tvT = new THREE.CanvasTexture(tvC); tvT.colorSpace = THREE.SRGBColorSpace; tvT.anisotropy = 4;
+  const tvG = new THREE.Group(); tvG.userData.zone = 'feat'; tvG.userData.tip = 'Destacados'; tvG.position.set(8.7, 1.72, 0); world.add(tvG);
+  block(1.56, .9, .05, M.dark, -.78, -.45, .002, tvG); block(1.6, .04, .06, mat('#1A1B1F'), -.8, -.47, 0, tvG);
+  const tvS = new THREE.Mesh(new THREE.PlaneGeometry(1.46, .82), new THREE.MeshBasicMaterial({ map: tvT, toneMapped: false })); tvS.position.set(0, 0, .056); tvG.add(tvS);
+  block(.2, .02, .08, M.dark, -.1, -.5, .02, tvG);   // soporte
+  let tvData = { total: 0, month: 0, week: 0, active: [], last7: [0, 0, 0, 0, 0, 0, 0] }, tvShown = 0, tvTick = 0;
+  const eur = n => (Math.round(n * 100) / 100).toLocaleString('es-ES', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 }) + ' €';
+  function drawTV(t) {
+    const g = tvX, W2 = 640, H2 = 360;
+    const bg = g.createLinearGradient(0, 0, W2, H2); bg.addColorStop(0, '#0E1220'); bg.addColorStop(1, '#1B1630'); g.fillStyle = bg; g.fillRect(0, 0, W2, H2);
+    // brillo que barre la pantalla
+    const sx = ((t * 90) % (W2 + 400)) - 200, sh = g.createLinearGradient(sx - 120, 0, sx + 120, 0); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(.5, 'rgba(255,255,255,.05)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillRect(0, 0, W2, H2);
+    g.font = '800 26px Manrope, Arial, sans-serif'; g.fillStyle = '#E9C46A'; g.textBaseline = 'top'; g.fillText('★ DESTACADOS', 28, 24);
+    const live = Math.sin(t * 4) > 0; g.fillStyle = live ? '#FF3B4A' : 'rgba(255,59,74,.35)'; g.beginPath(); g.arc(W2 - 140, 38, 8, 0, 7); g.fill();
+    g.fillStyle = '#F2F1ED'; g.font = '700 18px Manrope, Arial, sans-serif'; g.fillText('EN DIRECTO', W2 - 124, 28);
+    // contador del total (sube animado cuando cambia)
+    tvShown += (tvData.total - tvShown) * .08; if (Math.abs(tvData.total - tvShown) < .005) tvShown = tvData.total;
+    g.fillStyle = '#9C9B94'; g.font = '600 18px Manrope, Arial, sans-serif'; g.fillText('Gastado en destacar', 28, 78);
+    g.fillStyle = '#FFFFFF'; g.font = '800 76px Manrope, Arial, sans-serif'; g.fillText(eur(tvShown), 26, 100);
+    g.font = '700 20px Manrope, Arial, sans-serif'; g.fillStyle = '#E9C46A'; g.fillText(tvData.active.length + (tvData.active.length === 1 ? ' activo' : ' activos'), 28, 192);
+    g.fillStyle = '#9C9B94'; g.fillText('· semana ' + eur(tvData.week) + ' · mes ' + eur(tvData.month), 28 + g.measureText(tvData.active.length + (tvData.active.length === 1 ? ' activo' : ' activos')).width + 10, 192);
+    // barras de los últimos 7 días
+    const mx = Math.max(1, ...tvData.last7), bx = W2 - 220, by = 210;
+    tvData.last7.forEach((v, i) => { const h = 6 + v / mx * 110; g.fillStyle = i === 6 ? '#E9C46A' : 'rgba(233,196,106,.45)'; g.fillRect(bx + i * 28, by - h, 18, h); });
+    g.fillStyle = '#6B6B66'; g.font = '600 14px Manrope, Arial, sans-serif'; g.fillText('últimos 7 días', bx, by + 8);
+    // cinta con los destacados activos y su cuenta atrás
+    g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, H2 - 70, W2, 70); g.fillStyle = '#E9C46A'; g.fillRect(0, H2 - 70, W2, 3);
+    const items = tvData.active.length ? tvData.active.map(a => { const ms = Math.max(0, a.ends - Date.now()), d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4); return '★ ' + a.name + '  ·  quedan ' + (d ? d + ' d ' : '') + h + ' h ' + m + ' min'; }) : ['Ningún artículo destacado ahora mismo  ·  toca la tele para destacar uno'];
+    g.font = '700 24px Manrope, Arial, sans-serif'; g.fillStyle = '#F2F1ED';
+    const txt = items.join('        '), tw = g.measureText(txt).width + 160, off = (t * 70) % tw;
+    for (let x = -off; x < W2; x += tw) g.fillText(txt, 20 + x, H2 - 50);
+    // líneas de barrido sutiles
+    g.fillStyle = 'rgba(255,255,255,.025)'; for (let y = 0; y < H2; y += 4) g.fillRect(0, y, W2, 1);
+    tvT.needsUpdate = true;
+  }
   /* ---------- gente, furgoneta y coches ---------- */
   const P = person(); world.add(P.g); P.g.position.set(TABLE[0] + 1.0, 0, TABLE[1] - .4);
   const courier = person('#FFCC00', M.red); courier.g.visible = false; world.add(courier.g);
   const V = van(); world.add(V.g); V.g.visible = false; V.g.position.set(LANE, 0, -22);
   const PL = plane(); PL.scale.setScalar(.42); PL.visible = false; scene.add(PL); let planeOn = false, planeT = 60;
   const cars = ['#E8E6E1', '#2B2D33', '#B9BCC2', '#8FA3B8', '#A53A3A'].map(c => { const k = car(c); world.add(k.g); k.g.visible = false; return k; });
-  let carT = Infinity, carI = 0; const carRuns = [];   // sin carretera, sin tráfico
+  let carT = 3, carI = 0; const carRuns = [];
 
   /* ---------- datos → objetos (cantidades reales) ---------- */
   const clear = g => { while (g.children.length) g.remove(g.children[g.children.length - 1]); };
@@ -551,7 +587,7 @@ export function createWorld(opts) {
     clear(phones);
     d.accounts.slice(0, 8).forEach((a, i) => { const g = new THREE.Group(); g.userData.tip = a.tip; g.userData.account = a.id; phones.add(g);
       block(.08, .014, .15, M.dark, DESK[0] + .1 + i * .11, .79, DESK[1] + .6, g); block(.07, .005, .13, a.warm ? mat(ACC, { emissive: ACC, emissiveIntensity: .5 }) : M.screen, DESK[0] + .105 + i * .11, .806, DESK[1] + .61, g); });
-    vanMode = d.vanMode; planeOn = !!d.plane; letterOn = !!d.letter; drawWeek(d.weekUnits || 0); drawFeats(d.feats);
+    vanMode = d.vanMode; planeOn = !!d.plane; letterOn = !!d.letter; drawWeek(d.weekUnits || 0); drawFeats(d.feats); if (d.featTV) tvData = d.featTV;
     pins = d.alerts; for (const id of [...packed]) if (!d.pend.some(s => s.id === id)) packed.delete(id); savePacked(); drawTub(); plan();
   }
 
@@ -846,6 +882,7 @@ export function createWorld(opts) {
     if (D) tickWorker(dt, clock2); tickStreet(dt, clock2);
     letterM.visible = letterOn; flag.rotation.z = letterOn ? 0 : -1.5; if (letterOn) letterM.position.y = 1.1 + Math.sin(clock2 * 2) * .015;
     featG.children.forEach(g => { g.rotation.y = clock2 * 1.6 + g.userData.ph; g.position.y = g.userData.y + Math.sin(clock2 * 2.2 + g.userData.ph) * .05; const s = 1 + Math.sin(clock2 * 3 + g.userData.ph) * .06; g.scale.setScalar(s); });
+    tvTick += dt; if (tvTick > 1 / 24) { tvTick = 0; drawTV(clock2); }
     tickNight(dt, clock2); placeCam(dt); sky.position.copy(cam.position); sky.quaternion.copy(cam.quaternion); sky.scale.setScalar(1 / zoom);
     renderer.clear(); renderer.clippingPlanes = []; renderer.render(skyScene, cam); renderer.clearDepth(); renderer.clippingPlanes = island; renderer.render(scene, cam);
     if (opts.onFrame) opts.onFrame({
@@ -866,6 +903,9 @@ export function createWorld(opts) {
       if (k === 'zapatillas') {          // de frente a la pared de zapatillas, a la altura de las cajas
         front = true; const len = SW.bays * SW.bay; lookTo.set(.3, SW.levels * SW.lv / 2 + .05, SW.z0 + len / 2 - .85);
         azTo = Math.PI / 2; elTo = .1; nearTo = R - 1.55; zoomTo = Math.min(5, VIEW / (SW.levels * SW.lv + 1.6)); idle = 0; return;
+      }
+      if (k === 'feat') {                // de frente a la tele de destacados
+        front = true; lookTo.set(8.7, 1.62, .1); azTo = 0; elTo = .14; nearTo = R - 1.6; zoomTo = VIEW / 1.9; idle = 0; return;
       }
       front = false; elTo = EL; nearTo = 10;
       const s = SIGNS[k]; const Zn = ZONES[k] || (s && { at: [s[0] + .6, .7, s[2]], zoom: 2.3 }); if (!Zn) return; lookTo.set(...Zn.at); zoomTo = Zn.zoom; azTo = Math.PI / 4; idle = 0; },

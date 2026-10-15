@@ -333,7 +333,11 @@
       products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
       accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) })),
       pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
-      letter: loadedAll() && letterUnread(), weekUnits: sum(weekSales(), s => s.qty || 1), feats: featsActive().filter(e => e.productId).map(e => ({ productId: e.productId, tip: 'Destacado · ' + (prod(e.productId) || {}).name + ' · quedan ' + featLeft(e) + (featLeft(e) === 1 ? ' día' : ' días') })), incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
+      letter: loadedAll() && letterUnread(), weekUnits: sum(weekSales(), s => s.qty || 1), featTV: (() => { const all = featsAll(), wk = weekStart(), mo = today().slice(0, 7);
+        const ends = e => (e.createdAt ? e.createdAt : new Date(e.date + 'T00:00:00').getTime()) + FEAT_DAYS * 864e5;
+        return { total: sum(all, e => e.amount), week: sum(all.filter(e => (e.date || '') >= wk), e => e.amount), month: sum(all.filter(e => (e.date || '').slice(0, 7) === mo), e => e.amount),
+          active: all.filter(e => ends(e) > Date.now()).map(e => ({ name: (prod(e.productId) || {}).name || String(e.concept || 'Destacado').replace(/^Destacado( · )?/, '') || 'Destacado', ends: ends(e) })),
+          last7: [6, 5, 4, 3, 2, 1, 0].map(n => sum(all.filter(e => e.date === addDays(today(), -n)), e => e.amount)) }; })(), feats: featsActive().filter(e => e.productId).map(e => ({ productId: e.productId, tip: 'Destacado · ' + (prod(e.productId) || {}).name + ' · quedan ' + featLeft(e) + (featLeft(e) === 1 ? ' día' : ' días') })), incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
     };
   }
   /* panel lateral de cada zona, como la ficha de «Rayon A» del vídeo */

@@ -358,6 +358,12 @@ form.f { display: flex; flex-direction: column; gap: 14px; }
 .mrows { display: flex; flex-direction: column; margin-top: 8px; }
 .mrow { display: flex; align-items: center; gap: 12px; padding: 11px 0; width: 100%; text-align: left; }
 .mrow + .mrow { border-top: 1px solid var(--bd); }
+.movt { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; text-align: left; padding: 0; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.movt .movs { font-size: 12.5px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.movt .movc { display: inline-flex; width: 16px; height: 16px; color: var(--ink3); transform: rotate(90deg); transition: transform .2s; flex: none; }
+.movt .movc svg { width: 16px; height: 16px; }
+.movcard.open .movc { transform: rotate(-90deg); }
+.movcard:not(.open) .ch { margin-bottom: 0; }
 .mrow .rs { display: block; margin-top: 2px; }
 .chainbar { display: flex; gap: 2px; height: 5px; margin-top: 7px; max-width: 220px; border-radius: 3px; overflow: hidden; }
 .chainbar i { display: block; min-width: 6px; }
@@ -1248,8 +1254,9 @@ function vPanelDesk() {
   g += `<section class="card s4"><div class="ch"><h2>Tallas más vendidas</h2></div>${szl.length ? hbars(szl.map(([t, n]) => [t, n, '×' + n])) : noData('Sin tallas en este periodo.')}</section>`;
 
   /* últimos movimientos */
-  const mv = allMoves().slice(0, 12), days0 = []; mv.forEach(m => { const x = days0[days0.length - 1]; if (x && x.d === m.d) x.m.push(m); else days0.push({ d: m.d, m: [m] }); });
-  g += `<section class="card s8"><div class="ch"><h2>Últimos movimientos</h2><button class="lnk" data-action="tab" data-tab="movs">Ver todos${G.right}</button></div>${mv.length ? days0.map(x => `<div class="day"><span>${dayLabel(x.d)}</span></div><div class="rows">${x.m.map(moveRow).join('')}</div>`).join('') : noData('Aún no hay movimientos.')}</section>`;
+  const wk0 = addDays(today(), -6), mv = allMoves().filter(m => (m.d || '') >= wk0 && (m.d || '') <= today()), days0 = [], movOpen = store.get('movOpen') === '1'; mv.forEach(m => { const x = days0[days0.length - 1]; if (x && x.d === m.d) x.m.push(m); else days0.push({ d: m.d, m: [m] }); });
+  const mvSum = [mv.filter(m => m.k === 'venta').length + ' ventas', mv.filter(m => m.k === 'gasto').length + ' gastos', mv.filter(m => m.k === 'entrada').length ? mv.filter(m => m.k === 'entrada').length + ' entradas de stock' : '', mv.filter(m => m.k === 'dev').length ? mv.filter(m => m.k === 'dev').length + ' devoluciones' : ''].filter(Boolean).join(' · ');
+  g += `<section class="card s8 movcard${movOpen ? ' open' : ''}"><div class="ch"><button class="movt" data-action="movToggle" aria-expanded="${movOpen}"><h2>Últimos movimientos</h2><span class="movs">Esta semana · ${mv.length ? mvSum : 'sin movimientos'}</span><i class="movc">${G.chev}</i></button><button class="lnk" data-action="tab" data-tab="movs">Ver todos${G.right}</button></div>${!movOpen ? '' : mv.length ? days0.map(x => `<div class="day"><span>${dayLabel(x.d)}</span></div><div class="rows">${x.m.map(moveRow).join('')}</div>`).join('') : noData('Aún no hay movimientos.')}</section>`;
 
   /* stock */
   const stU = sum(S.products, units), stC = r2(sum(S.products, p => units(p) * (p.cost || 0))), stP = r2(sum(S.products, p => units(p) * (p.price || 0)));
@@ -2382,6 +2389,7 @@ document.addEventListener('click', async ev => {
     case 'saldo': saldoSheet(); break;
     case 'letter': letterSheet(); break;
     case 'mails': mailSheet(); break;
+    case 'movToggle': haptic(1); store.set('movOpen', store.get('movOpen') === '1' ? '0' : '1'); render(); break;
     case 'ships': shipsSheet(); break;
     case 'editExpense': { const e = S.expenses.find(x => x.id === id); if (e && (e.category === 'compra' || e.category === 'destacado')) quickExpense(e.category, e); else expenseForm(e); break; }
     case 'delExpense': { const e = S.expenses.find(x => x.id === id); if (!e) break; const copy = strip(e);

@@ -281,7 +281,7 @@
     return ls.length ? ls.join(' · ') : { zapatillas: 'Zapatillas', jellycat: 'Peluches', futbol: 'Ropa', otro: 'Otros' }[z]; };
   const CATN = {}; Object.keys(ZK).forEach(z => Object.defineProperty(CATN, z, { get: () => zoneName(z), enumerable: true }));
   const SPOTN = { zapatillas: 'Pared de zapatillas', jellycat: 'Montón de peluches', futbol: 'Burro de ropa', otro: 'Estantería baja' };
-  const ZBTN = [['overview', 'Vista general'], ['in', 'Recepción'], ['stock', 'Stock'], ['prep', 'Preparación'], ['out', 'Salida'], ['chain', 'Cadena'], ['office', 'Escritorio'], ['ret', 'Devoluciones']];
+  const ZBTN = [['overview', 'Ciudad'], ['shop', 'Tienda'], ['phones', 'Móviles'], ['post', 'Envíos'], ['bank', 'Banco'], ['chain', 'Cadena'], ['in', 'Recepción'], ['stock', 'Stock'], ['prep', 'Preparación'], ['out', 'Salida'], ['ret', 'Devoluciones']];
   let world = null, loading3d = null, panelK = null, activeZ = 'overview';
   const IC = {
     pin: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z"/></svg>',
@@ -347,7 +347,7 @@
   function data3d() {
     return {
       products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
-      accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, mail: !!x.email, buzz: !!x.email && (S.mailin || []).some(m => (m.createdAt || 0) > Date.now() - 6e5 && String(m.to || '').toLowerCase().includes(String(x.email).toLowerCase())), tip: x.name + ' · saldo ' + money(balance(x.id).saldo) + (x.email ? ' · correo conectado' : '') })),
+      accounts: accounts().map(x => ({ id: x.id, name: x.name, saldo: money(balance(x.id).saldo), pend: money(balance(x.id).pend), toShip: S.sales.filter(s => s.account === x.id && shipOpen(s)).length, month: S.sales.filter(s => s.account === x.id && s.status !== 'devuelta' && (s.date || '').slice(0, 7) === today().slice(0, 7)).length, warm: !!x.warm, mail: !!x.email, buzz: !!x.email && (S.mailin || []).some(m => (m.createdAt || 0) > Date.now() - 6e5 && String(m.to || '').toLowerCase().includes(String(x.email).toLowerCase())), tip: x.name + ' · saldo ' + money(balance(x.id).saldo) + (x.email ? ' · correo conectado' : '') })),
       pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), mail: mailOn(s.account), labelAt: s.labelAt || '', carrier: s.carrier || '', tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
       letter: loadedAll() && letterUnread(), weekUnits: sum(weekSales(), s => s.qty || 1), featTV: (() => { const all = featsAll(), wk = weekStart(), mo = today().slice(0, 7);
         const ends = e => (e.createdAt ? e.createdAt : new Date(e.date + 'T00:00:00').getTime()) + FEAT_DAYS * 864e5;
@@ -368,10 +368,10 @@
         `<div class="ap-l">Inventario</div><div class="ap-list">${ps.length ? ps.map(p => rowBtn('product', p.id, esc(p.name), (p.sizes || []).filter(s => s.q > 0).map(s => esc(s.s) + ' ×' + s.q).join(' · ') || 'Sin unidades', chip(units(p)))).join('') : '<p class="ap-empty">No hay productos en esta estantería.</p>'}</div>
         <div class="ap-f"><button class="btn btn-main btn-block" data-action="newProduct">Añadir producto</button></div>`;
     }
-    if (k === 'stock' || k === 'overview') {
+    if (k === 'stock' || k === 'overview' || k === 'shop') {
       const all = S.products, sal = r2(sum(accounts(), x => balance(x.id).saldo));
       const racksRows = Object.keys(CATN).map(c => { const ps = all.filter(p => zoneOf(p) === c); return rowBtn('alm-open', c, CATN[c] + ' · ' + SPOTN[c].toLowerCase(), ps.length + ' productos · ' + money(valor(ps)), '<span class="ap-chip ok">' + sum(ps, units) + ' uds</span>'); }).join('');
-      const extra = k === 'overview' ? rowBtn('alm-open', 'prep', 'Preparación', 'Ventas por enviar', '<span class="ap-chip ' + (pend().length ? 'lo' : 'ok') + '">' + pend().length + '</span>') +
+      const extra = k !== 'stock' ? rowBtn('alm-open', 'prep', 'Preparación', 'Ventas por enviar', '<span class="ap-chip ' + (pend().length ? 'lo' : 'ok') + '">' + pend().length + '</span>') +
         rowBtn('alm-open', 'out', 'Salida', 'Enviados esta semana', '<span class="ap-chip ok">' + sentWeek().length + '</span>') +
         rowBtn('alm-open', 'office', 'Escritorio', accounts().length + ' móviles', '<span class="ap-chip ok">' + money(sal) + '</span>') : '';
       return pHead(k === 'stock' ? 'Almacén' : 'Hoy', k === 'stock' ? 'Estanterías' : 'Vista general', '', [['Unidades', sum(all, units)], ['Invertido', money(valor(all))], ['Por preparar', pend().length], ['Saldo en cuentas', money(sal)]]) +
@@ -386,7 +386,42 @@
         `<div class="ap-l">Por preparar</div><div class="ap-list">${todo.length ? todo.map(s => row(s, '<span class="ap-chip">' + (s.labelAt ? 'Etiqueta lista' : 'Preparando') + '</span>')).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
         <div class="ap-l">En la vagoneta</div><div class="ap-list">${tub.length ? tub.map(s => row(s, '<span class="ap-chip ok">En la vagoneta</span>')).join('') : '<p class="ap-empty">La vagoneta está vacía.</p>'}</div>`;
     }
+    // la oficina de los móviles: cada móvil es un agente con su puesto
+    const accInfo = x => { const B = balance(x.id), mine = S.sales.filter(s => s.account === x.id && s.status !== 'devuelta'), mo = today().slice(0, 7);
+      return { B, mine, open: mine.filter(shipOpen), month: mine.filter(s => (s.date || '').slice(0, 7) === mo), last: mailLast(x.id) }; };
+    if (k === 'phones') {
+      const l = accounts(), on = l.filter(x => x.email).length;
+      return pHead('Oficina', 'Móviles', on + '/' + l.length + ' con el correo conectado · toca uno para entrar', [['En el saldo', money(r2(sum(l, x => balance(x.id).saldo)))], ['En camino', money(r2(sum(l, x => balance(x.id).pend)))], ['Por enviar', S.sales.filter(shipOpen).length], ['Calentadas', l.filter(x => x.warm).length + '/' + l.length]]) +
+        `<div class="ap-l">Cada móvil</div><div class="ap-list">${l.map(x => { const I = accInfo(x); return rowBtn('alm-open', 'acc:' + x.id, esc(x.name), [x.email ? 'Correo ✓' : 'Sin correo', x.warm ? 'calentada' : 'sin calentar', I.open.length ? I.open.length + ' por enviar' : '', I.month.length + ' ventas este mes'].filter(Boolean).join(' · '), '<span class="ap-chip ' + (I.B.saldo > 0 ? 'ok' : '') + '">' + money(I.B.saldo) + '</span>'); }).join('') || '<p class="ap-empty">Aún no tienes móviles.</p>'}</div>`;
+    }
+    if (String(k).startsWith('acc:')) {
+      const x = accounts().find(a => a.id === k.slice(4)); if (!x) return '';
+      const I = accInfo(x), c = { sold: 0, label: 0, sent: 0, paid: 0 }; I.mine.filter(s => (s.date || '') >= daysAgo(30)).forEach(s => { const g = shipStage(s); if (c[g] !== undefined) c[g]++; });
+      const outs = (x.payouts || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')), rec = I.mine.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 8);
+      const mails = (S.mailin || []).filter(m => x.email && String(m.to || '').toLowerCase().includes(String(x.email).toLowerCase()) && m.done).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5);
+      return pHead('Móvil', esc(x.name), (x.email ? esc(x.email) : 'Sin correo conectado') + ' · ' + (x.warm ? 'calentada' : 'sin calentar'), [['En el saldo', money(I.B.saldo)], ['En camino', money(I.B.pend)], ['Ventas este mes', I.month.length], ['Facturado este mes', money(sum(I.month, s => s.price))]]) +
+        `<div class="ap-l">Su cadena · últimos 30 días</div><div class="ap-stats">${[['Por preparar', c.sold], ['Con etiqueta', c.label], ['Enviadas', c.sent], ['Cobradas', c.paid]].map(([l, v]) => `<div><span>${l}</span><b>${v}</b></div>`).join('')}</div>` +
+        (I.open.length ? `<div class="ap-l">Por enviar</div><div class="ap-list">${I.open.map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), s.labelAt ? 'Etiqueta' + (s.carrier ? ' ' + esc(s.carrier.toUpperCase()) : '') + (s.shipDeadline ? ' · antes del ' + fmtDate(s.shipDeadline) : '') : 'Sin etiqueta aún', '<span class="ap-chip lo">' + money(s.price) + '</span>')).join('')}</div>` : '') +
+        `<div class="ap-l">Últimas ventas</div><div class="ap-list">${rec.length ? rec.map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), fmtDate(s.date) + ' · ' + ({ sold: 'por preparar', label: 'con etiqueta', sent: 'enviada', paid: 'cobrada', back: 'devuelta' }[shipStage(s)] || ''), '<span class="ap-chip">' + money(s.price) + '</span>')).join('') : '<p class="ap-empty">Este móvil aún no ha vendido nada.</p>'}</div>` +
+        (mails.length ? `<div class="ap-l">Últimos correos${I.last ? ' · ' + fmtDate(I.last) : ''}</div><div class="ap-list">${mails.map(m => `<div class="ap-row"><span class="ap-rm"><b>${esc(m.note || m.subject || '')}</b><span>${fmtDate(String(m.date).slice(0, 10))}</span></span></div>`).join('')}</div>` : '') +
+        (outs.length ? `<div class="ap-l">Pasado al banco</div><div class="ap-list">${outs.slice(0, 5).map(o => `<div class="ap-row"><span class="ap-rm"><b>${money(o.amount)}</b><span>${fmtDate(o.date)}</span></span></div>`).join('')}</div>` : '') +
+        `<div class="ap-f"><button class="btn btn-soft btn-block" data-action="account" data-id="${x.id}">Ajustes del móvil</button>${I.B.saldo > 0 ? `<button class="btn btn-main btn-block" data-action="payout" data-id="${x.id}" style="margin-top:8px">Pasar al banco</button>` : ''}</div>`;
+    }
+    if (k === 'bank') {
+      const l = accounts(), outs = l.flatMap(x => (x.payouts || []).map(p => ({ ...p, a: x }))).sort((p, q) => (q.date || '').localeCompare(p.date || '')), mo = today().slice(0, 7);
+      return pHead('Banco', 'Lo que pasas al banco', '', [['En el saldo', money(r2(sum(l, x => balance(x.id).saldo)))], ['En camino', money(r2(sum(l, x => balance(x.id).pend)))], ['Al banco este mes', money(sum(outs.filter(p => (p.date || '').slice(0, 7) === mo), p => p.amount))], ['En total', money(sum(outs, p => p.amount))]]) +
+        `<div class="ap-l">Saldo por móvil</div><div class="ap-list">${l.map(x => { const B = balance(x.id); return `<div class="ap-row"><button class="ap-rm" data-action="alm-open" data-id="acc:${x.id}"><b>${esc(x.name)}</b><span>${money(B.saldo)} en el saldo${B.pend ? ' · ' + money(B.pend) + ' en camino' : ''}</span></button>${B.saldo > 0 ? `<button class="btn btn-main btn-sm" data-action="payout" data-id="${x.id}">Pasar</button>` : ''}</div>`; }).join('')}</div>
+        <div class="ap-l">Transferencias</div><div class="ap-list">${outs.length ? outs.slice(0, 12).map(p => `<div class="ap-row"><span class="ap-rm"><b>${money(p.amount)}</b><span>${fmtDate(p.date)} · ${esc(p.a.name)}</span></span></div>`).join('') : '<p class="ap-empty">Aún no has pasado nada al banco.</p>'}</div>
+        <div class="ap-f"><button class="btn btn-soft btn-block" data-action="saldo">Ver saldo completo</button></div>`;
+    }
+    if (k === 'post') {
+      const ready = pend().filter(s => s.labelAt), sent = sentWeek().sort((a, b) => shipWhen(b).localeCompare(shipWhen(a)));
+      return pHead('Punto de envío', 'Taquillas', 'Aquí deja los paquetes cuando Vinted avisa del envío', [['Con etiqueta', ready.length], ['Enviados (7 días)', sent.length], ['Importe', money(sum(sent, s => s.price))]]) +
+        `<div class="ap-l">Listos para llevar</div><div class="ap-list">${ready.length ? ready.map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), esc(accName(s.account, s.accountName)) + (s.carrier ? ' · ' + esc(s.carrier.toUpperCase()) : '') + (s.shipDeadline ? ' · antes del ' + fmtDate(s.shipDeadline) : ''), '<span class="ap-chip lo">Llevar</span>')).join('') : '<p class="ap-empty">Nada con etiqueta pendiente de llevar.</p>'}</div>
+        <div class="ap-l">Dejados en la taquilla</div><div class="ap-list">${sent.length ? sent.map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), esc(accName(s.account, s.accountName)) + ' · ' + fmtDate(shipWhen(s)) + (s.carrier ? ' · ' + esc(s.carrier.toUpperCase()) : ''), '<span class="ap-chip ok">' + money(s.price) + '</span>')).join('') : '<p class="ap-empty">No ha salido nada esta semana.</p>'}</div>`;
+    }
     if (k === 'chain') {
+
       const ok = S.sales.filter(s => s.status !== 'devuelta'), stg = k2 => ok.filter(s => shipStage(s) === k2 && (s.date || '') >= daysAgo(30)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       const C = [['sold', 'Por preparar', 'Vendidas, esperando la etiqueta o el envío'], ['label', 'Con etiqueta', 'Lista para llevar al punto de envío'], ['sent', 'Enviadas', 'Esperando a que el comprador la reciba'], ['paid', 'Cobradas', 'El dinero ya está en el saldo']];
       const sub = s => [esc(accName(s.account, s.accountName)), s.carrier ? esc(s.carrier.toUpperCase()) : '', s.shipDeadline && shipOpen(s) ? 'antes del ' + fmtDate(s.shipDeadline) : '', shipStage(s) === 'sent' ? 'enviada el ' + fmtDate(shipWhen(s)) + ' · cobro el ' + fmtDate(freeOn(s)) : '', shipStage(s) === 'paid' && s.paidAt ? 'cobrada el ' + fmtDate(s.paidAt) : ''].filter(Boolean).join(' · ');
@@ -444,7 +479,7 @@
   function openPanel(k) {
     panelK = k; const p = document.getElementById('almPanel'); if (!p) return;
     p.innerHTML = panelHtml(k); p.hidden = false; p.scrollTop = 0;
-    activeZ = CATN[k] ? 'stock' : k; document.querySelectorAll('#almBar button').forEach(b => b.classList.toggle('on', b.dataset.z === activeZ));
+    activeZ = CATN[k] ? 'stock' : String(k).startsWith('acc:') ? 'phones' : k; document.querySelectorAll('#almBar button').forEach(b => b.classList.toggle('on', b.dataset.z === activeZ));
   }
   function select(k) { if (k === 'mail') { letterSheet(); return; } if (world) world.flyTo(k); openPanel(k); }
   const tr = (el, xy) => { el.style.transform = `translate(${Math.round(xy[0])}px,${Math.round(xy[1])}px) translate(-50%,-100%)`; el.style.opacity = 1; };

@@ -33,7 +33,12 @@
     if (/inpost|vinted go|nos encargamos del resto|listo para ser enviado|hemos recogido el paquete/i.test(s)) return 'ship';
     return 'other';
   }
-  const accOf = m => { const to = String(m.to || '').toLowerCase(); return (S.accounts || []).find(a => a.email && to.includes(String(a.email).toLowerCase())) || null; };
+  // de qué móvil es: por el correo al que llegó y, para confirmar, por el usuario de Vinted que sale en el saludo («Hola, usuario:»)
+  const lc = x => String(x || '').toLowerCase().trim();
+  const byMail = m => { const to = lc(m.to); return (S.accounts || []).find(a => a.email && to.includes(lc(a.email))) || null; };
+  const byUser = m => { const t = lc(m.text); return (S.accounts || []).find(a => a.vuser && new RegExp('(^|[^a-z0-9._-])@?' + lc(a.vuser).replace(/[^a-z0-9._-]/g, '').replace(/\./g, '\\.') + '([^a-z0-9._-]|$)').test(t)) || null; };
+  const accOf = m => byMail(m) || byUser(m);
+  const accClash = m => { const a = byMail(m), b = byUser(m); return a && b && a.id !== b.id ? [a, b] : null; };
 
   // artículo de tu stock que mejor encaja con el título del anuncio
   function matchProduct(title) {
@@ -179,7 +184,8 @@
       for (const m of todo) {
         const cur = (S.mailin || []).find(x => x.id === m.id); if (!cur || cur.done) continue;
         let r; try { r = await handle(m); } catch (e) { r = { kind: info(m).kind, review: true, note: 'no se pudo leer: ' + (e && e.message || e) }; }
-        await db.doc('mailin/' + docId(m)).update({ done: true, kind: r.kind, ref: r.ref || '', review: !!r.review, note: r.note || '', doneAt: Date.now() });
+        const cl = accClash(m), ac = accOf(m); if (cl) { r.review = true; r.note = (r.note || '') + ' · ojo: llegó al correo de ' + cl[0].name + ' pero saluda a @' + cl[1].vuser; }
+        await db.doc('mailin/' + docId(m)).update({ done: true, kind: r.kind, ref: r.ref || '', review: !!r.review, note: r.note || '', acc: ac ? ac.name : '', doneAt: Date.now() });
         if (r.kind !== 'other' && r.note !== 'ya estaba') toast(({ sale: 'Venta desde Vinted', paid: 'Cobro', feat: 'Destacado', buy: 'Compra', ship: 'Envío', label: 'Etiqueta', cancel: 'Cancelada', return: 'Devolución', payout: 'Al banco' }[r.kind] || 'Vinted') + ' · ' + r.note);
       }
     } finally { busy = false; }

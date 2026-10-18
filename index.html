@@ -948,9 +948,9 @@ const MONTHS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov
 const MONTHS_L = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const STALE = 30;
 
-const S = { products: [], sales: [], expenses: [], stockmoves: [], accounts: [], catalog: [], cats: [],
+const S = { products: [], sales: [], expenses: [], stockmoves: [], accounts: [], catalog: [], cats: [], mailin: [],
   loaded: {}, error: null, tab: 'panel', per: 'month', off: 0, stockQ: '', stockCat: 'all', accView: '', accP: 'month', accOff: 0, accFilter: 'all', stockAcc: 'all', movF: 'all', movAcc: 'all', movQ: '', animate: true, quick: false, desk: false, retQ: '', skQ: '' };
-const COLLS = ['products', 'sales', 'expenses', 'stockmoves', 'accounts', 'catalog', 'cats'];
+const COLLS = ['products', 'sales', 'expenses', 'stockmoves', 'accounts', 'catalog', 'cats', 'mailin'];
 syncCats();
 let db = null, downloads = null, assets = null;
 
@@ -1100,6 +1100,18 @@ function letterSheet() {
       </div></div>`);
   store.set('letterRead', w.start); setTimeout(() => { if (S.tab === 'panel') render(); }, 500);
 }
+const MAIL_K = { sale: ['Venta', G.sell, 'var(--pos)'], paid: ['Cobro', G.coin, 'var(--accent)'], feat: ['Destacado', G.zap, 'var(--warn)'], buy: ['Compra', G.cart, 'var(--warn)'], ship: ['Envío', G.truck, 'var(--ink2)'], other: ['Otro', G.dots, 'var(--ink3)'] };
+function mailSheet() {
+  const l = S.mailin.filter(m => m.done).sort((a, b) => String(b.date).localeCompare(String(a.date))), rv = l.filter(m => m.review);
+  const row = m => { const [t, g, c] = MAIL_K[m.kind] || MAIL_K.other, [col, id] = String(m.ref || '/').split('/');
+    return `<button class="row" ${id ? `data-action="${col === 'sales' ? 'sale' : 'expense'}" data-id="${id}"` : 'disabled'}><span class="th" style="${tint(c)}">${g}</span><span class="rm"><span class="rt">${t}${m.review ? ' · <b style="color:var(--warn)">revisar</b>' : ''}</span><span class="rs">${esc(m.note || m.subject || '')} · ${fmtDate(String(m.date).slice(0, 10))}</span></span>${id ? G.chev : ''}</button>`; };
+  openSheet('Correos de Vinted', l.length ? `<p class="hint" style="margin:0">La app apunta sola lo que te llega de Vinted: ventas, cobros, destacados, compras y envíos.</p>
+    ${rv.length ? `<div class="sec-h"><h2>Por revisar</h2><span>${rv.length}</span></div><div class="list">${rv.map(row).join('')}</div>` : ''}
+    <div class="sec-h"><h2>Últimos</h2></div><div class="list">${l.slice(0, 30).map(row).join('')}</div>`
+    : empty(G.receipt, 'Aún no ha llegado ninguno', 'Cuando el lector de Gmail esté puesto, aquí verás cada correo de Vinted y lo que se ha apuntado.'));
+}
+function mailCard() { const n = S.mailin.filter(m => m.done && m.review && !m.seen).length; if (!loadedAll() || !n) return '';
+  return `<button class="card lettercard" data-action="mails"><span class="th" style="${tint('var(--warn)')}">${G.receipt}</span><span class="rm"><span class="rt">${n} ${n === 1 ? 'correo de Vinted' : 'correos de Vinted'} por revisar</span><span class="rs">Algo no estaba claro: tócalo para comprobarlo</span></span>${G.chev}</button>`; }
 function letterNotify() {
   if (!loadedAll() || !letterUnread()) return;
   const w = letterWeek(); if (store.get('letterNoted') === w.start) return; store.set('letterNoted', w.start);
@@ -1127,7 +1139,7 @@ function vPanel() {
       <div class="big ${B < 0 ? 'neg' : ''}" id="heroNum" data-to="${B}">${splitC(money(B))}</div>
       ${heroTiles(r, F)}</section>${S.off === 0 ? `<div class="qa"><button class="btn btn-main" data-action="newSale">${G.sell}Apuntar venta</button><button class="btn btn-soft" data-action="newExpense">${G.bag}Gasto</button></div>` : ""}`;
   h += totalCard();
-  h += letterCard();
+  h += letterCard() + mailCard();
   if (!cnt && !Gs) return h + empty(G.sell, 'Sin actividad', S.off === 0 ? 'Toca + cuando vendas algo.' : '', S.off === 0 ? '<button class="btn btn-main btn-sm" data-action="newSale">Apuntar venta</button>' : '');
 
   const nG = S.per === 'year' ? 12 : 6;
@@ -1212,7 +1224,7 @@ function vPanelDesk() {
 
   /* total y móviles */
   const accs = accounts(), warm = accs.filter(a => a.warm).length, blk = sum(accs, a => (a.blocks || []).filter(b => inR(b.date, r)).length);
-  g += `<div class="dk-col s6">${letterCard()}${totalCard()}<section class="card"><div class="ch"><h2>Móviles</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
+  g += `<div class="dk-col s6">${letterCard()}${mailCard()}${totalCard()}<section class="card"><div class="ch"><h2>Móviles</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
     <div class="stat3"><div><span>Móviles</span><b>${accs.length}</b></div><div><span>Calentadas</span><b>${warm}</b></div><div><span>Bloqueos</span><b>${blk}</b></div></div></section></div>`;
   return h + `<div class="dk">${g}</div>`;
 }
@@ -1787,7 +1799,7 @@ function saleForm(opts = {}) {
         if (ed && ed.productId && ed.status !== 'devuelta') bump(ed.productId, ed.size, ed.qty || 1);
         if (data.productId) bump(data.productId, data.size, -data.qty);
         for (const [pid, sizes] of Object.entries(adj)) await db.doc('products/' + pid).update({ sizes });
-        if (ed) await db.doc('sales/' + ed.id).update(data); else await db.collection('sales').add({ ...data, status: 'ok', ship: 'pend', createdAt: Date.now() });
+        if (ed) { await db.doc('sales/' + ed.id).update({ ...data, review: false }); const mm = S.mailin.find(x => x.ref === 'sales/' + ed.id); if (mm) await db.doc('mailin/' + mm.id).update({ review: false }); } else await db.collection('sales').add({ ...data, status: 'ok', ship: 'pend', createdAt: Date.now() });
       }, ed ? 'Venta actualizada' : `Venta apuntada · +${money(price)}`);
       if (ok) { closeSheet(); if (!ed) { S.off = 0; S.per = 'month'; go('panel'); } }
     }, () => {
@@ -2176,7 +2188,7 @@ function catForm(id) {
 function moreSheet() {
   const look = store.get('look') || 'auto';
   const ex = (w, c, t, s) => `<button class="row" data-action="export" data-what="${w}"><span class="th" style="${tint(c)}">${G.down}</span><span class="rm"><span class="rt">${t}</span><span class="rs">${s}</span></span>${G.chev}</button>`;
-  openSheet('Ajustes', `<div class="list"><button class="row" data-action="cats"><span class="th" style="${tint('var(--ink)')}">${G.layers}</span><span class="rm"><span class="rt">Colecciones</span><span class="rs">${CAT_ORDER.map(k => CATS[k].label).join(' · ')}</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="letter"><span class="th" style="${tint('var(--accent)')}">${G.receipt}</span><span class="rm"><span class="rt">Carta de la semana</span><span class="rs">Resumen de la semana pasada</span></span>${G.chev}</button><button class="row" data-action="orders"><span class="th" style="${tint('var(--warn)')}">${G.bag}</span><span class="rm"><span class="rt">Pedidos al proveedor</span><span class="rs">Historial con sus facturas</span></span>${G.chev}</button><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
+  openSheet('Ajustes', `<div class="list"><button class="row" data-action="cats"><span class="th" style="${tint('var(--ink)')}">${G.layers}</span><span class="rm"><span class="rt">Colecciones</span><span class="rs">${CAT_ORDER.map(k => CATS[k].label).join(' · ')}</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="sx-warm"><span class="th" style="${tint('var(--accent)')}">${ic('flame')}</span><span class="rm"><span class="rt">Calentador</span><span class="rs">App aparte para calentar cuentas · plan de 31 días</span></span>${G.chev}</button></div><div class="list"><button class="row" data-action="mails"><span class="th" style="${tint('var(--pos)')}">${G.receipt}</span><span class="rm"><span class="rt">Correos de Vinted</span><span class="rs">Lo que se ha apuntado solo</span></span>${G.chev}</button><button class="row" data-action="letter"><span class="th" style="${tint('var(--accent)')}">${G.receipt}</span><span class="rm"><span class="rt">Carta de la semana</span><span class="rs">Resumen de la semana pasada</span></span>${G.chev}</button><button class="row" data-action="orders"><span class="th" style="${tint('var(--warn)')}">${G.bag}</span><span class="rm"><span class="rt">Pedidos al proveedor</span><span class="rs">Historial con sus facturas</span></span>${G.chev}</button><button class="row" data-action="catalog"><span class="th" style="${tint('var(--ink)')}">${G.box}</span><span class="rm"><span class="rt">Mi lista de pedidos</span><span class="rs">${S.catalog.length ? S.catalog.length + (S.catalog.length === 1 ? ' artículo' : ' artículos') : 'Lo que compras siempre'}</span></span>${G.chev}</button></div>${downloads ? `<div class="list">${ex('sales', 'var(--c1)', 'Exportar ventas', 'Fecha, producto, talla, precio, móvil e IBAN')}${ex('expenses', 'var(--warn)', 'Exportar gastos', 'Pedidos y otros gastos')}${ex('stock', 'var(--c5)', 'Exportar stock', 'Productos, tallas y unidades')}</div><p class="hint" style="margin:-6px 0 0">Archivos que se abren con Excel o Google Sheets.</p>` : ''}
     ${S.desk ? '' : `<div class="fld"><span class="lbl">Al abrir en el móvil</span><div class="seg" data-k="qpref" style="align-self:flex-start">${[['1', 'Botones rápidos'], ['0', 'Panel']].map(([k, l]) => `<button data-action="quickPref" data-v="${k}" aria-pressed="${(store.get('quickStart') || '1') === k}">${l}</button>`).join('')}</div></div>`}
     ${window.SYNC ? window.SYNC.settingsHtml() : ''}
     <div class="fld"><span class="lbl">Apariencia</span><div class="seg" data-k="look" style="align-self:flex-start">${[['auto', 'Auto', G.auto], ['light', 'Claro', G.sun], ['dark', 'Oscuro', G.moon]].map(([k, l, i]) => `<button data-action="look" data-v="${k}" aria-pressed="${look === k}">${i}${l}</button>`).join('')}</div></div>`);
@@ -2310,6 +2322,7 @@ document.addEventListener('click', async ev => {
     case 'orderRecv': if (await write(() => db.doc('expenses/' + id).update({ receivedAt: today() }), 'Pedido recibido', () => write(() => db.doc('expenses/' + id).update({ receivedAt: '' }), 'Deshecho'))) setTimeout(() => expenseDetail(id), 250); break;
     case 'saldo': saldoSheet(); break;
     case 'letter': letterSheet(); break;
+    case 'mails': mailSheet(); break;
     case 'editExpense': { const e = S.expenses.find(x => x.id === id); if (e && (e.category === 'compra' || e.category === 'destacado')) quickExpense(e.category, e); else expenseForm(e); break; }
     case 'delExpense': { const e = S.expenses.find(x => x.id === id); if (!e) break; const copy = strip(e);
       if (await write(() => db.doc('expenses/' + id).delete(), 'Gasto borrado', () => write(() => db.doc('expenses/' + id).set(copy), 'Recuperado'))) closeSheet(); break; }
@@ -2428,7 +2441,7 @@ render();
   db = window.claude ? await window.claude.use('db') : null;
   if (!db) { S.error = 'Falta conectar la base de datos. Revisa config.js y el README.'; render(); return; }
   const fail = e => { S.error = e && e.code === 'revoked' ? 'Ya no tienes acceso a estos datos.' : 'Se perdió la conexión. Recarga la página.'; render(); };
-  let rt; const later = () => { clearTimeout(rt); rt = setTimeout(() => { render(); if (catRefresh) catRefresh(); letterNotify(); if (wantLetter && loadedAll()) { wantLetter = false; letterSheet(); } }, 30); };
+  let rt; const later = () => { clearTimeout(rt); rt = setTimeout(() => { render(); if (catRefresh) catRefresh(); letterNotify(); if (window.MAIL) MAIL.run(); if (wantLetter && loadedAll()) { wantLetter = false; letterSheet(); } }, 30); };
   let wantLetter = /[?&]carta=1/.test(location.search);
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', ev => { if (ev.data && ev.data.open === 'carta') letterSheet(); });
   COLLS.forEach(c => db.collection(c).onSnapshot(s => { S[c] = s.docs.map(d => ({ id: d.id, ...d.data() })); if (c === 'cats') syncCats(); const first = !loadedAll(); S.loaded[c] = true; if (first && loadedAll()) S.animate = true; later(); }, fail));
@@ -2437,5 +2450,6 @@ render();
 })();
 </script>
 <script src="almacen.js"></script>
+<script src="correo.js"></script>
 
 </body></html>

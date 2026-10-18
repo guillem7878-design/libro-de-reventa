@@ -391,7 +391,6 @@ export function createWorld(opts) {
   block(.12, 2.15, .1, M.white, RX - .06, 0, DOOR.z0 - .1, world); block(.12, 2.15, .1, M.white, RX - .06, 0, DOOR.z1, world); block(.12, .12, DOOR.z1 - DOOR.z0 + .2, M.acc, RX - .06, 2.15, DOOR.z0 - .1, world);
   block(.7, .012, 1.0, M.dark, RX - .78, .003, DOOR.z0 + .05, world, false);
   // decoración: alfombra, lámpara, planta, cuadro de unas zapatillas
-  block(3.2, .01, 2.4, M.rug, TABLE[0] - .6, .003, TABLE[1] - .75, world, false);
   block(.26, .03, .26, M.dark, DESK[0] + 2.3, 0, .2, world); block(.03, 1.55, .03, M.dark, DESK[0] + 2.415, .03, .315, world); block(.36, .26, .36, M.white, DESK[0] + 2.25, 1.55, .15, world);
   block(.36, .42, .36, M.white, RX - .5, 0, RZ - .5, world); for (const [dx, dy, dz, s] of [[0, .78, 0, .34], [.1, 1.05, -.06, .25], [-.08, 1.0, .1, .23]]) ball(s, M.leaf, RX - .32 + dx, dy, RZ - .32 + dz, world);
   block(.8, .6, .025, M.acc, 5.9, 1.3, .002, world);
@@ -511,6 +510,113 @@ export function createWorld(opts) {
     g.fillStyle = 'rgba(255,255,255,.025)'; for (let y = 0; y < H2; y += 4) g.fillRect(0, y, W2, 1);
     tvT.needsUpdate = true;
   }
+  /* ---------- secciones pintadas en el suelo: cinta amarilla, el nombre de cada zona y el camino que siguen los paquetes ---------- */
+  const FLOOR_Z = [['STOCK', .45, .3, 1.6, 4.3], ['OFICINA', 3.25, .95, 5.75, 1.95], ['EMBALAJE', 4.0, 2.7, 6.8, 4.6], ['RECEPCIÓN', 7.85, .2, 9.8, 1.7],
+    ['SALIDA', 8.05, 2.95, 9.85, 4.55], ['DEVOLUCIONES', 7.6, 5.3, 9.4, 6.75], ['ESTUDIO', 4.3, 5.35, 6.85, 6.85]];
+  const FPX = 160;   // píxeles por metro
+  const floorMat = new THREE.MeshStandardMaterial({ map: tex(RX * FPX, RZ * FPX, (g, w, h) => {
+    g.clearRect(0, 0, w, h); const X = x => x * FPX;
+    for (const [name, x0, z0, x1, z1] of FLOOR_Z) {
+      const W = X(x1 - x0), H = X(z1 - z0);
+      g.fillStyle = 'rgba(233,196,106,.07)'; g.fillRect(X(x0), X(z0), W, H);
+      g.strokeStyle = 'rgba(233,196,106,.9)'; g.lineWidth = 8; g.strokeRect(X(x0) + 5, X(z0) + 5, W - 10, H - 10);
+      // esquinas con rayas de cinta de seguridad
+      g.save(); g.beginPath(); g.rect(X(x0) + 9, X(z0) + 9, 46, 46); g.clip(); g.fillStyle = 'rgba(30,30,30,.55)';
+      for (let k = -60; k < 60; k += 16) { g.beginPath(); g.moveTo(X(x0) + k, X(z0) + 60); g.lineTo(X(x0) + k + 8, X(z0) + 60); g.lineTo(X(x0) + k + 68, X(z0)); g.lineTo(X(x0) + k + 60, X(z0)); g.fill(); } g.restore();
+      let fs = 38; g.font = `800 ${fs}px Manrope, Arial, sans-serif`; const mw = g.measureText(name).width; if (mw > W - 40) { fs = Math.floor(fs * (W - 40) / mw); g.font = `800 ${fs}px Manrope, Arial, sans-serif`; }
+      g.fillStyle = 'rgba(233,196,106,.95)'; g.textBaseline = 'alphabetic'; g.fillText(name, X(x0) + 20, X(z1) - 20);
+    }
+    // el camino de cada paquete: mesa de embalar → vagoneta → puerta → punto de envío
+    const path = [[6.8, 3.7], [8.05, 3.7]], path2 = [[9.0, 2.95], [9.0, 2.05], [RX, 1.85]];
+    g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 7; g.setLineDash([24, 18]); g.lineCap = 'round';
+    for (const pp of [path, path2]) { g.beginPath(); pp.forEach(([x, z], i) => i ? g.lineTo(X(x), X(z)) : g.moveTo(X(x), X(z))); g.stroke(); }
+    g.setLineDash([]); g.fillStyle = 'rgba(255,255,255,.7)';
+    const arrow = (x, z, a) => { g.save(); g.translate(X(x), X(z)); g.rotate(a); g.beginPath(); g.moveTo(16, 0); g.lineTo(-10, -13); g.lineTo(-10, 13); g.closePath(); g.fill(); g.restore(); };
+    arrow(7.5, 3.7, 0); arrow(9.0, 2.45, -Math.PI / 2); arrow(9.75, 1.9, -.26);
+    // rayas de peligro en la puerta
+    g.save(); g.beginPath(); g.rect(X(RX - .3), X(DOOR.z0), X(.28), X(DOOR.z1 - DOOR.z0)); g.clip();
+    for (let k = 0; k < X(DOOR.z1 - DOOR.z0) + 80; k += 28) { g.fillStyle = 'rgba(233,196,106,.85)'; g.beginPath(); g.moveTo(X(RX - .3), X(DOOR.z0) + k); g.lineTo(X(RX - .3) + 50, X(DOOR.z0) + k - 50); g.lineTo(X(RX - .3) + 50, X(DOOR.z0) + k - 36); g.lineTo(X(RX - .3), X(DOOR.z0) + k + 14); g.fill(); }
+    g.restore();
+  }), transparent: true, depthWrite: false, roughness: .85, polygonOffset: true, polygonOffsetFactor: -2 });
+  const floorZ = new THREE.Mesh(new THREE.PlaneGeometry(RX, RZ), floorMat); floorZ.rotation.x = -Math.PI / 2; floorZ.position.set(RX / 2, .004, RZ / 2); floorZ.receiveShadow = true; world.add(floorZ);
+
+  /* ---------- pizarra de la cadena de envíos (en la pared, encima de la estantería baja) ---------- */
+  const bdC = document.createElement('canvas'); bdC.width = 1024; bdC.height = 512; const bdX = bdC.getContext('2d');
+  const bdT = new THREE.CanvasTexture(bdC); bdT.colorSpace = THREE.SRGBColorSpace; bdT.anisotropy = 4;
+  const boardG = new THREE.Group(); boardG.userData.zone = 'chain'; boardG.userData.tip = 'Cadena de envíos'; boardG.position.set(1.85, 1.86, 0); world.add(boardG);
+  block(2.08, 1.08, .03, M.chrome, -1.04, -.54, .002, boardG);
+  const bdS = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.0), new THREE.MeshStandardMaterial({ map: bdT, roughness: .5 })); bdS.position.set(0, 0, .034); boardG.add(bdS);
+  block(.7, .03, .07, M.lgrey, -.35, -.6, .01, boardG); block(.12, .018, .018, M.red, -.25, -.57, .04, boardG); block(.12, .018, .018, mat('#2D6BD8'), -.05, -.57, .04, boardG);   // bandeja y rotuladores
+  const CH_COL = [['Por preparar', '#E0A33A', 'sold'], ['Con etiqueta', '#4F86E8', 'label'], ['Enviadas', '#8E7CC3', 'sent'], ['Cobradas', '#3BAA6E', 'paid']];
+  function drawBoard(c) {
+    const g = bdX, W2 = 1024, H2 = 512; c = c || { sold: [], label: [], sent: [], paid: [], on: 0, total: 0, last: '' };
+    g.fillStyle = '#F6F5F1'; g.fillRect(0, 0, W2, H2);
+    g.fillStyle = 'rgba(0,0,0,.035)'; for (let i = 0; i < 40; i++) g.fillRect(Math.random() * W2, Math.random() * H2, 60, 2);   // marcas de borrar
+    g.textBaseline = 'top'; g.fillStyle = '#1F2228'; g.font = '800 34px Manrope, Arial, sans-serif'; g.fillText('CADENA DE ENVÍOS', 30, 22);
+    g.font = '600 19px Manrope, Arial, sans-serif'; g.fillStyle = '#7A7A74'; const info = c.on + '/' + c.total + ' móviles con correo' + (c.last ? ' · último ' + c.last : '');
+    g.fillText(info, W2 - 30 - g.measureText(info).width, 32);
+    const cw = 222, gap = 22, x0 = 30, y0 = 84;
+    CH_COL.forEach(([t, col, k], i) => {
+      const x = x0 + i * (cw + gap), list = c[k] || [];
+      g.fillStyle = col; g.fillRect(x, y0, cw, 6);
+      g.fillStyle = '#2B2D33'; g.font = '700 21px Manrope, Arial, sans-serif'; g.fillText(t, x, y0 + 16);
+      g.fillStyle = col; g.font = '800 54px Manrope, Arial, sans-serif'; g.fillText(String(list.length), x, y0 + 44);
+      if (i < 3) { g.fillStyle = '#B9B8B2'; g.font = '700 30px Manrope, Arial, sans-serif'; g.fillText('→', x + cw - 10, y0 + 56); }
+      list.slice(0, 4).forEach((n, j) => {   // una nota adhesiva por venta
+        const ny = y0 + 116 + j * 70, r = ((i * 7 + j * 3) % 5 - 2) * .012;
+        g.save(); g.translate(x + 4, ny); g.rotate(r); g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(3, 4, cw - 18, 58); g.fillStyle = col + '33'; g.fillRect(0, 0, cw - 18, 58); g.fillStyle = col; g.fillRect(0, 0, 6, 58);
+        g.fillStyle = '#2B2D33'; g.font = '600 18px Manrope, Arial, sans-serif'; let s = n; while (g.measureText(s).width > cw - 44 && s.length > 3) s = s.slice(0, -2); if (s !== n) s = s.trim() + '…';
+        g.fillText(s, 16, 19); g.restore(); });
+      if (list.length > 4) { g.fillStyle = '#7A7A74'; g.font = '600 17px Manrope, Arial, sans-serif'; g.fillText('+' + (list.length - 4) + ' más', x + 4, y0 + 116 + 4 * 70 - 2); }
+    });
+    bdT.needsUpdate = true;
+  }
+  drawBoard();
+
+  /* ---------- hucha del saldo en el escritorio: un bote de cristal con las monedas que hay en las cuentas ---------- */
+  const JAR = [DESK[0] + 1.52, DESK[1] + .6];
+  const jarG = new THREE.Group(); jarG.userData.zone = 'office'; jarG.userData.tip = 'Hucha · saldo en las cuentas'; jarG.position.set(JAR[0], .79, JAR[1]); zoff.add(jarG);
+  const coinMat = mat('#E3B94F', { roughness: .3, metalness: .75, emissive: '#5A4410', emissiveIntensity: .25 });
+  const coinStack = new THREE.Mesh(new THREE.CylinderGeometry(.058, .058, 1, 20), coinMat); coinStack.position.y = .005; coinStack.scale.y = .001; jarG.add(coinStack);
+  const jarGlass = new THREE.Mesh(new THREE.CylinderGeometry(.07, .066, .2, 24, 1, true), new THREE.MeshStandardMaterial({ color: '#DDEAF2', roughness: .05, metalness: .1, transparent: true, opacity: .32, depthWrite: false, side: THREE.DoubleSide })); jarGlass.position.y = .1; jarG.add(jarGlass);
+  cyl(.072, .02, M.acc, 0, .205, 0, jarG); block(.04, .004, .006, M.dark, -.02, .215, -.003, jarG);   // tapa con ranura
+  let jarLv = 0, jarTo = 0;
+  const coinGeo = new THREE.CylinderGeometry(.03, .03, .008, 16), fx = [];
+  // monedas que vuelan de un sitio a otro (cobros y transferencias)
+  function coinFly(from, to, n, onDone) { for (let i = 0; i < n; i++) { const c = new THREE.Mesh(coinGeo, coinMat); c.position.copy(from); c.visible = false; world.add(c); fx.push({ m: c, from: from.clone(), to: to.clone(), t: -i * .35, dur: .8, done: i === n - 1 ? onDone : null }); } }
+  function tickFx(dt) {
+    for (let i = fx.length - 1; i >= 0; i--) { const f = fx[i]; f.t += dt; if (f.t < 0) continue; f.m.visible = true; const k = Math.min(1, f.t / f.dur);
+      f.m.position.lerpVectors(f.from, f.to, k); f.m.position.y += Math.sin(k * Math.PI) * .35; f.m.rotation.x += dt * 14;
+      if (k >= 1) { world.remove(f.m); fx.splice(i, 1); if (f.done) f.done(); } }
+    jarLv += (jarTo - jarLv) * Math.min(1, dt * 2); coinStack.scale.y = Math.max(.001, jarLv * .18); coinStack.position.y = .005 + coinStack.scale.y / 2;
+  }
+
+  /* ---------- punto de envío en la acera: taquillas donde deja los paquetes ---------- */
+  const LOCK = { x0: RX + .9, x1: RX + 1.9, z0: 3.0, z1: 3.5 }; LOCK.xm = (LOCK.x0 + LOCK.x1) / 2;
+  const lockG = new THREE.Group(); lockG.userData.zone = 'out'; lockG.userData.tip = 'Punto de envío'; world.add(lockG);
+  const lockBody = mat('#3A3F48', { roughness: .5, metalness: .35 }), lockDoor = mat('#D9DCE1', { roughness: .4, metalness: .3 }), lockAcc = mat('#E9C46A', { roughness: .4, emissive: '#7A5A10', emissiveIntensity: .25 });
+  block(LOCK.x1 - LOCK.x0, 1.72, LOCK.z1 - LOCK.z0, lockBody, LOCK.x0, -.02, LOCK.z0, lockG); block(LOCK.x1 - LOCK.x0 + .02, .14, LOCK.z1 - LOCK.z0 + .02, lockAcc, LOCK.x0 - .01, 1.6, LOCK.z0 - .01, lockG);
+  const lockDoors = []; let lockScreen = null;
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) {   // puertas mirando a la acera
+    const x = LOCK.x0 + .04 + c * .31, y = .12 + r * .29;
+    if (r === 2 && c === 1) { block(.27, .27, .012, M.dark, x, y, LOCK.z1 - .006, lockG); lockScreen = block(.22, .2, .006, mat('#1D2027', { emissive: '#7FD3C4', emissiveIntensity: .6 }), x + .025, y + .035, LOCK.z1 + .004, lockG); continue; }
+    const d = new THREE.Group(); d.position.set(x, y, LOCK.z1); lockG.add(d); block(.29, .27, .012, lockDoor, 0, 0, 0, d); block(.06, .03, .014, M.dark, .2, .12, .002, d); lockDoors.push(d);
+  }
+  const lockD = lockDoors[4]; let lockOpen = 0, lockK = 0;   // la taquilla que se abre: segunda fila, en el centro
+  const lockSlot = new THREE.Vector3(LOCK.x0 + .04 + .31 + .145, .12 + .29 + .14, LOCK.z1 - .2);
+
+  /* ---------- estudio de fotos: fondo blanco, peana y aro de luz para las fotos de Vinted ---------- */
+  const zst = new THREE.Group(); zst.userData.zone = 'stock'; zst.userData.tip = 'Estudio de fotos'; world.add(zst);
+  block(.03, 1.05, 1.1, M.white, 4.52, 0, 5.6, zst); block(.9, .008, 1.1, M.white, 4.55, .004, 5.6, zst, false);
+  for (const z of [5.58, 6.68]) block(.03, 1.12, .03, M.dark, 4.5, 0, z, zst); block(.04, .03, 1.16, M.dark, 4.5, 1.1, 5.57, zst);
+  cyl(.16, .42, M.white, 5.05, .21, 6.15, zst); cyl(.17, .015, M.lgrey, 5.05, .425, 6.15, zst);
+  const ringMat = mat('#FFFFFF', { emissive: '#FFF6E8', emissiveIntensity: .5 });
+  block(.025, 1.2, .025, M.dark, 5.88, 0, 6.14, zst); for (const a of [0, 2.1, 4.2]) { const l = block(.02, .02, .3, M.dark, 5.89, .02, 6.15, zst); l.rotation.y = a; }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.16, .022, 10, 36), ringMat); ring.position.set(5.9, 1.28, 6.155); ring.rotation.y = Math.PI / 2; zst.add(ring);
+  block(.012, .14, .075, M.dark, 5.894, 1.21, 6.118, zst);   // el móvil en el soporte
+  const studioItem = new THREE.Group(); zst.add(studioItem);
+  let flashK = 0;
+
   /* ---------- gente, furgoneta y coches ---------- */
   const P = person(); world.add(P.g); P.g.position.set(TABLE[0] + 1.0, 0, TABLE[1] - .4);
   const courier = person('#FFCC00', M.red); courier.g.visible = false; world.add(courier.g);
@@ -586,10 +692,12 @@ export function createWorld(opts) {
     // móviles en el escritorio
     clear(phones);
     const mailLed = mat(0x34D399, { emissive: 0x34D399, emissiveIntensity: .9 });
-    d.accounts.slice(0, 8).forEach((a, i) => { const g = new THREE.Group(); g.userData.tip = a.tip; g.userData.account = a.id; phones.add(g);
+    d.accounts.slice(0, 8).forEach((a, i) => { const g = new THREE.Group(); g.userData.tip = a.tip; g.userData.account = a.id; g.userData.buzz = !!a.buzz; phones.add(g);
       block(.08, .014, .15, M.dark, DESK[0] + .1 + i * .11, .79, DESK[1] + .6, g); block(.07, .005, .13, a.warm ? mat(ACC, { emissive: ACC, emissiveIntensity: .5 }) : M.screen, DESK[0] + .105 + i * .11, .806, DESK[1] + .61, g);
       if (a.mail) block(.014, .006, .009, mailLed, DESK[0] + .133 + i * .11, .804, DESK[1] + .6005, g); });   // lucecita verde: su correo llega a la app
-    vanMode = d.vanMode; planeOn = !!d.plane; letterOn = !!d.letter; drawWeek(d.weekUnits || 0); drawFeats(d.feats); if (d.featTV) tvData = d.featTV;
+    vanMode = d.vanMode; planeOn = !!d.plane; letterOn = !!d.letter; drawWeek(d.weekUnits || 0);
+    labeled.seed(d.pend.filter(s => !s.mail || s.labelAt).map(s => s.id)); shipSeen.seed((d.shipped || []).map(s => s.id)); paidSeen.seed((d.paid || []).map(s => s.id)); paySeen.seed((d.payouts || []).map(p => p.id)); starSeen.seed((d.feats || []).map(f => f.id)); retSeen.seed((d.restock || []).map(s => s.id));
+    drawFeats((d.feats || []).filter(f => starSeen.has(f.id))); drawBoard(d.chain); jarTo = Math.min(1, (d.saldo || 0) / 800); if (d.featTV) tvData = d.featTV;
     pins = d.alerts; for (const id of [...packed]) if (!d.pend.some(s => s.id === id)) packed.delete(id); savePacked(); drawTub(); plan();
   }
 
@@ -615,7 +723,9 @@ export function createWorld(opts) {
     return g;
   }
   function bagMesh(kind) { const g = new THREE.Group(), [bw, bh, bd] = BAG[kind]; block(bw, bh, bd, bagMats, -bw / 2, -bh / 2, -bd / 2, g); g.userData.h = bh; return g; }
-  const labelMesh = () => { const g = new THREE.Group(); block(.1, .006, .07, M.white, -.05, -.003, -.035, g); block(.06, .007, .012, M.dark, -.035, -.003, -.02, g); return g; };
+  const CARRIER_C = { seur: '#E30613', correos: '#FFCD00', inpost: '#FFB400', vintedgo: '#09B1BA' }, carrierMat = {};
+  const labelMesh = c => { const g = new THREE.Group(); block(.1, .006, .07, M.white, -.05, -.003, -.035, g); block(.06, .007, .012, M.dark, -.035, -.003, -.02, g);
+    if (CARRIER_C[c]) block(.1, .0075, .016, carrierMat[c] || (carrierMat[c] = mat(CARRIER_C[c], { roughness: .5 })), -.05, -.003, .019, g); return g; };
   // utensilios
   const clipG = (() => { const g = new THREE.Group(); block(.24, .32, .012, mat('#C9A274'), -.12, -.22, .03, g); block(.2, .26, .004, M.white, -.1, -.19, .043, g); block(.08, .03, .02, M.chrome, -.04, .08, .03, g); return g; })();
   const phoneG = (() => { const g = new THREE.Group(); block(.075, .15, .012, M.dark, -.037, -.1, .02, g); block(.065, .13, .004, M.screen, -.032, -.09, .033, g); return g; })();
@@ -633,10 +743,12 @@ export function createWorld(opts) {
     const cells = [[tx0 + .255, tz0 + .21], [tx0 + .695, tz0 + .21], [tx0 + .255, tz0 + .54], [tx0 + .695, tz0 + .54]], hgt = [0, 0, 0, 0];
     return kinds.map((k, i) => { let c = 0; for (let j = 1; j < 4; j++) if (hgt[j] < hgt[c] - .001) c = j; const h = BAG[k][1], y = .18 + hgt[c] + h / 2; hgt[c] += h; return { x: cells[c][0], y, z: cells[c][1], r: ((i * 37) % 7 - 3) * .01 }; });
   }
+  let tubBag = {};
   const readyList = () => (D ? D.pend : []).filter(s => packed.has(s.id));
   function drawTub() {
-    clear(outItems); const ready = readyList(), lay = tubLayout(ready.map(s => kindOf(s.cat)));
-    ready.slice(0, 40).forEach((s, i) => { const b = bagMesh(kindOf(s.cat)), L = lay[i]; b.position.set(L.x, L.y, L.z); b.rotation.y = L.r; b.userData.tip = s.tip; const lb = labelMesh(); lb.position.set(.05, b.userData.h / 2 + .003, .02); b.add(lb); outItems.add(b); });
+    clear(outItems); tubBag = {}; const ready = readyList(), lay = tubLayout(ready.map(s => kindOf(s.cat)));
+    ready.slice(0, 40).forEach((s, i) => { const b = bagMesh(kindOf(s.cat)), L = lay[i]; b.position.set(L.x, L.y, L.z); b.rotation.y = L.r; b.userData.tip = s.tip + (s.mail && !labeled.has(s.id) ? ' · esperando la etiqueta' : ''); tubBag[s.id] = b;
+      if (!s.mail || labeled.has(s.id)) { const lb = labelMesh(s.carrier); lb.position.set(.05, b.userData.h / 2 + .003, .02); b.add(lb); } outItems.add(b); });
     zout.visible = (D && D.pend.length > 0) || ready.length > 0;
   }
   // movimiento fluido de una cosa entre dos sitios (en coordenadas del mundo)
@@ -673,7 +785,7 @@ export function createWorld(opts) {
     if (tgt && s.cat === 'zapatillas') { tgt.getWorldPosition(wv); spot = [1.0, wv.z]; }
     if (tgt && s.cat === 'futbol') { tgt.getWorldPosition(wv); spot = [wv.x, RAIL.z - .65]; }
     if (tgt && s.cat === 'jellycat') { tgt.getWorldPosition(wv); const dx = wv.x - PILE.x, dz = wv.z - PILE.z, l = Math.hypot(dx, dz) || 1; spot = [PILE.x + dx / l * 1.05, PILE.z + dz / l * 1.05]; }
-    const job = { kind: 'sale', id: s.id, picked: false, steps: [] };
+    const job = { kind: 'sale', id: s.id, picked: false, steps: [] }, noLabel = s.mail && !s.labelAt;
     job.steps = [
       { go: SPOT.aisle, say: 'Va a por ' + short(s) },
       { go: spot, say: 'Va a por ' + short(s) + ' a ' + where },
@@ -689,12 +801,12 @@ export function createWorld(opts) {
       { anim: 'pack', t: 4.2, face: 0, say: 'Lo mete en la bolsa de envío', start: () => { bagNow = bagMesh(kind); bagNow.scale.set(.2, .2, .2); tableG.add(bagNow); bagNow.position.set(0, BAG[kind][1] / 2, 0); }, tick: k => { if (bagNow) bagNow.scale.setScalar(.2 + .8 * k); if (onTable) { if (!onTable.userData.s0) onTable.userData.s0 = onTable.scale.clone(); onTable.scale.copy(onTable.userData.s0).multiplyScalar(1 - .5 * k); onTable.position.y = tableG.position.y + LIFT[kind] - k * .04; } },
         end: () => { if (onTable) { onTable.parent.remove(onTable); onTable = null; } } },
       { anim: 'pack', t: 3.6, face: 0, say: 'Cerrando y precintando la bolsa', end: () => log('Empaquetado ' + short(s)) },
-      { go: SPOT.printer, say: 'Imprimiendo la etiqueta de envío' },
-      { anim: 'print', t: 3.6, face: 0, say: 'Imprimiendo la etiqueta de envío', start: () => { label = labelMesh(); label.position.copy(printOut); world.add(label); }, tick: k => { if (label) label.position.set(printOut.x, printOut.y + .02, printOut.z + .02 + k * .1); },
+      ...(noLabel ? [] : [{ go: SPOT.printer, say: 'Imprimiendo la etiqueta de envío' },
+      { anim: 'print', t: 3.6, face: 0, say: 'Imprimiendo la etiqueta de envío', start: () => { label = labelMesh(s.carrier); label.position.copy(printOut); world.add(label); }, tick: k => { if (label) label.position.set(printOut.x, printOut.y + .02, printOut.z + .02 + k * .1); },
         end: () => { if (label) holdIn(label, P.hand); } },
       { go: SPOT.table, say: 'Pegando la etiqueta' },
       { anim: 'stick', t: 2.0, face: 0, say: 'Pegando la etiqueta', start: () => { if (label && bagNow) fly(label, () => bagNow.getWorldPosition(wv).clone().add(new THREE.Vector3(.05, BAG[kind][1] / 2 + .004, .02)), 1.2, () => { holdIn(label, bagNow); label.position.set(.05, BAG[kind][1] / 2 + .004, .02); label = null; }); },
-        end: () => log('Etiqueta pegada') },
+        end: () => { labeled.add(s.id); log('Etiqueta pegada'); } }]),
       { anim: 'place', t: 1.2, face: 0, say: 'Coge el paquete', start: () => { if (bagNow) toCarry(bagNow, 1.0, () => holdIn(bagNow, P.carry)); } },
       { go: SPOT.tub, carry: true, say: 'Lo lleva a la vagoneta de envíos' },
       { anim: 'drop', t: 1.6, face: Math.PI / 2, say: 'Lo deja en la vagoneta de envíos',
@@ -706,7 +818,101 @@ export function createWorld(opts) {
     ];
     return job;
   }
+  /* ---------- la cadena: cada aviso de Vinted tiene su acción (se hace una vez; lo hecho se recuerda) ----------
+     · etiqueta descargada → la imprime y la pega en su bolsa de la vagoneta
+     · enviada             → saca la bolsa por la puerta y la deja en la taquilla del punto de envío
+     · cobrada             → coge el móvil y caen monedas en la hucha del escritorio
+     · al banco            → las monedas salen de la hucha hacia el portátil
+     · destacado           → va al artículo y le pone su estrella
+     · devolución          → saca la caja de devoluciones y la vuelve a colocar en su sitio */
+  function seenSet(key) {
+    let raw = null; try { raw = localStorage.getItem(key); } catch (e) {}
+    let arr = []; try { arr = raw ? JSON.parse(raw) : []; } catch (e) {}
+    const s = new Set(arr); let fresh = raw === null;
+    const save = () => { try { localStorage.setItem(key, JSON.stringify([...s].slice(-300))); } catch (e) {} };
+    return { has: id => s.has(id), add(id) { s.add(id); save(); }, seed(ids) { if (!fresh) return; fresh = false; ids.forEach(i => s.add(i)); s.add('_'); save(); } };   // la primera vez no repite lo antiguo
+  }
+  const labeled = seenSet('almLabeled'), shipSeen = seenSet('almShipped'), paidSeen = seenSet('almPaid'), paySeen = seenSet('almPayout'), starSeen = seenSet('almStarred'), retSeen = seenSet('almRestock');
+  const DOORZ = (DOOR.z0 + DOOR.z1) / 2;
+  const jarPos = () => new THREE.Vector3(JAR[0], 1.02, JAR[1]);
+  function labelJob(s) {
+    return { kind: 'ev', id: 'l' + s.id, steps: [
+      { go: SPOT.printer, say: 'Ha llegado la etiqueta de ' + short(s) },
+      { anim: 'print', t: 3.0, face: 0, say: 'Imprimiendo la etiqueta', start: () => { label = labelMesh(s.carrier); label.position.copy(printOut); world.add(label); }, tick: k => { if (label) label.position.set(printOut.x, printOut.y + .02, printOut.z + .02 + k * .1); }, end: () => { if (label) holdIn(label, P.hand); } },
+      { go: SPOT.tub, say: 'Pegando la etiqueta en la bolsa' },
+      { anim: 'stick', t: 2.0, face: Math.PI / 2, say: 'Pegando la etiqueta en la bolsa', start: () => { const bg = tubBag[s.id]; if (label && bg) fly(label, () => bg.getWorldPosition(wv).clone().add(new THREE.Vector3(.05, bg.userData.h / 2 + .004, .02)), 1.0, () => { if (label && label.parent) label.parent.remove(label); label = null; }); },
+        end: () => { if (label && label.parent) label.parent.remove(label); label = null; labeled.add(s.id); drawTub(); log('Etiqueta pegada: ' + short(s)); } }
+    ] };
+  }
+  function shipJob(s) {
+    const kind = kindOf(s.cat);
+    return { kind: 'ev', id: 's' + s.id, steps: [
+      { go: SPOT.tub, say: 'Va a por el paquete de ' + short(s) },
+      { anim: 'pick', t: 1.4, face: Math.PI / 2, say: 'Coge el paquete', start: () => { const b = bagMesh(kind), lb = labelMesh(s.carrier); lb.position.set(.05, b.userData.h / 2 + .003, .02); b.add(lb); b.position.set(tx0 + tw / 2, .4, tz0 + td / 2); world.add(b); held = b; toCarry(b, 1.0, () => holdIn(b, P.carry)); } },
+      { go: [RX - .5, DOORZ], carry: true, say: 'Lo lleva al punto de envío' },
+      { go: [RX + .75, DOORZ], carry: true, say: 'Lo lleva al punto de envío' },
+      { go: [RX + .75, LOCK.z1 + .4], carry: true, say: 'Lo lleva al punto de envío' },
+      { go: [LOCK.xm, LOCK.z1 + .4], carry: true, say: 'Lo lleva al punto de envío' },
+      { anim: 'drop', t: 2.4, face: Math.PI, say: 'Lo deja en la taquilla', start: () => { lockOpen = 1; if (held) { const h = held; held = null; fly(h, () => lockSlot.clone(), 1.1, () => { if (h.parent) h.parent.remove(h); }); } },
+        end: () => { lockOpen = 0; shipSeen.add(s.id); log('Enviado: ' + short(s)); } },
+      { go: [RX + .75, LOCK.z1 + .4], say: 'Vuelve al almacén' },
+      { go: [RX + .75, DOORZ], say: 'Vuelve al almacén' },
+      { go: [RX - .5, DOORZ], say: 'Vuelve al almacén' }
+    ] };
+  }
+  function paidJob(s) {
+    return { kind: 'ev', id: 'p' + s.id, steps: [
+      { go: SPOT.chair, say: 'Ha llegado el dinero de ' + short(s) },
+      { anim: 'phone', t: 3.6, face: Math.PI, sit: true, say: 'Cobrado', start: () => { handProp('phone'); coinFly(new THREE.Vector3(JAR[0] - .5, 1.25, JAR[1] + .45), jarPos(), 3, () => { jarLv = Math.min(1, jarLv + .04); }); }, end: () => { handProp(null); paidSeen.add(s.id); log('Cobrada: ' + short(s)); } }
+    ] };
+  }
+  function payoutJob(p) {
+    return { kind: 'ev', id: 'b' + p.id, steps: [
+      { go: SPOT.chair, say: 'Pasa dinero al banco' },
+      { anim: 'type', t: 3.6, face: Math.PI, sit: true, say: 'Transferencia al banco', start: () => { coinFly(jarPos(), new THREE.Vector3(DESK[0] + 1.0, 1.15, DESK[1] + .15), 4, null); jarLv = Math.max(0, jarLv - .1); }, end: () => { paySeen.add(p.id); log('Al banco: ' + p.tip); } }
+    ] };
+  }
+  function starJob(f) {
+    const [spot, face, where] = pickSpot({ cat: f.cat, productId: f.productId });
+    return { kind: 'ev', id: 'f' + f.id, steps: [
+      { go: SPOT.aisle, say: 'Va a destacar un artículo' },
+      { go: spot, say: 'Va a destacar un artículo' },
+      { anim: 'stick', t: 2.4, face: f.cat === 'jellycat' ? Math.atan2(PILE.x - spot[0], PILE.z - spot[1]) : face, say: 'Le pone su estrella', end: () => { starSeen.add(f.id); drawFeats(D.feats.filter(x => starSeen.has(x.id))); log('Destacado en ' + where); } }
+    ] };
+  }
+  function restockJob(s) {
+    const [spot, face] = pickSpot(s);
+    return { kind: 'ev', id: 'r' + s.id, steps: [
+      { go: [7.55, 6.0], say: 'Ha vuelto ' + short(s) },
+      { anim: 'pick', t: 1.5, face: Math.PI / 2, say: 'Saca la devolución de la caja', start: () => { const it = itemMesh('box'); it.position.set(8.35, .72, 6.0); world.add(it); held = it; toCarry(it, 1.0, () => holdIn(it, P.carry)); } },
+      { go: [3.9, 5.0], carry: true, say: 'La devuelve a su sitio' },
+      { go: SPOT.aisle, carry: true, say: 'La devuelve a su sitio' },
+      { go: spot, carry: true, say: 'La devuelve a su sitio' },
+      { anim: 'place', t: 1.4, face: s.cat === 'jellycat' ? Math.atan2(PILE.x - spot[0], PILE.z - spot[1]) : face, say: 'Vuelve al stock', start: () => { if (held && held.parent) held.parent.remove(held); held = null; }, end: () => { retSeen.add(s.id); log('De vuelta al stock: ' + short(s)); } }
+    ] };
+  }
+  // lo siguiente de la cadena que falta por hacer (en orden: lo que pasa antes, primero)
+  function nextEvent() {
+    if (!D) return null; let x;
+    if ((x = D.pend.find(s => s.mail && s.labelAt && packed.has(s.id) && !labeled.has(s.id)))) return labelJob(x);
+    if ((x = (D.shipped || []).find(s => !shipSeen.has(s.id)))) return shipJob(x);
+    if ((x = (D.paid || []).find(s => !paidSeen.has(s.id)))) return paidJob(x);
+    if ((x = (D.feats || []).find(f => !starSeen.has(f.id)))) return starJob(x);
+    if ((x = (D.restock || []).find(s => !retSeen.has(s.id)))) return restockJob(x);
+    if ((x = (D.payouts || []).find(p => !paySeen.has(p.id)))) return payoutJob(x);
+    return null;
+  }
+  function photoJob() {
+    const l = (D && D.products || []).filter(p => p.units > 0), p = l[Math.floor(Math.random() * l.length)];
+    return { kind: 'idle', steps: [
+      { go: [6.28, 6.15], say: 'Va a hacer fotos para Vinted' },
+      { anim: 'photo', t: 9, face: -Math.PI / 2, say: 'Haciendo fotos' + (p ? ' a ' + p.name : ''), start: () => { handProp('phone'); clear(studioItem); if (p) { const k = kindOf(p.cat), m = itemMesh(k, { name: p.name, size: p.size }); m.position.set(5.05, .43 + LIFT[k], 6.15); m.rotation.y = .5; studioItem.add(m); } },
+        tick: k => { if ([.25, .5, .75].some(f => Math.abs(k - f) < .012)) flashK = 1; if (studioItem.children[0]) studioItem.children[0].rotation.y = .5 + k * 2.4; },
+        end: () => { handProp(null); clear(studioItem); log('Ha hecho fotos' + (p ? ' a ' + p.name : '')); } }
+    ] };
+  }
   const IDLE = [
+    photoJob,
     () => ({ kind: 'idle', steps: [{ go: SPOT.chair, say: 'Va a calentar cuentas' }, { anim: 'phone', t: 36, face: Math.PI, sit: true, say: 'Calentando cuentas en los móviles', start: () => handProp('phone'), end: () => { handProp(null); log('Ha calentado las cuentas'); } }] }),
     () => ({ kind: 'idle', steps: [{ go: SPOT.chair, say: 'Va al portátil' }, { anim: 'type', t: 28, face: Math.PI, sit: true, say: 'Buscando productos ganadores en el portátil', end: () => log('Ha buscado productos ganadores') }] }),
     () => ({ kind: 'idle', steps: [{ go: SPOT.aisle, say: 'Va a revisar el stock', start: () => handProp('clip') }, { go: [1.0, .9], say: 'Revisando el stock' }, { anim: 'check', t: 3.5, face: -Math.PI / 2, say: 'Revisando el stock' }, { go: [1.0, 2.0], say: 'Revisando el stock' }, { anim: 'check', t: 3.5, face: -Math.PI / 2, say: 'Revisando el stock' }, { go: [1.0, 3.1], say: 'Revisando el stock' }, { anim: 'check', t: 3.5, face: -Math.PI / 2, say: 'Revisando el stock', end: () => { handProp(null); log('Ha revisado el stock'); } }] }),
@@ -719,11 +925,11 @@ export function createWorld(opts) {
   function startNext() {
     cleanup();
     const s = D && D.pend.find(x => !packed.has(x.id));
-    job = s ? saleJob(s) : IDLE[idleI++ % IDLE.length](); job.i = 0;
+    job = s ? saleJob(s) : nextEvent() || IDLE[idleI++ % IDLE.length](); job.i = 0;
   }
   function plan() {
     // si estaba en una tarea de tiempo muerto y aparece una venta por preparar, la deja y se pone con la venta
-    if (!job || (job.kind === 'idle' && D.pend.some(x => !packed.has(x.id)))) startNext();
+    if (!job || (job.kind === 'idle' && (D.pend.some(x => !packed.has(x.id)) || nextEvent()))) startNext();
     else if (job.kind === 'sale' && !D.pend.some(x => x.id === job.id)) startNext();     // la marcaste como enviada o la borraste
   }
   const SPEED = 1.1, tmp = new THREE.Vector3();
@@ -759,6 +965,7 @@ export function createWorld(opts) {
       case 'pack': P.armR.rotation.x = -1.1 + w * .25; P.armL.rotation.x = -1.1 - w * .25; break;
       case 'print': P.armR.rotation.x = -1.0 + Math.sin(t * 3) * .08; P.armL.rotation.x = -.2; break;
       case 'stick': P.armR.rotation.x = -1.15 + Math.max(0, Math.sin(t * 6)) * .2; P.armL.rotation.x = -1.0; break;
+      case 'photo': P.armR.rotation.x = -1.55 + Math.sin(t * 2) * .03; P.armL.rotation.x = -1.45; break;
       case 'check': P.armL.rotation.x = -1.0; P.armR.rotation.x = -.9 + Math.sin(t * 4) * .1; break;
       case 'organize': P.armR.rotation.x = -2.1 + w * .3; P.armL.rotation.x = -2.1 - w * .3; break;
       case 'type': case 'phone':
@@ -858,7 +1065,7 @@ export function createWorld(opts) {
 
   /* ---------- ratón: nombres y clic (sin cambiar colores, para que nada parpadee) ---------- */
   const rc = new THREE.Raycaster(), ndc = new THREE.Vector2();
-  const skip = new Set([M.floor, M.wall, M.grass, M.road, M.walk, M.curb, M.rug]);
+  const skip = new Set([M.floor, M.wall, M.grass, M.road, M.walk, M.curb, M.rug, floorMat]);
   function pick(e) {
     const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     rc.setFromCamera(ndc, cam); const hit = rc.intersectObjects([world, PL], true).find(h => !skip.has(h.object.material));
@@ -881,7 +1088,10 @@ export function createWorld(opts) {
   function frame(now) {
     if (!canvas.isConnected) { raf = 0; return; }
     const dt = Math.min(.05, (now - last) / 1000); last = now; clock2 += dt;
-    if (D) tickWorker(dt, clock2); tickStreet(dt, clock2);
+    if (D) tickWorker(dt, clock2); tickStreet(dt, clock2); tickFx(dt);
+    lockK += (lockOpen - lockK) * Math.min(1, dt * 6); lockD.rotation.y = -lockK * 1.7; lockScreen.material.emissiveIntensity = .45 + (lockOpen ? .5 * (Math.sin(clock2 * 9) > 0 ? 1 : 0) : .15 * Math.sin(clock2 * 1.5));
+    flashK = Math.max(0, flashK - dt * 5); ringMat.emissiveIntensity = .5 + flashK * 4;
+    phones.children.forEach(g => { g.position.x = g.userData.buzz && Math.sin(clock2 * 2.2) > .55 ? Math.sin(clock2 * 70) * .006 : 0; });   // el móvil al que acaba de llegar un correo vibra
     letterM.visible = letterOn; flag.rotation.z = letterOn ? 0 : -1.5; if (letterOn) letterM.position.y = 1.1 + Math.sin(clock2 * 2) * .015;
     featG.children.forEach(g => { g.rotation.y = clock2 * 1.6 + g.userData.ph; g.position.y = g.userData.y + Math.sin(clock2 * 2.2 + g.userData.ph) * .05; const s = 1 + Math.sin(clock2 * 3 + g.userData.ph) * .06; g.scale.setScalar(s); });
     tvTick += dt; if (tvTick > 1 / 24) { tvTick = 0; drawTV(clock2); }
@@ -905,6 +1115,9 @@ export function createWorld(opts) {
       if (k === 'zapatillas') {          // de frente a la pared de zapatillas, a la altura de las cajas
         front = true; const len = SW.bays * SW.bay; lookTo.set(.3, SW.levels * SW.lv / 2 + .05, SW.z0 + len / 2 - .85);
         azTo = Math.PI / 2; elTo = .1; nearTo = R - 1.55; zoomTo = Math.min(5, VIEW / (SW.levels * SW.lv + 1.6)); idle = 0; return;
+      }
+      if (k === 'chain') {               // de frente a la pizarra de la cadena
+        front = true; lookTo.set(2.5, 1.8, .1); azTo = 0; elTo = .14; nearTo = R - 1.6; zoomTo = VIEW / 2.0; idle = 0; return;
       }
       if (k === 'feat') {                // de frente a la tele de destacados
         front = true; lookTo.set(8.7, 1.62, .1); azTo = 0; elTo = .14; nearTo = R - 1.6; zoomTo = VIEW / 1.9; idle = 0; return;

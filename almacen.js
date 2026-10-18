@@ -281,7 +281,7 @@
     return ls.length ? ls.join(' · ') : { zapatillas: 'Zapatillas', jellycat: 'Peluches', futbol: 'Ropa', otro: 'Otros' }[z]; };
   const CATN = {}; Object.keys(ZK).forEach(z => Object.defineProperty(CATN, z, { get: () => zoneName(z), enumerable: true }));
   const SPOTN = { zapatillas: 'Pared de zapatillas', jellycat: 'Montón de peluches', futbol: 'Burro de ropa', otro: 'Estantería baja' };
-  const ZBTN = [['overview', 'Vista general'], ['in', 'Recepción'], ['stock', 'Stock'], ['prep', 'Preparación'], ['out', 'Salida'], ['office', 'Escritorio'], ['ret', 'Devoluciones']];
+  const ZBTN = [['overview', 'Vista general'], ['in', 'Recepción'], ['stock', 'Stock'], ['prep', 'Preparación'], ['out', 'Salida'], ['chain', 'Cadena'], ['office', 'Escritorio'], ['ret', 'Devoluciones']];
   let world = null, loading3d = null, panelK = null, activeZ = 'overview';
   const IC = {
     pin: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z"/></svg>',
@@ -328,16 +328,32 @@
   const featsAll = () => S.expenses.filter(e => e.category === 'destacado').sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const featLeft = e => FEAT_DAYS - (days(e.date, today()) || 0);
   const featsActive = () => featsAll().filter(e => featLeft(e) > 0);
+  // lo que alimenta las acciones de la cadena en el almacén (solo lo de los últimos días: lo antiguo no se repite)
+  function chain3d() {
+    const it = s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), carrier: s.carrier || '', tip: s.name + (s.size ? ' · ' + s.size : '') });
+    const ok = S.sales.filter(s => s.status !== 'devuelta'), d2 = daysAgo(2), l = accounts();
+    const lbl = s => s.name + (s.size ? ' · ' + s.size : '');
+    const ml = l.map(a => mailLast(a.id)).filter(Boolean).sort().pop() || '';
+    return {
+      shipped: ok.filter(s => !shipOpen(s) && shipWhen(s) >= d2 && shipWhen(s) <= today()).map(it),
+      paid: ok.filter(s => s.paidAt && s.paidAt >= d2).map(it),
+      payouts: l.flatMap(a => (a.payouts || []).filter(p => (p.date || '') >= d2).map(p => ({ id: p.id || (a.id + p.date + p.amount), tip: a.name + ' · ' + money(p.amount) }))),
+      restock: S.sales.filter(s => s.status === 'devuelta' && s.restocked && s.productId && prod(s.productId) && (s.returnedAt || '') >= d2).map(it),
+      saldo: r2(sum(l, x => balance(x.id).saldo)),
+      chain: { sold: pend().filter(s => !s.labelAt).map(lbl), label: pend().filter(s => s.labelAt).map(lbl), sent: ok.filter(s => !shipOpen(s) && !(s.paidAt || isFree(s)) && shipWhen(s) >= daysAgo(13)).map(lbl),
+        paid: ok.filter(s => (s.paidAt || '') >= daysAgo(6)).map(lbl), on: l.filter(a => a.email).length, total: l.length, last: ml ? fmtDate(ml) : '' }
+    };
+  }
   function data3d() {
     return {
       products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
-      accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, mail: !!x.email, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) + (x.email ? ' · correo conectado' : '') })),
-      pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
+      accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, mail: !!x.email, buzz: !!x.email && (S.mailin || []).some(m => (m.createdAt || 0) > Date.now() - 6e5 && String(m.to || '').toLowerCase().includes(String(x.email).toLowerCase())), tip: x.name + ' · saldo ' + money(balance(x.id).saldo) + (x.email ? ' · correo conectado' : '') })),
+      pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), mail: mailOn(s.account), labelAt: s.labelAt || '', carrier: s.carrier || '', tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
       letter: loadedAll() && letterUnread(), weekUnits: sum(weekSales(), s => s.qty || 1), featTV: (() => { const all = featsAll(), wk = weekStart(), mo = today().slice(0, 7);
         const ends = e => (e.createdAt ? e.createdAt : new Date(e.date + 'T00:00:00').getTime()) + FEAT_DAYS * 864e5;
         return { total: sum(all, e => e.amount), week: sum(all.filter(e => (e.date || '') >= wk), e => e.amount), month: sum(all.filter(e => (e.date || '').slice(0, 7) === mo), e => e.amount),
           active: all.filter(e => ends(e) > Date.now()).map(e => ({ name: (prod(e.productId) || {}).name || String(e.concept || 'Destacado').replace(/^Destacado( · )?/, '') || 'Destacado', ends: ends(e) })),
-          last7: [6, 5, 4, 3, 2, 1, 0].map(n => sum(all.filter(e => e.date === addDays(today(), -n)), e => e.amount)) }; })(), feats: featsActive().filter(e => e.productId).map(e => ({ productId: e.productId, tip: 'Destacado · ' + (prod(e.productId) || {}).name + ' · quedan ' + featLeft(e) + (featLeft(e) === 1 ? ' día' : ' días') })), incoming: incoming().length, rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
+          last7: [6, 5, 4, 3, 2, 1, 0].map(n => sum(all.filter(e => e.date === addDays(today(), -n)), e => e.amount)) }; })(), feats: featsActive().filter(e => e.productId && prod(e.productId)).map(e => ({ id: e.id, cat: zoneOf(prod(e.productId)), productId: e.productId, tip: 'Destacado · ' + (prod(e.productId) || {}).name + ' · quedan ' + featLeft(e) + (featLeft(e) === 1 ? ' día' : ' días') })), incoming: incoming().length, ...chain3d(), rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
     };
   }
   /* panel lateral de cada zona, como la ficha de «Rayon A» del vídeo */
@@ -369,6 +385,15 @@
       return pHead('Preparación', 'Ventas por enviar', 'Salen solas cuando Vinted avisa del envío', [['Por preparar', todo.length], ['En la vagoneta', tub.length], ['Con etiqueta', l.filter(s => s.labelAt).length], ['Importe', money(sum(l, s => s.price))]]) +
         `<div class="ap-l">Por preparar</div><div class="ap-list">${todo.length ? todo.map(s => row(s, '<span class="ap-chip">' + (s.labelAt ? 'Etiqueta lista' : 'Preparando') + '</span>')).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
         <div class="ap-l">En la vagoneta</div><div class="ap-list">${tub.length ? tub.map(s => row(s, '<span class="ap-chip ok">En la vagoneta</span>')).join('') : '<p class="ap-empty">La vagoneta está vacía.</p>'}</div>`;
+    }
+    if (k === 'chain') {
+      const ok = S.sales.filter(s => s.status !== 'devuelta'), stg = k2 => ok.filter(s => shipStage(s) === k2 && (s.date || '') >= daysAgo(30)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const C = [['sold', 'Por preparar', 'Vendidas, esperando la etiqueta o el envío'], ['label', 'Con etiqueta', 'Lista para llevar al punto de envío'], ['sent', 'Enviadas', 'Esperando a que el comprador la reciba'], ['paid', 'Cobradas', 'El dinero ya está en el saldo']];
+      const sub = s => [esc(accName(s.account, s.accountName)), s.carrier ? esc(s.carrier.toUpperCase()) : '', s.shipDeadline && shipOpen(s) ? 'antes del ' + fmtDate(s.shipDeadline) : '', shipStage(s) === 'sent' ? 'enviada el ' + fmtDate(shipWhen(s)) + ' · cobro el ' + fmtDate(freeOn(s)) : '', shipStage(s) === 'paid' && s.paidAt ? 'cobrada el ' + fmtDate(s.paidAt) : ''].filter(Boolean).join(' · ');
+      const on = accounts().filter(a => a.email).length;
+      return pHead('Cadena', 'De la venta al cobro', on + '/' + accounts().length + ' móviles con el correo conectado', C.map(([c, t]) => [t, stg(c).length])) +
+        C.map(([c, t, h]) => { const l = stg(c); return `<div class="ap-l">${t} · <span style="text-transform:none;letter-spacing:0;font-weight:500">${h}</span></div><div class="ap-list">${l.length ? l.slice(0, c === 'paid' ? 6 : 20).map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), sub(s), '<span class="ap-chip ' + (c === 'paid' ? 'ok' : c === 'sold' ? 'lo' : '') + '">' + money(s.price) + '</span>')).join('') : '<p class="ap-empty">Nada aquí ahora mismo.</p>'}</div>`; }).join('') +
+        '<div class="ap-f"><button class="btn btn-soft btn-block" data-action="mails">Correos de Vinted</button></div>';
     }
     if (k === 'week') {
       const l = weekSales().slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')), u = sum(l, s => s.qty || 1), fac = sum(l, s => s.price), bn = sum(l, s => (s.price || 0) - (s.cost || 0));

@@ -358,6 +358,11 @@ form.f { display: flex; flex-direction: column; gap: 14px; }
 .mrows { display: flex; flex-direction: column; margin-top: 8px; }
 .mrow { display: flex; align-items: center; gap: 12px; padding: 11px 0; width: 100%; text-align: left; }
 .mrow + .mrow { border-top: 1px solid var(--bd); }
+.mrow .rs { display: block; margin-top: 2px; }
+.chainbar { display: flex; gap: 2px; height: 5px; margin-top: 7px; max-width: 220px; border-radius: 3px; overflow: hidden; }
+.chainbar i { display: block; min-width: 6px; }
+.chainleg { display: flex; flex-wrap: wrap; gap: 6px 14px; padding-top: 10px; border-top: 1px solid var(--bd); font-size: 11.5px; color: var(--ink3); }
+.chainleg i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
 .mrow:active { opacity: .6; transform: none; }
 .mav { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; flex: none; border: 1px solid var(--bd); box-shadow: inset 0 1px 0 var(--hl); }
 .mamt { font-size: 16px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
@@ -1180,13 +1185,22 @@ function vPanel() {
 
   return h + porMovil(sl);
 }
+// la cadena de cada móvil (últimos 30 días): vendidas sin etiqueta · con etiqueta · enviadas · cobradas
+const CHAIN = [['sold', 'Por preparar', 'var(--warn)'], ['label', 'Con etiqueta', 'var(--accent)'], ['sent', 'Enviadas', 'var(--c2)'], ['paid', 'Cobradas', 'var(--pos)']];
+function accChain(id) { const c = { sold: 0, label: 0, sent: 0, paid: 0 }; S.sales.filter(s => s.account === id && s.status !== 'devuelta' && (s.date || '') >= addDays(today(), -30)).forEach(s => { const k = shipStage(s); if (c[k] !== undefined) c[k]++; }); return c; }
+function accLine(a, sl) {
+  const n = sl.filter(x => x.account === a.id).length, c = accChain(a.id), open = c.sold + c.label, B = balance(a.id), ml = mailLast(a.id), tot = c.sold + c.label + c.sent + c.paid;
+  const bits = [n + (n === 1 ? ' venta' : ' ventas'), open ? open + ' por enviar' : '', B.saldo ? 'saldo ' + money(B.saldo) : '', B.pend ? money(B.pend) + ' en camino' : '', a.email ? 'correo ✓' + (ml ? ' ' + fmtDate(ml) : '') : 'sin correo'].filter(Boolean);
+  return `<span class="rs">${bits.join(' · ')}</span>${tot ? `<span class="chainbar">${CHAIN.filter(([k]) => c[k]).map(([k, t, col]) => `<i style="flex:${c[k]};background:${col}" data-tip="${t}
+${c[k]}"></i>`).join('')}</span>` : ''}`;
+}
 function porMovil(sl, cls = '') {
   const accs = accounts().map(a => { const s = sl.filter(x => x.account === a.id); return { a, f: sum(s, x => x.price) }; }).sort((x, y) => y.f - x.f);
   const orphan = sl.filter(x => !acc(x.account));
   let h = '';
   if (accs.length) h += `<section class="card ${cls}"><div class="ch"><h2>Por móvil</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
     <div class="split">${accs.filter(x => x.f > 0).map(x => `<i style="flex:${x.f};background:${accColor(x.a.id)}" data-tip="${esc(x.a.name)}\n${money(x.f)}"></i>`).join('')}</div>
-    <div class="mrows">${accs.map(({ a, f }) => `<button class="mrow" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span></span><span class="mr"><b class="mamt">${money(f)}</b>${warmChip(a, true)}</span></button>`).join('')}${orphan.length ? `<div class="mrow"><span class="mav" style="${tint('var(--ink2)')}">·</span><span class="rm"><span class="rt">Móviles borrados</span></span><b class="mamt">${money(sum(orphan, x => x.price))}</b></div>` : ''}</div></section>`;
+    <div class="mrows">${accs.map(({ a, f }) => `<button class="mrow" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span>${accLine(a, sl)}</span><span class="mr"><b class="mamt">${money(f)}</b>${warmChip(a, true)}</span></button>`).join('')}${accs.some(x => sum(Object.values(accChain(x.a.id)), v => v)) ? `<div class="chainleg">${CHAIN.map(([, t, col]) => `<span><i style="background:${col}"></i>${t}</span>`).join('')}</div>` : ''}${orphan.length ? `<div class="mrow"><span class="mav" style="${tint('var(--ink2)')}">·</span><span class="rm"><span class="rt">Móviles borrados</span></span><b class="mamt">${money(sum(orphan, x => x.price))}</b></div>` : ''}</div></section>`;
   return h;
 }
 
@@ -1252,7 +1266,8 @@ function vPanelDesk() {
   /* total y móviles */
   const accs = accounts(), warm = accs.filter(a => a.warm).length, blk = sum(accs, a => (a.blocks || []).filter(b => inR(b.date, r)).length);
   g += `<div class="dk-col s6">${letterCard()}${mailCard()}${shipCard()}${totalCard()}<section class="card"><div class="ch"><h2>Móviles</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
-    <div class="stat3"><div><span>Móviles</span><b>${accs.length}</b></div><div><span>Calentadas</span><b>${warm}</b></div><div><span>Bloqueos</span><b>${blk}</b></div></div></section></div>`;
+    <div class="stat3"><div><span>Móviles</span><b>${accs.length}</b></div><div><span>Calentadas</span><b>${warm}</b></div><div><span>Con correo</span><b>${accs.filter(a => a.email).length}</b></div><div><span>Por enviar</span><b>${S.sales.filter(shipOpen).length}</b></div><div><span>En el saldo</span><b>${money0(sum(accs, a => balance(a.id).saldo))}</b></div><div><span>Bloqueos</span><b>${blk}</b></div></div>
+    <div class="mrows">${accs.map(a => { const B = balance(a.id), c = accChain(a.id); return `<button class="mrow" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span><span class="rs">${[c.sold + c.label ? (c.sold + c.label) + ' por enviar' : 'Nada por enviar', c.paid ? c.paid + ' cobradas (30 d)' : '', a.email ? 'correo ✓' : 'sin correo'].filter(Boolean).join(' · ')}</span></span><span class="mr"><b class="mamt">${money(B.saldo)}</b>${warmChip(a, true)}</span></button>`; }).join('')}</div></section></div>`;
   return h + `<div class="dk">${g}</div>`;
 }
 

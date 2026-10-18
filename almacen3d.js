@@ -21,14 +21,14 @@ const PALLET = [8.2, .35];                                               // rece
 const TUB = [8.5, 3.3, .95, .75];                                        // salida (lo que se va)
 const LANE = RX + 4.3;
 const RD = { x0: 13, x1: 19 };                                            // la calle: recta, de norte a sur, delante de la puerta de la tienda
-const PO = { x0: -5, x1: 5, z0: -3.5, z1: 3.5, h: 4.5, cx: 7.5, cz: -9 };   // el punto de envío (medidas en su sitio; luego se gira hacia la calle)
-const BK = { x: 4.6, z: -28, w: 12, d: 9 };                              // el banco, también girado hacia la calle
+const PO = { x0: -5, x1: 5, z0: -3.5, z1: 3.5, h: 4.5, cx: 7.5, cz: 24 };   // el punto de envío (medidas en su sitio; luego se gira hacia la calle)
+const BK = { x: 4.6, z: -13, w: 12, d: 9 };                              // el banco, también girado hacia la calle
 export const ZONES = {
-  overview: { at: [9, 1, -15], zoom: .34 },
+  overview: { at: [9, 1, 4], zoom: .32 },
   shop: { at: [6.1, .7, 5.5], zoom: 1 },
   phones: { at: [4.6, .7, 9.2], zoom: 1.45 },         // un poco a la derecha: el panel tapa el lado derecho
-  bank: { at: [10.5, 3, -29], zoom: .6 },
-  post: { at: [12, 2, -10], zoom: .8 },
+  bank: { at: [10.5, 3, -14], zoom: .6 },
+  post: { at: [12, 2, 23], zoom: .8 },
   chain: { at: [1.9, 1.2, 1.5], zoom: 2.2 },
   week: { at: [8.6, .5, 9.6], zoom: 3 },
   in: { at: [9.4, .5, 1.2], zoom: 2.6 },
@@ -600,19 +600,19 @@ export function createWorld(opts) {
   const curbX = (x, z, d) => block(.16, .16, d, M.curb, x - .08, -.1, z, world, false), curbZ = (x, z, w) => block(w, .16, .16, M.curb, x, -.1, z - .08, world, false);
   // la calle, recta, con acera a cada lado; la acera de arriba se corta donde entran los coches (punto de envío y aparcamiento del banco)
   road(RD.x0, -160, RD.x1 - RD.x0, 320);
-  for (const [z0, z1] of [[-160, -43], [-39, 160]]) { pave(RD.x0 - 1.6, z0, 1.6, z1 - z0); curbX(RD.x0, z0, z1 - z0); }   // acera de los edificios (cortada en la entrada del aparcamiento)
+  for (const [z0, z1] of [[-160, -28], [-24, 160]]) { pave(RD.x0 - 1.6, z0, 1.6, z1 - z0); curbX(RD.x0, z0, z1 - z0); }   // acera de los edificios (cortada en la entrada del aparcamiento)
   pave(RD.x1, -160, 1.8, 320); curbX(RD.x1, -160, 320);
   for (let z = -160; z < 160; z += 4) block(.16, .02, 2, M.lane, (RD.x0 + RD.x1) / 2 - .08, -.04, z, world, false);
-  for (let i = 0; i < 7; i++) block(.45, .02, 2.6, M.lane, RD.x0 + .2 + i * .85, -.04, BK.z + 9, world, false);   // paso de cebra entre el punto de envío y el banco
+  for (let i = 0; i < 7; i++) block(.45, .02, 2.6, M.lane, RD.x0 + .2 + i * .85, -.04, -4, world, false);   // paso de cebra entre la tienda y el banco
   pave(10.1, 1.0, 1.3, 1.8);   // de la puerta de la tienda a la acera
   const lampAt = (x, z) => { cyl(.06, 4.2, M.dark, x, 2.05, z, world); block(.1, .06, .5, M.dark, x - .05, 4.1, z - .05, world); ball(.18, M.lamp, x, 4.0, z + .38, world); };
-  for (let z = -70; z < 60; z += 13) { if (z < -43 || z > -39) lampAt(RD.x0 - .6, z); lampAt(RD.x1 + .6, z + 6.5); }
+  for (let z = -70; z < 60; z += 13) { if (z < -28 || z > -24) lampAt(RD.x0 - .6, z); lampAt(RD.x1 + .6, z + 6.5); }
   const treeAt = (x, z, s = 1.5) => { block(.26 * s, 1.0 * s, .26 * s, M.trunk, x - .13 * s, -.01, z - .13 * s, world); for (const [dx, dy, r] of [[0, 1.45, .62], [.18, 1.8, .4], [-.18, 1.7, .44]]) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(r * s, 1), dx ? M.leaf2 : M.leaf); c.position.set(x + dx * s, dy * s, z); c.castShadow = true; world.add(c); } };
   for (let z = -70; z < 60; z += 9) treeAt(RD.x1 + 3.8, z + 4.5, 1.7);   // árboles al otro lado de la calle
-  for (const [x, z] of [[-6, -6], [-7, 4], [-6.5, 11], [-7, -16], [-6, -30], [-7, -44], [30, -10], [34, 8], [28, 24], [-4, 22], [31, -36]]) treeAt(x, z, 1.8);
+  for (const [x, z] of [[-6, -6], [-7, 4], [-6.5, 11], [-7, -16], [-6, -30], [-6, 22], [30, -10], [34, 8], [28, 24], [-4, 30], [31, -36]]) treeAt(x, z, 1.8);
 
   { let sd = 1234567; const rnd2 = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    const free = (x, z) => !(x > RD.x0 - 2.4 && x < RD.x1 + 2.6 || x > -1.8 && x < 12.6 && z > -1.8 && z < 14 || x > 2.5 && x < 12.6 && z > -15.5 && z < -2.5 || x > -2.6 && x < 13 && z > -49 && z < -20);
+    const free = (x, z) => !(x > RD.x0 - 2.4 && x < RD.x1 + 2.6 || x > -1.8 && x < 12.6 && z > -1.8 && z < 14 || x > 2.5 && x < 12.6 && z > 17.5 && z < 30.5 || x > -2.6 && x < 13 && z > -34 && z < -5);
     const spots = (n, x0, x1, z0, z1) => { const o = []; let tries = 0; while (o.length < n && tries++ < n * 30) { const x = x0 + rnd2() * (x1 - x0), z = z0 + rnd2() * (z1 - z0); if (free(x, z)) o.push([x, z]); } return o; };
     const dummy = new THREE.Object3D(), col = new THREE.Color();
     const inst = (geo, m, list, f, shadow) => { const im = new THREE.InstancedMesh(geo, m, list.length); list.forEach((q, i) => { f(dummy, q, i); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); im.setColorAt(i, col); }); im.castShadow = !!shadow; im.receiveShadow = true; world.add(im); return im; };
@@ -622,7 +622,7 @@ export function createWorld(opts) {
     inst(new THREE.IcosahedronGeometry(1, 1), mat('#FFFFFF', { roughness: 1 }), bushes, (d, [x, z]) => { const r = .35 + rnd2() * .45; d.position.set(x, r * .55 - .1, z); d.scale.set(r, r * .75, r); d.rotation.set(0, rnd2() * 6, 0); col.set(greens[Math.floor(rnd2() * greens.length)]); }, true);
     // setos bajos junto a los edificios
     const hedgeM = mat('#6E9A6A', { roughness: 1 });
-    for (const [x0, z0, w, d] of [[-1.6, 12.7, 8.2, .5], [-1.4, -47.6, 12, .5]]) block(w, .7, d, hedgeM, x0, -.1, z0, world);
+    for (const [x0, z0, w, d] of [[-1.6, 12.7, 8.2, .5], [-1.4, -32.6, 12, .5]]) block(w, .7, d, hedgeM, x0, -.1, z0, world);
     // matas de hierba alta y flores silvestres
     const tufts = spots(900, -40, 70, -70, 50);
     inst(new THREE.ConeGeometry(.09, .42, 4), mat('#FFFFFF', { roughness: 1 }), tufts, (d, [x, z]) => { const k = .7 + rnd2() * .8; d.position.set(x, .1 * k, z); d.scale.set(k, k, k); d.rotation.set((rnd2() - .5) * .4, rnd2() * 6, (rnd2() - .5) * .4); col.set(greens[Math.floor(rnd2() * greens.length)]).multiplyScalar(.9 + rnd2() * .2); });
@@ -672,9 +672,9 @@ export function createWorld(opts) {
   pave(10.9, BK.z - 4, RD.x0 - 1.6 - 10.9, 8);   // de la escalinata a la acera
   const bankDoor = rotW(bankG, 0, 1.4, hd - 1.4).toArray(), BANK_AT = (v => [v.x, v.z])(rotW(bankG, 0, 0, hd + 2.3)), BANK_FACE = -Math.PI / 2;
   // aparcamiento del banco, con su entrada desde la avenida
-  road(-1, -47, 12, 10.5); road(11, -43, RD.x0 - 11, 4);
-  for (let i = 0; i < 4; i++) block(4.2, .02, .12, M.lane, -.6, -.04, -46.6 + i * 2.6, world, false);
-  { const pk = [car('#B9BCC2'), car('#2B2D33')]; pk.forEach((k, i) => { k.g.position.set(2.4, 0, -45.3 + i * 5.2); k.g.rotation.y = -Math.PI / 2; world.add(k.g); }); }
+  road(-1, -32, 12, 10.5); road(11, -28, RD.x0 - 11, 4);
+  for (let i = 0; i < 4; i++) block(4.2, .02, .12, M.lane, -.6, -.04, -31.6 + i * 2.6, world, false);
+  { const pk = [car('#B9BCC2'), car('#2B2D33')]; pk.forEach((k, i) => { k.g.position.set(2.4, 0, -30.3 + i * 5.2); k.g.rotation.y = -Math.PI / 2; world.add(k.g); }); }
 
   // pantallas en las fachadas con los números de verdad (el almacén es tu centro de control)
   const infoBoard = (w, h, parent, x, y, z) => { const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
@@ -987,7 +987,7 @@ export function createWorld(opts) {
     ] };
   }
   // de la puerta de la tienda al otro lado de la calle, por el paso de cebra
-  const CROSS = [[RX - .5, DOORZ], [RX + .9, DOORZ], [11.9, 1.4]];
+  const CROSS = [[RX - .5, DOORZ], [RX + .9, DOORZ], [11.7, 1.4]];
   const walk = (pts, carry, say) => pts.map(p => ({ go: p, carry, say }));
   const back = pts => pts.slice().reverse();
   function shipJob(s) {
@@ -995,10 +995,10 @@ export function createWorld(opts) {
     return { kind: 'ev', id: 's' + s.id, steps: [
       { go: SPOT.tub, say: 'Va a por el paquete de ' + short(s) },
       { anim: 'pick', t: 1.4, face: Math.PI / 2, say: 'Coge el paquete', start: () => { const b = bagMesh(kind), lb = labelMesh(s.carrier); lb.position.set(.05, b.userData.h / 2 + .003, .02); b.add(lb); b.position.set(tx0 + tw / 2, .4, tz0 + td / 2); world.add(b); held = b; toCarry(b, 1.0, () => holdIn(b, P.carry)); } },
-      ...walk([...CROSS, [11.9, there[1]], there], true, 'Lo lleva al punto de envío'),
+      ...walk([...CROSS, [11.7, there[1]], there], true, 'Lo lleva al punto de envío'),
       { anim: 'drop', t: 2.4, face: POST_FACE, say: 'Lo deja en la taquilla', start: () => { lockOpen = 1; if (held) { const h = held; held = null; fly(h, () => lockSlot.clone(), 1.1, () => { if (h.parent) h.parent.remove(h); }); } },
         end: () => { lockOpen = 0; shipSeen.add(s.id); log('Enviado: ' + short(s)); } },
-      ...walk([[11.9, there[1]], ...back(CROSS)], false, 'Vuelve a la tienda')
+      ...walk([[11.7, there[1]], ...back(CROSS)], false, 'Vuelve a la tienda')
     ] };
   }
   const moneyBag = () => { const g = new THREE.Group(), m = mat('#C9A274', { roughness: .9 }); ball(.13, m, 0, 0, 0, g, 1, .9, 1); ball(.05, m, 0, .13, 0, g); cyl(.055, .02, M.acc, 0, .1, 0, g); block(.07, .07, .004, M.acc, -.035, -.03, .128, g); return g; };
@@ -1009,7 +1009,7 @@ export function createWorld(opts) {
     ] };
   }
   function payoutJob(p) {
-    const route = [...CROSS, [11.9, BANK_AT[1]], BANK_AT];
+    const route = [...CROSS, [11.7, BANK_AT[1]], BANK_AT];
     return { kind: 'ev', id: 'b' + p.id, steps: [
       { go: SPOT.chair, say: 'Pasa dinero al banco' },
       { anim: 'type', t: 2.4, face: Math.PI, sit: true, say: 'Saca el dinero de la hucha', start: () => { coinFly(jarPos(), new THREE.Vector3(DESK[0] + 1.0, 1.2, DESK[1] + 1.1), 3, null); jarLv = Math.max(0, jarLv - .1); },

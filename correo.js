@@ -4,7 +4,9 @@
    · «La transacción se ha completado» → esa venta pasa a cobrada (al saldo)
    · «Tu factura de artículos destacados» → gasto de destacado
    · «Tu recibo de …»                  → compra
+   · «Etiqueta de envío»               → etiqueta lista (SEUR/Correos: se da por enviada a la semana)
    · InPost / Vinted Go                 → paquete enviado
+   Si una venta ya la habías apuntado a mano, el correo se une a ella (no se duplica).
    Lo que no está claro queda «por revisar». Las ventas y gastos usan el id del correo: nunca se apuntan dos veces. */
 (function () {
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9/]+/g, ' ').trim();
@@ -79,14 +81,21 @@
       const items = I.items.length ? I.items : [it0], notes = []; let anyReview = false, firstRef = '';
       for (let k = 0; k < items.length; k++) {
         const it = items[k], ref = base + (items.length > 1 ? '_' + k : ''); if (!firstRef) firstRef = ref;
-        if (S.sales.some(s => s.id === ref)) { notes.push('ya estaba'); continue; }
+        if (S.sales.some(s => s.id === ref || s.mailRef === ref)) { notes.push('ya estaba'); continue; }
         const price = it.price || (I.total && items.length ? Math.round(I.total / items.length * 100) / 100 : 0);
         const p = matchProduct(it.title), size = p ? pickSize(p, it.size || sizeOf(it.title)) : it.size || sizeOf(it.title);
         const data = p ? { productId: p.id, name: p.name, category: p.category || 'otro', photo: p.photo || '', size, qty: 1, price, cost: Math.round((p.cost || 0) * 100) / 100, account: acc ? acc.id : '', date }
           : { productId: '', name: it.title, category: 'otro', photo: '', size, qty: 1, price, cost: 0, account: acc ? acc.id : '', date };
+        // ¿ya la apuntaste tú a mano? (mismo móvil, ±2 días, mismo artículo) → se une a esa en vez de duplicarla
+        const mine = S.sales.find(s => s.source !== 'mail' && !s.mailRef && s.status !== 'devuelta' && (!acc || s.account === acc.id) && Math.max(days(s.date || date, date) || 0, days(date, s.date || date) || 0) <= 2 && (p ? s.productId === p.id : titleScore(it.title, s.name) >= .5));
+        if (mine) {
+          await db.doc('sales/' + mine.id).update({ source: 'mail', mailRef: ref, mailTitle: it.title, ...(mine.price ? {} : { price }), ...(mine.account || !acc ? {} : { account: acc.id }) });
+          mine.source = 'mail'; mine.mailRef = ref; if (k === 0) firstRef = mine.id;
+          notes.push(mine.name + ' · ya la tenías apuntada, ahora la sigo por correo'); continue;
+        }
         if (p && size) await bumpStock(p, size, -1);
         const review = !p || !size || !acc || !price; anyReview = anyReview || review;
-        const sale = { ...data, status: 'ok', ship: date >= today() ? 'pend' : 'sent', createdAt: Date.now(), source: 'mail', mailTitle: it.title, review, lot: items.length > 1 ? base : '' };
+        const sale = { ...data, status: 'ok', ship: 'pend', createdAt: Date.now(), source: 'mail', mailTitle: it.title, review, lot: items.length > 1 ? base : '' };
         await db.doc('sales/' + ref).set(sale); if (!S.sales.some(s => s.id === ref)) S.sales.push({ id: ref, ...sale });   // que la vea ya el siguiente correo
         notes.push((p ? p.name : it.title) + (size ? ' · ' + size : '') + ' · ' + money(price) + (review ? ' · revisa ' + [!p && 'el artículo', p && !size && 'la talla', !acc && 'el móvil', !price && 'el precio'].filter(Boolean).join(', ') : ''));
       }

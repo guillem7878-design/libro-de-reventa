@@ -468,6 +468,17 @@ body.light .sheet { background: #fff; }
 .wb::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .wb.ok { color: var(--pos); background: color-mix(in srgb, var(--pos) 12%, transparent); border-color: color-mix(in srgb, var(--pos) 35%, transparent); }
 .wb.no { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); position: relative; }
+.steps li { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; min-width: 0; }
+.steps li::before { content: ""; position: absolute; top: 6px; left: calc(-50% + 9px); right: calc(50% + 9px); height: 2px; border-radius: 2px; background: var(--hair); }
+.steps li:first-child::before { display: none; }
+.steps li.ok::before, .steps li.on::before { background: var(--pos); }
+.steps i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--bd2); background: var(--card); box-sizing: border-box; }
+.steps li.ok i { background: var(--pos); border-color: var(--pos); }
+.steps li.on i { border-color: var(--pos); box-shadow: 0 0 0 4px color-mix(in srgb, var(--pos) 18%, transparent); }
+.steps b { font-size: 12.5px; font-weight: 600; }
+.steps li:not(.ok):not(.on) b { color: var(--ink3); }
+.steps span { font-size: 11px; color: var(--ink3); line-height: 1.25; overflow-wrap: anywhere; }
 .wb.sm { height: 19px; font-size: 11px; padding: 0 7px; margin-left: 6px; vertical-align: 1px; }
 .wd { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; }
 .wd.ok { background: var(--pos); } .wd.no { background: var(--warn); }
@@ -1101,14 +1112,30 @@ function letterSheet() {
   store.set('letterRead', w.start); setTimeout(() => { if (S.tab === 'panel') render(); }, 500);
 }
 const MAIL_K = { sale: ['Venta', G.sell, 'var(--pos)'], paid: ['Cobro', G.coin, 'var(--accent)'], feat: ['Destacado', G.zap, 'var(--warn)'], buy: ['Compra', G.cart, 'var(--warn)'], ship: ['Envío', G.truck, 'var(--ink2)'], label: ['Etiqueta', G.tag, 'var(--ink2)'], cancel: ['Cancelada', G.x, 'var(--neg)'], return: ['Devolución', G.ret, 'var(--neg)'], payout: ['Al banco', G.cash, 'var(--accent)'], other: ['Otro', G.dots, 'var(--ink3)'] };
+function mailPhones() {
+  return `<div class="sec-h"><h2>Móviles</h2><span>${accounts().filter(a => a.email).length}/${accounts().length} conectados</span></div><div class="list">${accounts().map(a => { const ml = mailLast(a.id);
+    return `<button class="row" data-action="${a.email ? 'account' : 'editAccount'}" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span><span class="rs">${a.email ? esc(a.email) + (ml ? ' · último correo ' + fmtDate(ml) : ' · aún no ha llegado ninguno') : 'Sin correo: tócalo y pon el de su cuenta de Vinted'}</span></span><span class="wb ${a.email ? 'ok' : 'no'} sm">${a.email ? 'Conectado' : 'Sin correo'}</span></button>`; }).join('')}</div>`;
+}
 function mailSheet() {
   const l = S.mailin.filter(m => m.done).sort((a, b) => String(b.date).localeCompare(String(a.date))), rv = l.filter(m => m.review);
   const row = m => { const [t, g, c] = MAIL_K[m.kind] || MAIL_K.other, [col, id] = String(m.ref || '/').split('/');
     return `<button class="row" ${id ? `data-action="${col === 'sales' ? 'sale' : 'expense'}" data-id="${id}"` : 'disabled'}><span class="th" style="${tint(c)}">${g}</span><span class="rm"><span class="rt">${t}${m.review ? ' · <b style="color:var(--warn)">revisar</b>' : ''}</span><span class="rs">${esc(m.note || m.subject || '')} · ${fmtDate(String(m.date).slice(0, 10))}</span></span>${id ? G.chev : ''}</button>`; };
-  openSheet('Correos de Vinted', l.length ? `<p class="hint" style="margin:0">La app apunta sola lo que te llega de Vinted: ventas, cobros, destacados, compras y envíos.</p>
+  openSheet('Correos de Vinted', l.length ? `<p class="hint" style="margin:0">La app apunta sola lo que te llega de Vinted: ventas, etiquetas, envíos, cobros, destacados y compras. Cada venta avanza sola: vendida → etiqueta → enviada → cobrada.</p>${mailPhones()}
     ${rv.length ? `<div class="sec-h"><h2>Por revisar</h2><span>${rv.length}</span></div><div class="list">${rv.map(row).join('')}</div>` : ''}
     <div class="sec-h"><h2>Últimos</h2></div><div class="list">${l.slice(0, 30).map(row).join('')}</div>`
-    : empty(G.receipt, 'Aún no ha llegado ninguno', 'Cuando el lector de Gmail esté puesto, aquí verás cada correo de Vinted y lo que se ha apuntado.'));
+    : empty(G.receipt, 'Aún no ha llegado ninguno', 'Cuando el lector de Gmail esté puesto, aquí verás cada correo de Vinted y lo que se ha apuntado.') + mailPhones());
+}
+const STAGE_T = { sold: 'Falta la etiqueta', label: 'Etiqueta lista' };
+function shipCard() { if (!loadedAll()) return ''; const l = S.sales.filter(shipOpen); if (!l.length) return '';
+  const lab = l.filter(s => s.labelAt).length, hot = l.filter(s => s.shipDeadline && s.shipDeadline <= addDays(today(), 1)).length;
+  return `<button class="card lettercard" data-action="ships"><span class="th" style="${tint(hot ? 'var(--warn)' : 'var(--accent)')}">${G.truck}</span><span class="rm"><span class="rt">${l.length} ${l.length === 1 ? 'venta por enviar' : 'ventas por enviar'}</span><span class="rs">${[lab ? lab + ' con etiqueta' : '', l.length - lab ? (l.length - lab) + ' sin etiqueta' : '', hot ? hot + ' con plazo hoy o mañana' : ''].filter(Boolean).join(' · ')}</span></span>${G.chev}</button>`; }
+function shipsSheet() {
+  const l = S.sales.filter(shipOpen).sort((a, b) => (a.shipDeadline || '9').localeCompare(b.shipDeadline || '9') || (a.date || '').localeCompare(b.date || ''));
+  const sent = S.sales.filter(s => s.status !== 'devuelta' && !shipOpen(s) && shipWhen(s) >= addDays(today(), -6)).sort((a, b) => shipWhen(b).localeCompare(shipWhen(a)));
+  const row = (s, right) => `<button class="row" data-action="sale" data-id="${s.id}">${th(prod(s.productId) || s)}<span class="rm"><span class="rt">${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</span><span class="rs">${esc(accName(s.account, s.accountName))} · ${right}</span></span>${G.chev}</button>`;
+  openSheet('Envíos', `<p class="hint" style="margin:0">Con el correo conectado, cada venta sale de aquí sola cuando Vinted avisa de que la has enviado (SEUR y Correos, a la semana de la etiqueta).</p>
+    <div class="sec-h"><h2>Por enviar</h2><span>${l.length}</span></div><div class="list">${l.length ? l.map(s => row(s, (s.labelAt || mailOn(s.account) ? STAGE_T[shipStage(s)] : 'Por preparar') + (s.carrier ? ' ' + esc(s.carrier.toUpperCase()) : '') + (s.shipDeadline ? ' · antes del ' + fmtDate(s.shipDeadline) : s.shipBy ? ' · sale sola el ' + fmtDate(s.shipBy) : ' · vendida el ' + fmtDate(s.date)))).join('') : '<div class="row"><span class="rm"><span class="rs">Nada por enviar.</span></span></div>'}</div>
+    ${sent.length ? `<div class="sec-h"><h2>Enviadas esta semana</h2><span>${sent.length}</span></div><div class="list">${sent.map(s => row(s, 'enviada el ' + fmtDate(shipWhen(s)) + (s.paidAt || isFree(s) ? ' · cobrada' : ''))).join('')}</div>` : ''}`);
 }
 function mailCard() { const n = S.mailin.filter(m => m.done && m.review && !m.seen).length; if (!loadedAll() || !n) return '';
   return `<button class="card lettercard" data-action="mails"><span class="th" style="${tint('var(--warn)')}">${G.receipt}</span><span class="rm"><span class="rt">${n} ${n === 1 ? 'correo de Vinted' : 'correos de Vinted'} por revisar</span><span class="rs">Algo no estaba claro: tócalo para comprobarlo</span></span>${G.chev}</button>`; }
@@ -1139,7 +1166,7 @@ function vPanel() {
       <div class="big ${B < 0 ? 'neg' : ''}" id="heroNum" data-to="${B}">${splitC(money(B))}</div>
       ${heroTiles(r, F)}</section>${S.off === 0 ? `<div class="qa"><button class="btn btn-main" data-action="newSale">${G.sell}Apuntar venta</button><button class="btn btn-soft" data-action="newExpense">${G.bag}Gasto</button></div>` : ""}`;
   h += totalCard();
-  h += letterCard() + mailCard();
+  h += letterCard() + mailCard() + shipCard();
   if (!cnt && !Gs) return h + empty(G.sell, 'Sin actividad', S.off === 0 ? 'Toca + cuando vendas algo.' : '', S.off === 0 ? '<button class="btn btn-main btn-sm" data-action="newSale">Apuntar venta</button>' : '');
 
   const nG = S.per === 'year' ? 12 : 6;
@@ -1224,7 +1251,7 @@ function vPanelDesk() {
 
   /* total y móviles */
   const accs = accounts(), warm = accs.filter(a => a.warm).length, blk = sum(accs, a => (a.blocks || []).filter(b => inR(b.date, r)).length);
-  g += `<div class="dk-col s6">${letterCard()}${mailCard()}${totalCard()}<section class="card"><div class="ch"><h2>Móviles</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
+  g += `<div class="dk-col s6">${letterCard()}${mailCard()}${shipCard()}${totalCard()}<section class="card"><div class="ch"><h2>Móviles</h2><button class="lnk" data-action="tab" data-tab="moviles">Ver${G.right}</button></div>
     <div class="stat3"><div><span>Móviles</span><b>${accs.length}</b></div><div><span>Calentadas</span><b>${warm}</b></div><div><span>Bloqueos</span><b>${blk}</b></div></div></section></div>`;
   return h + `<div class="dk">${g}</div>`;
 }
@@ -1385,7 +1412,7 @@ function vMoviles() {
     if (ts || tp || nOut) h += `<button class="card salsum" data-action="saldo" style="display:block;width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer"><div class="sal"><div><span>Saldo en las cuentas</span><b class="${ts < 0 ? 'neg' : ''}">${money(ts)}</b></div><div><span>Pendiente</span><b>${money(tp)}</b></div></div><span class="hint" style="display:flex;justify-content:space-between;margin-top:10px">Ver saldo y lo pasado al banco${G.chev}</span></button>`; }
   const list = accs.filter(a => S.accFilter === 'all' || (S.accFilter === 'warm') === !!a.warm);
   if (!list.length) return h + empty(G.phone, S.accFilter === 'warm' ? 'Ninguna calentada' : 'Todas calentadas', '');
-  return h + `<div class="list mlist">${list.map(a => `<div class="mcr"><button class="mcr-main" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span><span class="rs">${a.iban ? `<span class="iban">${ibanShort(a.iban)}</span>` : 'Sin IBAN'}${(a.blocks || []).length ? ` · ${(a.blocks || []).length} ${(a.blocks || []).length === 1 ? 'bloqueo' : 'bloqueos'}` : ''}${(() => { const v = balance(a.id).saldo; return v ? ` · saldo ${money(v)}` : ''; })()}</span></span><span class="mr"><b class="mamt">${money(billed(mr, a.id))}</b>${warmChip(a, true)}</span></button><button class="mcr-ed" data-action="renameAccount" data-id="${a.id}" aria-label="Renombrar ${esc(a.name)}">${G.edit}</button></div>`).join('')}</div>
+  return h + `<div class="list mlist">${list.map(a => `<div class="mcr"><button class="mcr-main" data-action="account" data-id="${a.id}"><span class="mav" style="${tint(accColor(a.id))}">${accInitial(a)}</span><span class="rm"><span class="rt">${esc(a.name)}</span><span class="rs">${a.iban ? `<span class="iban">${ibanShort(a.iban)}</span>` : 'Sin IBAN'}${(a.blocks || []).length ? ` · ${(a.blocks || []).length} ${(a.blocks || []).length === 1 ? 'bloqueo' : 'bloqueos'}` : ''}${(() => { const v = balance(a.id).saldo; return v ? ` · saldo ${money(v)}` : ''; })()}${a.email ? ' · correo ✓' : ''}</span></span><span class="mr"><b class="mamt">${money(billed(mr, a.id))}</b>${warmChip(a, true)}</span></button><button class="mcr-ed" data-action="renameAccount" data-id="${a.id}" aria-label="Renombrar ${esc(a.name)}">${G.edit}</button></div>`).join('')}</div>
     <p class="hint" style="margin:-6px 0 0;text-align:center">Importe de este mes</p>`;
 }
 
@@ -1459,6 +1486,21 @@ const HOLD = 14;
 const addDays = (d, n) => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
 const freeOn = s => s.paidAt || addDays(s.date || today(), HOLD);
 const isFree = s => s.status !== 'devuelta' && freeOn(s) <= today();
+/* ---------- ENVÍO: los correos de Vinted mueven cada venta sola · vendida → etiqueta → enviada → cobrada ---------- */
+const mailOn = id => { const a = acc(id); return !!(a && a.email); };
+const mailLast = id => { const a = acc(id), e = a && String(a.email || '').toLowerCase(); if (!e) return ''; return (S.mailin || []).filter(m => String(m.to || '').toLowerCase().includes(e)).map(m => String(m.date || '').slice(0, 10)).sort().pop() || ''; };
+// sigue «por enviar» hasta que llega el correo de enviado (o, en SEUR/Correos, pasa la semana); las apuntadas a mano, solo el día de la venta
+const shipOpen = s => s.status !== 'devuelta' && !s.shippedAt && !(s.shipBy && s.shipBy <= today()) &&
+  (s.source === 'mail' ? (s.date || '') >= addDays(today(), -10) : (s.ship === 'pend' || (!s.ship && (s.date || '') >= '2026-10-12')) && (s.date || '') >= today());
+const shipStage = s => s.status === 'devuelta' ? 'back' : shipOpen(s) ? (s.labelAt ? 'label' : 'sold') : s.paidAt || isFree(s) ? 'paid' : 'sent';
+const shipWhen = s => s.shippedAt || (s.shipBy && s.shipBy <= today() ? s.shipBy : '') || s.date || '';
+function shipSteps(s) {
+  const st = shipStage(s), n = { sold: 0, label: 1, sent: 2, paid: 3 }[st];
+  const step = (i, t, d) => `<li class="${i < n || (i === n && i === 3) ? 'ok' : i === n ? 'on' : ''}"><i></i><b>${t}</b><span>${d || ''}</span></li>`;
+  const lab = s.labelAt ? fmtDate(s.labelAt) + (s.carrier ? ' · ' + esc(s.carrier.toUpperCase()) : '') : n === 0 ? (mailOn(s.account) ? 'Esperando el correo' : '') : '';
+  const sent = n >= 2 ? fmtDate(shipWhen(s)) : s.shipBy ? 'Sale sola el ' + fmtDate(s.shipBy) : s.shipDeadline ? 'Antes del ' + fmtDate(s.shipDeadline) : window.almPackedIds && almPackedIds().has(s.id) ? 'En la vagoneta' : '';
+  return `<ol class="steps">${step(0, 'Vendida', fmtDate(s.date))}${step(1, 'Etiqueta', lab)}${step(2, 'Enviada', sent)}${step(3, 'Cobrada', s.paidAt ? fmtDate(s.paidAt) : isFree(s) ? 'En el saldo' : 'El ' + fmtDate(freeOn(s)))}</ol>`;
+}
 const inDays = d => { const n = days(today(), d); return n === 0 ? 'hoy' : n === 1 ? 'mañana' : 'en ' + n + ' días'; };
 function balance(id) {
   const a = acc(id), mine = S.sales.filter(s => s.account === id && s.status !== 'devuelta');
@@ -1849,10 +1891,11 @@ function saleDetail(id) {
   openSheet('Venta', `<div class="dh">${th(p || s)}<div style="min-width:0"><h3>${esc(s.name)}</h3><p>${s.size ? 'Talla ' + esc(s.size) + ' · ' : ''}${(s.qty || 1) > 1 ? s.qty + ' uds · ' : ''}${fmtDate(s.date)}</p></div></div>
     <div class="bigv ${dev ? 'struck' : 'pos'}">+${splitC(money(s.price))}</div>
     ${dev ? `<div class="tag neg" style="align-self:flex-start;height:26px;font-size:13px">Devuelta el ${fmtDate(s.returnedAt)}${s.restocked ? ' · volvió al stock' : ''}</div>` : ''}
-    <div class="facts"><div class="fact"><span>Móvil</span><b>${esc(accName(s.account, s.accountName))}</b></div>${a && a.iban ? `<div class="fact"><span>IBAN</span><b class="iban">${ibanShort(a.iban)}</b></div>` : ''}
+    ${dev ? '' : shipSteps(s)}
+    <div class="facts"><div class="fact"><span>Móvil</span><b>${esc(accName(s.account, s.accountName))}${mailOn(s.account) ? ' <span class="wb ok sm">Correo</span>' : ''}</b></div>${a && a.iban ? `<div class="fact"><span>IBAN</span><b class="iban">${ibanShort(a.iban)}</b></div>` : ''}
       ${dev ? '' : `<div class="fact"><span>Cobro</span><b>${s.paidAt ? 'Cobrada el ' + fmtDate(s.paidAt) : isFree(s) ? 'En el saldo desde el ' + fmtDate(freeOn(s)) : 'Al saldo el ' + fmtDate(freeOn(s)) + ' (' + inDays(freeOn(s)) + ')'}</b></div>`}
-      ${dev ? '' : `<div class="fact"><span>Envío</span><b>${s.ship === 'pend' && (s.date || '') >= today() ? (window.almPackedIds && almPackedIds().has(s.id) ? 'En la vagoneta' : 'Por preparar') : s.shippedAt ? 'Enviada el ' + fmtDate(s.shippedAt) : 'Enviada'}</b></div>`}
-      ${s.carrier || s.labelAt ? `<div class="fact"><span>Etiqueta</span><b>${s.carrier ? esc(s.carrier.toUpperCase()) + ' · ' : ''}${fmtDate(s.labelAt)}${s.shipDeadline ? ' · enviar antes del ' + fmtDate(s.shipDeadline) : ''}</b></div>` : ''}
+      ${s.shipDeadline && shipOpen(s) ? `<div class="fact"><span>Enviar antes del</span><b${s.shipDeadline <= addDays(today(), 1) ? ' style="color:var(--warn)"' : ''}>${fmtDate(s.shipDeadline)} (${inDays(s.shipDeadline)})</b></div>` : ''}
+      ${s.source === 'mail' ? `<div class="fact"><span>Apuntada</span><b>Sola, por correo${s.mailTitle && s.mailTitle !== s.name ? ' · «' + esc(s.mailTitle) + '»' : ''}</b></div>` : ''}
       ${s.cost ? `<div class="fact"><span>Ganas con esta venta</span><b class="pos">+${money(s.price - s.cost)}</b></div>` : ""}</div>
     <div class="btns"><button class="btn btn-soft" data-action="editSale" data-id="${s.id}" ${dev ? 'disabled' : ''}>Editar</button>${dev ? `<button class="btn btn-soft" data-action="unreturn" data-id="${s.id}">Anular devolución</button>` : `<button class="btn btn-soft" data-action="returnSale" data-id="${s.id}">${G.ret}Devolución</button>`}</div>
     
@@ -2119,7 +2162,7 @@ function accountSheet(id) {
   openSheet('Ajustes · ' + esc(a.name), `
     <div class="warmsw" role="group" aria-label="Estado de la cuenta"><button class="${a.warm ? 'on ok' : ''}" data-action="setWarm" data-id="${a.id}" data-v="1">${G.check}Calentada</button><button class="${!a.warm ? 'on no' : ''}" data-action="setWarm" data-id="${a.id}" data-v="0">Sin calentar</button></div>
     <div class="facts"><div class="fact"><span>Nombre</span><button class="copy" data-action="renameAccount" data-id="${a.id}" data-back="1">${G.edit}Renombrar</button></div><div class="fact"><span>IBAN</span>${a.iban ? `<button class="copy" data-action="copyIban" data-id="${a.id}">${G.copy}Copiar</button>` : '<b class="missing">Sin IBAN</b>'}</div>
-      ${a.iban ? `<div class="fact" style="padding-top:0;border:0"><b class="iban" style="text-align:left;font-size:14.5px">${ibanFmt(a.iban)}</b></div>` : ''}${a.phone ? `<div class="fact"><span>Teléfono</span><b>${esc(a.phone)}</b></div>` : ''}</div>
+      ${a.iban ? `<div class="fact" style="padding-top:0;border:0"><b class="iban" style="text-align:left;font-size:14.5px">${ibanFmt(a.iban)}</b></div>` : ''}${a.phone ? `<div class="fact"><span>Teléfono</span><b>${esc(a.phone)}</b></div>` : ''}<div class="fact"><span>Correo de Vinted</span>${a.email ? `<b>${esc(a.email)} <span class="wb ok sm">Conectado</span></b>` : '<b class="missing">Sin conectar</b>'}</div>${a.email && mailLast(a.id) ? `<div class="fact"><span>Último correo</span><b>${fmtDate(mailLast(a.id))}</b></div>` : ''}</div>
     <button class="btn btn-soft btn-block" data-action="editAccount" data-id="${a.id}">Editar datos</button>
     <button class="btn btn-danger btn-block" data-action="blockAcc" data-id="${a.id}">Cuenta bloqueada</button>
     <button class="btn btn-soft btn-block" data-action="askDelAccount" data-id="${a.id}">Dejar de usar este móvil</button>`);
@@ -2324,6 +2367,7 @@ document.addEventListener('click', async ev => {
     case 'saldo': saldoSheet(); break;
     case 'letter': letterSheet(); break;
     case 'mails': mailSheet(); break;
+    case 'ships': shipsSheet(); break;
     case 'editExpense': { const e = S.expenses.find(x => x.id === id); if (e && (e.category === 'compra' || e.category === 'destacado')) quickExpense(e.category, e); else expenseForm(e); break; }
     case 'delExpense': { const e = S.expenses.find(x => x.id === id); if (!e) break; const copy = strip(e);
       if (await write(() => db.doc('expenses/' + id).delete(), 'Gasto borrado', () => write(() => db.doc('expenses/' + id).set(copy), 'Recuperado'))) closeSheet(); break; }

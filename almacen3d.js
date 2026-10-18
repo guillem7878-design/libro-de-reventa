@@ -585,8 +585,10 @@ export function createWorld(opts) {
     for (let i = 0; i < Math.min(d.rets, 12); i++) parcel(.26, .18, .22, 8.0 + (i % 3) * .3, .55 + Math.floor(i / 6) * .19, 5.7 + Math.floor(i / 3 % 2) * .3, retItems);
     // móviles en el escritorio
     clear(phones);
+    const mailLed = mat(0x34D399, { emissive: 0x34D399, emissiveIntensity: .9 });
     d.accounts.slice(0, 8).forEach((a, i) => { const g = new THREE.Group(); g.userData.tip = a.tip; g.userData.account = a.id; phones.add(g);
-      block(.08, .014, .15, M.dark, DESK[0] + .1 + i * .11, .79, DESK[1] + .6, g); block(.07, .005, .13, a.warm ? mat(ACC, { emissive: ACC, emissiveIntensity: .5 }) : M.screen, DESK[0] + .105 + i * .11, .806, DESK[1] + .61, g); });
+      block(.08, .014, .15, M.dark, DESK[0] + .1 + i * .11, .79, DESK[1] + .6, g); block(.07, .005, .13, a.warm ? mat(ACC, { emissive: ACC, emissiveIntensity: .5 }) : M.screen, DESK[0] + .105 + i * .11, .806, DESK[1] + .61, g);
+      if (a.mail) block(.014, .006, .009, mailLed, DESK[0] + .133 + i * .11, .804, DESK[1] + .6005, g); });   // lucecita verde: su correo llega a la app
     vanMode = d.vanMode; planeOn = !!d.plane; letterOn = !!d.letter; drawWeek(d.weekUnits || 0); drawFeats(d.feats); if (d.featTV) tvData = d.featTV;
     pins = d.alerts; for (const id of [...packed]) if (!d.pend.some(s => s.id === id)) packed.delete(id); savePacked(); drawTub(); plan();
   }

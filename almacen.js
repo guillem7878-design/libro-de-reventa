@@ -10,9 +10,9 @@
 
   /* ---------- datos ---------- */
   const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
-  const pendRaw = s => s.status !== 'devuelta' && (s.ship === 'pend' || (!s.ship && (s.date || '') >= '2026-10-12'));
-  const pend = () => S.sales.filter(s => pendRaw(s) && (s.date || '') >= today()).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const sentWeek = () => S.sales.filter(s => s.status !== 'devuelta' && !(pendRaw(s) && (s.date || '') >= today()) && (s.shippedAt || s.date || '') >= daysAgo(6));
+  // por enviar: lo dice shipOpen (index.html); con el correo conectado, cada venta sigue aquí hasta que Vinted avisa de que ha salido
+  const pend = () => S.sales.filter(shipOpen).sort((a, b) => (a.shipDeadline || '9').localeCompare(b.shipDeadline || '9') || (a.date || '').localeCompare(b.date || ''));
+  const sentWeek = () => S.sales.filter(s => s.status !== 'devuelta' && !shipOpen(s) && shipWhen(s) >= daysAgo(6));
   const rets = () => S.sales.filter(s => s.status === 'devuelta' && (s.returnedAt || s.date || '') >= daysAgo(30)).sort((a, b) => (b.returnedAt || '').localeCompare(a.returnedAt || ''));
   const incoming = () => S.expenses.filter(e => e.category === 'pedido' && (e.date || '') >= daysAgo(14)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const zoneOf = p => { const k = CATS[p && p.category] ? p.category : 'otro', kd = CATS[k].kind; return kd === 'shoe' ? 'zapatillas' : kd === 'plush' ? 'jellycat' : kd === 'clothes' ? 'futbol' : 'otro'; };
@@ -331,7 +331,7 @@
   function data3d() {
     return {
       products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
-      accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) })),
+      accounts: accounts().map(x => ({ id: x.id, warm: !!x.warm, mail: !!x.email, tip: x.name + ' · saldo ' + money(balance(x.id).saldo) + (x.email ? ' · correo conectado' : '') })),
       pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
       letter: loadedAll() && letterUnread(), weekUnits: sum(weekSales(), s => s.qty || 1), featTV: (() => { const all = featsAll(), wk = weekStart(), mo = today().slice(0, 7);
         const ends = e => (e.createdAt ? e.createdAt : new Date(e.date + 'T00:00:00').getTime()) + FEAT_DAYS * 864e5;
@@ -355,7 +355,7 @@
     if (k === 'stock' || k === 'overview') {
       const all = S.products, sal = r2(sum(accounts(), x => balance(x.id).saldo));
       const racksRows = Object.keys(CATN).map(c => { const ps = all.filter(p => zoneOf(p) === c); return rowBtn('alm-open', c, CATN[c] + ' · ' + SPOTN[c].toLowerCase(), ps.length + ' productos · ' + money(valor(ps)), '<span class="ap-chip ok">' + sum(ps, units) + ' uds</span>'); }).join('');
-      const extra = k === 'overview' ? rowBtn('alm-open', 'prep', 'Preparación', 'Ventas por empaquetar', '<span class="ap-chip ' + (pend().length ? 'lo' : 'ok') + '">' + pend().length + '</span>') +
+      const extra = k === 'overview' ? rowBtn('alm-open', 'prep', 'Preparación', 'Ventas por enviar', '<span class="ap-chip ' + (pend().length ? 'lo' : 'ok') + '">' + pend().length + '</span>') +
         rowBtn('alm-open', 'out', 'Salida', 'Enviados esta semana', '<span class="ap-chip ok">' + sentWeek().length + '</span>') +
         rowBtn('alm-open', 'office', 'Escritorio', accounts().length + ' móviles', '<span class="ap-chip ok">' + money(sal) + '</span>') : '';
       return pHead(k === 'stock' ? 'Almacén' : 'Hoy', k === 'stock' ? 'Estanterías' : 'Vista general', '', [['Unidades', sum(all, units)], ['Invertido', money(valor(all))], ['Por preparar', pend().length], ['Saldo en cuentas', money(sal)]]) +
@@ -363,9 +363,11 @@
     }
     if (k === 'prep') {
       const l = pend(), pk = packedIds(), todo = l.filter(s => !pk.has(s.id)), tub = l.filter(s => pk.has(s.id));
-      const row = (s, chip) => `<div class="ap-row"><button class="ap-rm" data-action="sale" data-id="${s.id}"><b>${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</b><span>${esc(accName(s.account, s.accountName))} · ${money(s.price)}</span></button>${chip}</div>`;
-      return pHead('Preparación', 'Ventas de hoy', 'La vagoneta sale cada día', [['Por preparar', todo.length], ['En la vagoneta', tub.length], ['Importe', money(sum(l, s => s.price))]]) +
-        `<div class="ap-l">Por preparar</div><div class="ap-list">${todo.length ? todo.map(s => row(s, '<span class="ap-chip">Preparando</span>')).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
+      const info = s => [esc(accName(s.account, s.accountName)), s.labelAt ? 'Etiqueta' + (s.carrier ? ' ' + esc(s.carrier.toUpperCase()) : '') : mailOn(s.account) ? 'Sin etiqueta aún' : '', s.shipBy ? 'sale sola el ' + fmtDate(s.shipBy) : s.shipDeadline ? 'antes del ' + fmtDate(s.shipDeadline) : '', money(s.price)].filter(Boolean).join(' · ');
+      const late = s => s.shipDeadline && s.shipDeadline <= addDays(today(), 1);
+      const row = (s, chip) => `<div class="ap-row"><button class="ap-rm" data-action="sale" data-id="${s.id}"><b>${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</b><span>${info(s)}</span></button>${late(s) ? '<span class="ap-chip lo">' + (s.shipDeadline <= today() ? 'Hoy' : 'Mañana') + '</span>' : chip}</div>`;
+      return pHead('Preparación', 'Ventas por enviar', 'Salen solas cuando Vinted avisa del envío', [['Por preparar', todo.length], ['En la vagoneta', tub.length], ['Con etiqueta', l.filter(s => s.labelAt).length], ['Importe', money(sum(l, s => s.price))]]) +
+        `<div class="ap-l">Por preparar</div><div class="ap-list">${todo.length ? todo.map(s => row(s, '<span class="ap-chip">' + (s.labelAt ? 'Etiqueta lista' : 'Preparando') + '</span>')).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
         <div class="ap-l">En la vagoneta</div><div class="ap-list">${tub.length ? tub.map(s => row(s, '<span class="ap-chip ok">En la vagoneta</span>')).join('') : '<p class="ap-empty">La vagoneta está vacía.</p>'}</div>`;
     }
     if (k === 'week') {
@@ -384,9 +386,9 @@
         '<div class="ap-f"><button class="btn btn-main btn-block" data-action="qFeat">Destacar un artículo</button></div>';
     }
     if (k === 'out') {
-      const l = sentWeek().sort((a, b) => (b.shippedAt || b.date || '').localeCompare(a.shippedAt || a.date || ''));
-      return pHead('Salida', 'Enviados', 'Últimos 7 días', [['Paquetes', l.length], ['Importe', money(sum(l, s => s.price))]]) +
-        `<div class="ap-l">Salidas</div><div class="ap-list">${l.length ? l.map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), esc(accName(s.account, s.accountName)) + ' · ' + fmtDate(s.shippedAt || s.date), '<span class="ap-chip ok">' + money(s.price) + '</span>')).join('') : '<p class="ap-empty">No ha salido nada esta semana.</p>'}</div>`;
+      const l = sentWeek().sort((a, b) => shipWhen(b).localeCompare(shipWhen(a)));
+      return pHead('Salida', 'Enviados', 'Últimos 7 días', [['Paquetes', l.length], ['Cobradas', l.filter(s => s.paidAt || isFree(s)).length], ['Importe', money(sum(l, s => s.price))]]) +
+        `<div class="ap-l">Salidas</div><div class="ap-list">${l.length ? l.map(s => rowBtn('sale', s.id, esc(s.name) + (s.size ? ' · ' + esc(s.size) : ''), esc(accName(s.account, s.accountName)) + ' · ' + fmtDate(shipWhen(s)) + (s.carrier ? ' · ' + esc(s.carrier.toUpperCase()) : ''), s.paidAt || isFree(s) ? '<span class="ap-chip ok">Cobrada</span>' : '<span class="ap-chip">' + money(s.price) + '</span>')).join('') : '<p class="ap-empty">No ha salido nada esta semana.</p>'}</div>`;
     }
     if (k === 'in') {
       const w = onTheWay(), got = pedidos().filter(e => e.receivedAt && e.receivedAt >= daysAgo(14)).sort((x, y) => y.receivedAt.localeCompare(x.receivedAt));
@@ -401,9 +403,11 @@
     if (k === 'office') {
       const l = accounts(), sal = r2(sum(l, x => balance(x.id).saldo)), pe = r2(sum(l, x => balance(x.id).pend));
       const outs = l.flatMap(x => (balance(x.id).outs || []).map(p => ({ ...p, a: x }))).sort((p, q) => (q.date || '').localeCompare(p.date || ''));
-      return pHead('Escritorio', 'Móviles', l.length + ' cuentas', [['En el saldo', money(sal)], ['Pendiente', money(pe)]]) +
+      const on = l.filter(x => x.email).length, rv = (S.mailin || []).filter(m => m.done && m.review).length;
+      return pHead('Escritorio', 'Móviles', l.length + ' cuentas · ' + on + ' con el correo conectado', [['En el saldo', money(sal)], ['Pendiente', money(pe)], ['Correos hoy', (S.mailin || []).filter(m => String(m.date || '').slice(0, 10) === today()).length]]) +
+        `<div class="ap-l">Correos de Vinted</div><div class="ap-list">${rowBtn('mails', '', 'Lo que se ha apuntado solo', rv ? rv + ' por revisar' : 'Todo en orden', '<span class="ap-chip ' + (rv ? 'lo' : 'ok') + '">' + (rv || on + '/' + l.length) + '</span>')}</div>` +
         `<div class="ap-l">Pasado al banco</div><div class="ap-list">${outs.length ? outs.slice(0, 6).map(p => `<div class="ap-row"><span class="ap-rm"><b>${money(p.amount)}</b><span>${fmtDate(p.date)} · ${esc(p.a.name)}</span></span></div>`).join('') : '<p class="ap-empty">Aún no has pasado nada al banco.</p>'}</div><button class="btn btn-soft btn-block" data-action="saldo" style="margin-top:10px">Ver saldo completo</button>` +
-        `<div class="ap-l">Cuentas</div><div class="ap-list">${l.map(x => { const B = balance(x.id); return rowBtn('account', x.id, esc(x.name), (x.warm ? 'Calentada' : 'Sin calentar') + (B.pend ? ' · ' + money(B.pend) + ' pendiente' : ''), '<span class="ap-chip ' + (B.saldo > 0 ? 'ok' : '') + '">' + money(B.saldo) + '</span>'); }).join('')}</div>`;
+        `<div class="ap-l">Cuentas</div><div class="ap-list">${l.map(x => { const B = balance(x.id); const ml = mailLast(x.id); return rowBtn('account', x.id, esc(x.name), (x.warm ? 'Calentada' : 'Sin calentar') + ' · ' + (x.email ? 'Correo conectado' + (ml ? ' · último ' + fmtDate(ml) : '') : 'Sin correo') + (B.pend ? ' · ' + money(B.pend) + ' pendiente' : ''), '<span class="ap-chip ' + (B.saldo > 0 ? 'ok' : '') + '">' + money(B.saldo) + '</span>'); }).join('')}</div>`;
     }
     if (k === 'ret') {
       const l = rets();

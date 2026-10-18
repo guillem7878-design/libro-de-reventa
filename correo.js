@@ -24,6 +24,12 @@
     if (/etiqueta de env[ií]o/i.test(m.subject || '')) return 'label';
     if (/factura de art[ií]culos destacados/i.test(s) || /has destacado/i.test(s)) return 'feat';
     if (/tu recibo de/i.test(m.subject) || /se ha recibido tu pago/i.test(s)) return 'buy';
+    if (/cancelad[oa]|ha cancelado|cancelaci[oó]n/i.test(m.subject || '')) return 'cancel';
+    if (/devoluci[oó]n/i.test(m.subject || '')) return 'return';
+    if (/(retirada|transferencia|enviado|transferido)[^.]{0,80}(cuenta bancaria|banco)/i.test(s)) return 'payout';
+    // lo que te llega cuando TÚ compras (recoger un paquete) no es un envío tuyo
+    if (/recoge tu paquete|rec[oó]gelo|te est[aá] esperando|listo para recoger|puedes recoger/i.test(s)) return 'other';
+    if (/novedades sobre/i.test(m.subject || '') && /de camino al comprador|ha sido enviado|en camino/i.test(m.text || '')) return 'ship';
     if (/inpost|vinted go|nos encargamos del resto|listo para ser enviado|hemos recogido el paquete/i.test(s)) return 'ship';
     return 'other';
   }
@@ -67,6 +73,8 @@
       carrier = /seur/i.test(text) ? 'seur' : /correos/i.test(text) ? 'correos' : /inpost/i.test(text) ? 'inpost' : /vinted go|mondial|relay/i.test(text) ? 'vintedgo' : '';
       const dl = /(\d{2})\/(\d{2})\/(\d{4})/.exec(m.subject || '') || /fecha l[ií]mite[^\d]{0,30}(\d{2})\/(\d{2})\/(\d{4})/i.exec(text); deadline = dl ? dl[3] + '-' + dl[2] + '-' + dl[1] : ''; }
     if (kind === 'feat') { const tot = /total[^\d€]{0,40}(\d{1,4}[.,]\d{2})/i.exec(text), all = [...text.matchAll(/(\d{1,4}[.,]\d{2})\s*€/g)].map(x => num(x[1])); total = tot ? num(tot[1]) : all.length ? Math.max(...all) : 0; }
+    if (kind === 'ship' || kind === 'cancel' || kind === 'return') it.push({ title: clean((/[“"«]([^”"»]+)[”"»]/.exec(m.subject || '') || /pedido de\s*[“"«]([^”"»]+)[”"»]/i.exec(text) || [])[1] || ''), size: '', price: 0 });
+    if (kind === 'payout') total = num((/(\d{1,6}[.,]\d{2})\s*€/.exec(text) || [])[1] || 0);
     if (kind === 'buy') { it.push({ title: clean((/tu recibo de\s*[“"«]([^”"»]+)[”"»]/i.exec(m.subject) || /pedido\s*:?\s*\n?\s*([^\n]+)/i.exec(text) || [])[1] || 'Compra en Vinted'), size: '', price: 0 });
       total = num((/importe pagado\s*:?\s*\n?\s*(\d{1,5}[.,]\d{2})/i.exec(text) || /(\d{1,5}[.,]\d{2})\s*€/.exec(text) || [])[1] || 0); }
     return { kind, items: it, total, carrier, deadline, summary: '', ai: false };

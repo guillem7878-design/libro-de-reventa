@@ -26,7 +26,7 @@ grant execute on function public.ingest_mail(text, jsonb) to anon, authenticated
 
 -- La llave, para el correo con el que entras en la app (cámbialo aquí si entras con otro):
 insert into public.mail_keys (key, user_id)
-select replace(gen_random_uuid()::text, '-', ''), id from auth.users where email = 'guillem7878@gmail.com'
+select replace(gen_random_uuid()::text, '-', ''), id from auth.users where email = 'guillem7878@gmail.com' or (select count(*) from auth.users) = 1 limit 1
 on conflict do nothing;
 
 select key as "Copia esta llave en el lector" from public.mail_keys;

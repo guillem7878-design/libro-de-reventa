@@ -50,63 +50,104 @@
   }
   const titleScore = (a, b) => { const A = new Set(toks(a)), B = toks(b); return B.length ? B.filter(x => A.has(x)).length / B.length : 0; };
 
+  /* lo que dice el correo, ordenado: lo que ha leído Claude (si lo hay) y, si no, las reglas de siempre */
+  const AI_K = { venta: 'sale', cobro: 'paid', etiqueta: 'label', envio: 'ship', compra: 'buy', destacado: 'feat', cancelacion: 'cancel', devolucion: 'return', retiro_banco: 'payout', otro: 'other' };
+  function info(m) {
+    const a = m.ai && typeof m.ai === 'object' && m.ai.type ? m.ai : null, text = m.text || '';
+    if (a) return { kind: AI_K[a.type] || 'other', items: (a.items || []).filter(i => i && i.title).map(i => ({ title: clean(i.title), size: i.size ? String(i.size).replace(',', '.').trim() : '', price: typeof i.price === 'number' ? i.price : 0 })),
+      total: typeof a.total === 'number' ? a.total : 0, carrier: a.carrier === 'vinted_go' ? 'vintedgo' : a.carrier || '', deadline: a.deadline || '', summary: a.summary || '', ai: true };
+    const kind = kindOf(m), it = [];
+    let total = 0, carrier = '', deadline = '';
+    if (kind === 'sale') { const mm = /ha comprado\s+([\s\S]{3,260}?)\s+(\d{1,5}(?:[.,]\d{2})?)\s*€/i.exec(text); const t = clean(mm ? mm[1] : (/«([^»]+)»|“([^”]+)”/.exec(text) || [])[1] || m.subject);
+      it.push({ title: t, size: sizeOf(t), price: mm ? num(mm[2]) : num((/(\d{1,5}[.,]\d{2})\s*€/.exec(text) || [])[1]) }); }
+    if (kind === 'paid') it.push({ title: clean((/pedido de\s*[“"«]([^”"»]+)[”"»]/i.exec(text) || [])[1] || ''), size: '', price: 0 });
+    if (kind === 'label') { const t = clean((/etiqueta de env[ií]o para\s+(.+?)\.\s*utilizar/i.exec(m.subject || '') || /pedido\s*:?\s*\n?\s*([^\n]+)/i.exec(text) || [])[1] || ''); it.push({ title: t, size: '', price: 0 });
+      carrier = /seur/i.test(text) ? 'seur' : /correos/i.test(text) ? 'correos' : /inpost/i.test(text) ? 'inpost' : /vinted go|mondial|relay/i.test(text) ? 'vintedgo' : '';
+      const dl = /(\d{2})\/(\d{2})\/(\d{4})/.exec(m.subject || '') || /fecha l[ií]mite[^\d]{0,30}(\d{2})\/(\d{2})\/(\d{4})/i.exec(text); deadline = dl ? dl[3] + '-' + dl[2] + '-' + dl[1] : ''; }
+    if (kind === 'feat') { const tot = /total[^\d€]{0,40}(\d{1,4}[.,]\d{2})/i.exec(text), all = [...text.matchAll(/(\d{1,4}[.,]\d{2})\s*€/g)].map(x => num(x[1])); total = tot ? num(tot[1]) : all.length ? Math.max(...all) : 0; }
+    if (kind === 'buy') { it.push({ title: clean((/tu recibo de\s*[“"«]([^”"»]+)[”"»]/i.exec(m.subject) || /pedido\s*:?\s*\n?\s*([^\n]+)/i.exec(text) || [])[1] || 'Compra en Vinted'), size: '', price: 0 });
+      total = num((/importe pagado\s*:?\s*\n?\s*(\d{1,5}[.,]\d{2})/i.exec(text) || /(\d{1,5}[.,]\d{2})\s*€/.exec(text) || [])[1] || 0); }
+    return { kind, items: it, total, carrier, deadline, summary: '', ai: false };
+  }
+  const findSale = (title, acc, extra) => S.sales.filter(s => s.status !== 'devuelta' && (!acc || s.account === acc.id) && (!extra || extra(s))).map(s => ({ s, sc: titleScore(title, s.mailTitle || s.name) })).filter(x => x.sc >= .5).sort((a, b) => b.sc - a.sc || (b.s.date || '').localeCompare(a.s.date || ''))[0];
+  const bumpStock = async (p, size, d) => { const sizes = (p.sizes || []).map(s => ({ ...s })), e = sizes.find(s => s.s === size); if (e) e.q = Math.max(0, e.q + d); else if (d > 0) sizes.push({ s: size || 'Única', q: d }); await db.doc('products/' + p.id).update({ sizes }); };
+
   async function handle(m) {
-    const kind = kindOf(m), acc = accOf(m), date = ymdOf(m.date), text = m.text || '';
-    const ref = 'v' + (m.mailId || m.id); let res = { kind, review: false, note: '' };
-    if (kind === 'sale') {
-      if (S.sales.some(s => s.id === ref)) return { ...res, note: 'ya estaba' };
-      const mm = /ha comprado\s+([\s\S]{3,260}?)\s+(\d{1,5}(?:[.,]\d{2})?)\s*€/i.exec(text);
-      const title = clean(mm ? mm[1] : (/«([^»]+)»|“([^”]+)”/.exec(text) || [])[1] || m.subject), price = mm ? num(mm[2]) : num((/(\d{1,5}[.,]\d{2})\s*€/.exec(text) || [])[1]);
-      const p = matchProduct(title), size = p ? pickSize(p, sizeOf(title)) : sizeOf(title);
-      const data = p ? { productId: p.id, name: p.name, category: p.category || 'otro', photo: p.photo || '', size, qty: 1, price, cost: Math.round((p.cost || 0) * 100) / 100, account: acc ? acc.id : '', date }
-        : { productId: '', name: title, category: 'otro', photo: '', size, qty: 1, price, cost: 0, account: acc ? acc.id : '', date };
-      if (p && size) { const sizes = (p.sizes || []).map(s => ({ ...s })), e = sizes.find(s => s.s === size); if (e) { e.q = Math.max(0, e.q - 1); await db.doc('products/' + p.id).update({ sizes }); } }
-      const review = !p || !size || !acc || !price;
-      const sale = { ...data, status: 'ok', ship: date >= today() ? 'pend' : 'sent', createdAt: Date.now(), source: 'mail', mailTitle: title, review };
-      await db.doc('sales/' + ref).set(sale); if (!S.sales.some(s => s.id === ref)) S.sales.push({ id: ref, ...sale });   // que la vea ya el siguiente correo
-      return { kind, ref: 'sales/' + ref, review, note: (p ? p.name : title) + (size ? ' · ' + size : '') + ' · ' + money(price) + (review ? ' · revisa ' + [!p && 'el artículo', p && !size && 'la talla', !acc && 'el móvil', !price && 'el precio'].filter(Boolean).join(', ') : '') };
+    const I = info(m), kind = I.kind, acc = accOf(m), date = ymdOf(m.date), base = 'v' + (m.mailId || m.id);
+    const it0 = I.items[0] || { title: '', size: '', price: 0 };
+    if (kind === 'sale') {   // una venta por artículo (en un lote, varias)
+      const items = I.items.length ? I.items : [it0], notes = []; let anyReview = false, firstRef = '';
+      for (let k = 0; k < items.length; k++) {
+        const it = items[k], ref = base + (items.length > 1 ? '_' + k : ''); if (!firstRef) firstRef = ref;
+        if (S.sales.some(s => s.id === ref)) { notes.push('ya estaba'); continue; }
+        const price = it.price || (I.total && items.length ? Math.round(I.total / items.length * 100) / 100 : 0);
+        const p = matchProduct(it.title), size = p ? pickSize(p, it.size || sizeOf(it.title)) : it.size || sizeOf(it.title);
+        const data = p ? { productId: p.id, name: p.name, category: p.category || 'otro', photo: p.photo || '', size, qty: 1, price, cost: Math.round((p.cost || 0) * 100) / 100, account: acc ? acc.id : '', date }
+          : { productId: '', name: it.title, category: 'otro', photo: '', size, qty: 1, price, cost: 0, account: acc ? acc.id : '', date };
+        if (p && size) await bumpStock(p, size, -1);
+        const review = !p || !size || !acc || !price; anyReview = anyReview || review;
+        const sale = { ...data, status: 'ok', ship: date >= today() ? 'pend' : 'sent', createdAt: Date.now(), source: 'mail', mailTitle: it.title, review, lot: items.length > 1 ? base : '' };
+        await db.doc('sales/' + ref).set(sale); if (!S.sales.some(s => s.id === ref)) S.sales.push({ id: ref, ...sale });   // que la vea ya el siguiente correo
+        notes.push((p ? p.name : it.title) + (size ? ' · ' + size : '') + ' · ' + money(price) + (review ? ' · revisa ' + [!p && 'el artículo', p && !size && 'la talla', !acc && 'el móvil', !price && 'el precio'].filter(Boolean).join(', ') : ''));
+      }
+      if (notes.every(n => n === 'ya estaba')) return { kind, note: 'ya estaba' };
+      return { kind, ref: 'sales/' + firstRef, review: anyReview, note: (items.length > 1 ? 'Lote de ' + items.length + ': ' : '') + notes.filter(n => n !== 'ya estaba').join(' + ') };
     }
     if (kind === 'paid') {
-      const title = clean((/pedido de\s*[“"«]([^”"»]+)[”"»]/i.exec(text) || [])[1] || '');
-      const cand = S.sales.filter(s => s.status !== 'devuelta' && !s.paidAt && (!acc || s.account === acc.id)).map(s => ({ s, sc: titleScore(title, s.mailTitle || s.name) })).filter(x => x.sc >= .5).sort((a, b) => b.sc - a.sc || (a.s.date || '').localeCompare(b.s.date || ''));
-      if (!cand.length) return { kind, review: true, note: 'cobrado «' + title + '», pero no encuentro la venta' };
-      await db.doc('sales/' + cand[0].s.id).update({ paidAt: date });
-      return { kind, ref: 'sales/' + cand[0].s.id, note: cand[0].s.name + ' · cobrada' };
+      const c = findSale(it0.title, acc, s => !s.paidAt);
+      if (!c) return { kind, review: true, note: 'cobrado «' + it0.title + '», pero no encuentro la venta' };
+      await db.doc('sales/' + c.s.id).update({ paidAt: date });
+      return { kind, ref: 'sales/' + c.s.id, note: c.s.name + ' · cobrada' };
     }
-    if (kind === 'label') {   // «Etiqueta de envío para X. Utilizar antes del 28/09/2026»
-      const title = clean((/etiqueta de env[ií]o para\s+(.+?)\.\s*utilizar/i.exec(m.subject || '') || /pedido\s*:?\s*\n?\s*([^\n]+)/i.exec(text) || [])[1] || '');
-      const carrier = /seur/i.test(text) ? 'seur' : /correos/i.test(text) ? 'correos' : /inpost/i.test(text) ? 'inpost' : /vinted go|mondial|relay/i.test(text) ? 'vintedgo' : '';
-      const dl = /(\d{2})\/(\d{2})\/(\d{4})/.exec(m.subject || '') || /fecha l[ií]mite[^\d]{0,30}(\d{2})\/(\d{2})\/(\d{4})/i.exec(text);
-      const deadline = dl ? dl[3] + '-' + dl[2] + '-' + dl[1] : '';
-      const cand = S.sales.filter(s => s.status !== 'devuelta' && !s.shippedAt && (!acc || s.account === acc.id)).map(s => ({ s, sc: titleScore(title, s.mailTitle || s.name) })).filter(x => x.sc >= .5).sort((a, b) => b.sc - a.sc || (b.s.date || '').localeCompare(a.s.date || ''));
-      if (!cand.length) return { kind, review: true, note: 'etiqueta de «' + title + '», pero no encuentro la venta' };
+    if (kind === 'label') {
+      const c = findSale(it0.title, acc, s => !s.shippedAt);
+      if (!c) return { kind, review: true, note: 'etiqueta de «' + it0.title + '», pero no encuentro la venta' };
       // SEUR y Correos no avisan cuando lo envías: se da por enviado a la semana (o en la fecha límite, si es antes)
-      const week = addDays(date, 7), shipBy = carrier === 'seur' || carrier === 'correos' ? (deadline && deadline < week ? deadline : week) : '';
-      await db.doc('sales/' + cand[0].s.id).update({ labelAt: date, carrier, shipDeadline: deadline, shipBy });
-      return { kind, ref: 'sales/' + cand[0].s.id, note: cand[0].s.name + ' · etiqueta' + (carrier ? ' ' + carrier.toUpperCase() : '') + (shipBy ? ' · enviado el ' + shipBy.slice(8) + '/' + shipBy.slice(5, 7) : '') };
-    }
-    if (kind === 'feat') {
-      if (S.expenses.some(e => e.id === ref)) return { ...res, note: 'ya estaba' };
-      const tot = /total[^\d€]{0,40}(\d{1,4}[.,]\d{2})/i.exec(text), all = [...text.matchAll(/(\d{1,4}[.,]\d{2})\s*€/g)].map(x => num(x[1]));
-      const amount = tot ? num(tot[1]) : all.length ? Math.max(...all) : 0;
-      await db.doc('expenses/' + ref).set({ concept: 'Destacado', amount, category: 'destacado', account: acc ? acc.id : '', date, units: 0, productId: '', note: '', source: 'mail', createdAt: Date.now() });
-      return { kind, ref: 'expenses/' + ref, review: !amount || !acc, note: 'Destacado · ' + money(amount) };
-    }
-    if (kind === 'buy') {
-      if (S.expenses.some(e => e.id === ref)) return { ...res, note: 'ya estaba' };
-      const what = clean((/tu recibo de\s*[“"«]([^”"»]+)[”"»]/i.exec(m.subject) || /pedido\s*:?\s*\n?\s*([^\n]+)/i.exec(text) || [])[1] || 'Compra en Vinted');
-      const amount = num((/importe pagado\s*:?\s*\n?\s*(\d{1,5}[.,]\d{2})/i.exec(text) || /(\d{1,5}[.,]\d{2})\s*€/.exec(text) || [])[1] || 0);
-      await db.doc('expenses/' + ref).set({ concept: what, amount, category: 'compra', account: acc ? acc.id : '', date, units: 0, source: 'mail', createdAt: Date.now() });
-      return { kind, ref: 'expenses/' + ref, review: !amount || !acc, note: what + ' · ' + money(amount) };
+      const week = addDays(date, 7), shipBy = I.carrier === 'seur' || I.carrier === 'correos' ? (I.deadline && I.deadline < week ? I.deadline : week) : '';
+      await db.doc('sales/' + c.s.id).update({ labelAt: date, carrier: I.carrier, shipDeadline: I.deadline, shipBy });
+      return { kind, ref: 'sales/' + c.s.id, note: c.s.name + ' · etiqueta' + (I.carrier ? ' ' + I.carrier.toUpperCase() : '') + (shipBy ? ' · enviado el ' + shipBy.slice(8) + '/' + shipBy.slice(5, 7) : '') };
     }
     if (kind === 'ship') {
-      const s = S.sales.filter(x => x.status !== 'devuelta' && !x.shippedAt && (!acc || x.account === acc.id) && (x.date || '') >= addDays(date, -10) && (x.date || '') <= date).sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
+      const c = it0.title ? findSale(it0.title, acc, s => !s.shippedAt) : null;
+      const s = c ? c.s : S.sales.filter(x => x.status !== 'devuelta' && !x.shippedAt && (!acc || x.account === acc.id) && (x.date || '') >= addDays(date, -10) && (x.date || '') <= date).sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
       if (!s) return { kind, note: 'paquete entregado en el punto de envío' };
       await db.doc('sales/' + s.id).update({ ship: 'sent', shippedAt: date });
       return { kind, ref: 'sales/' + s.id, note: s.name + ' · enviado' };
     }
-    return { kind, note: m.subject || '' };
+    if (kind === 'feat' || kind === 'buy') {
+      if (S.expenses.some(e => e.id === base)) return { kind, note: 'ya estaba' };
+      const amount = I.total || it0.price || 0;
+      if (kind === 'feat') {
+        const p = it0.title ? matchProduct(it0.title) : null;   // si la factura dice qué artículo, se asocia (y sale su estrella en el almacén)
+        await db.doc('expenses/' + base).set({ concept: 'Destacado' + (p ? ' · ' + p.name : ''), amount, category: 'destacado', account: acc ? acc.id : '', date, units: 0, productId: p ? p.id : '', note: '', source: 'mail', createdAt: Date.now() });
+        return { kind, ref: 'expenses/' + base, review: !amount || !acc, note: 'Destacado' + (p ? ' · ' + p.name : '') + ' · ' + money(amount) };
+      }
+      const what = it0.title || 'Compra en Vinted';
+      await db.doc('expenses/' + base).set({ concept: what, amount, category: 'compra', account: acc ? acc.id : '', date, units: 0, source: 'mail', createdAt: Date.now() });
+      return { kind, ref: 'expenses/' + base, review: !amount || !acc, note: what + ' · ' + money(amount) };
+    }
+    if (kind === 'cancel') {   // venta anulada: deja de contar y la unidad vuelve al stock
+      const c = findSale(it0.title, acc);
+      if (!c) return { kind, review: true, note: 'cancelado «' + it0.title + '», pero no encuentro la venta' };
+      const p = c.s.productId && S.products.find(x => x.id === c.s.productId);
+      if (p && !c.s.restocked) await bumpStock(p, c.s.size, c.s.qty || 1);
+      await db.doc('sales/' + c.s.id).update({ status: 'devuelta', returnedAt: date, restocked: !!p, cancelled: true });
+      return { kind, ref: 'sales/' + c.s.id, note: c.s.name + ' · cancelada' + (p ? ', vuelve al stock' : '') };
+    }
+    if (kind === 'return') {   // el comprador pide devolver: lo decides tú
+      const c = findSale(it0.title, acc);
+      return { kind, ref: c ? 'sales/' + c.s.id : '', review: true, note: 'Devolución pedida' + (c ? ' · ' + c.s.name : it0.title ? ' · ' + it0.title : '') + ' · ábrela y marca «Devolución» si se confirma' };
+    }
+    if (kind === 'payout') {   // dinero del saldo de Vinted al banco
+      if (!acc || !I.total) return { kind, review: true, note: 'Transferencia al banco' + (I.total ? ' de ' + money(I.total) : '') + ': no sé de qué móvil' };
+      const a = S.accounts.find(x => x.id === acc.id), old = (a && a.payouts) || [];
+      if (old.some(p => p.mail === base)) return { kind, note: 'ya estaba' };
+      await db.doc('accounts/' + acc.id).update({ payouts: old.concat({ id: base, date, amount: I.total, iban: (a && a.iban) || '', mail: base }) });
+      return { kind, note: acc.name + ' · ' + money(I.total) + ' al banco' };
+    }
+    return { kind, note: I.summary || m.subject || '' };
   }
+
 
   const docId = m => m.id;
   let busy = false;
@@ -120,9 +161,9 @@
     try {
       for (const m of todo) {
         const cur = (S.mailin || []).find(x => x.id === m.id); if (!cur || cur.done) continue;
-        let r; try { r = await handle(m); } catch (e) { r = { kind: kindOf(m), review: true, note: 'no se pudo leer: ' + (e && e.message || e) }; }
+        let r; try { r = await handle(m); } catch (e) { r = { kind: info(m).kind, review: true, note: 'no se pudo leer: ' + (e && e.message || e) }; }
         await db.doc('mailin/' + docId(m)).update({ done: true, kind: r.kind, ref: r.ref || '', review: !!r.review, note: r.note || '', doneAt: Date.now() });
-        if (r.kind !== 'other' && r.note !== 'ya estaba') toast({ sale: 'Venta desde Vinted', paid: 'Cobro', feat: 'Destacado', buy: 'Compra', ship: 'Envío', label: 'Etiqueta' }[r.kind] + ' · ' + r.note);
+        if (r.kind !== 'other' && r.note !== 'ya estaba') toast(({ sale: 'Venta desde Vinted', paid: 'Cobro', feat: 'Destacado', buy: 'Compra', ship: 'Envío', label: 'Etiqueta', cancel: 'Cancelada', return: 'Devolución', payout: 'Al banco' }[r.kind] || 'Vinted') + ' · ' + r.note);
       }
     } finally { busy = false; }
     if ((S.mailin || []).some(m => !m.done)) setTimeout(run, 1500);   // si han llegado más mientras tanto

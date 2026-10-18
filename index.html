@@ -1100,7 +1100,7 @@ function letterSheet() {
       </div></div>`);
   store.set('letterRead', w.start); setTimeout(() => { if (S.tab === 'panel') render(); }, 500);
 }
-const MAIL_K = { sale: ['Venta', G.sell, 'var(--pos)'], paid: ['Cobro', G.coin, 'var(--accent)'], feat: ['Destacado', G.zap, 'var(--warn)'], buy: ['Compra', G.cart, 'var(--warn)'], ship: ['Envío', G.truck, 'var(--ink2)'], label: ['Etiqueta', G.tag, 'var(--ink2)'], other: ['Otro', G.dots, 'var(--ink3)'] };
+const MAIL_K = { sale: ['Venta', G.sell, 'var(--pos)'], paid: ['Cobro', G.coin, 'var(--accent)'], feat: ['Destacado', G.zap, 'var(--warn)'], buy: ['Compra', G.cart, 'var(--warn)'], ship: ['Envío', G.truck, 'var(--ink2)'], label: ['Etiqueta', G.tag, 'var(--ink2)'], cancel: ['Cancelada', G.x, 'var(--neg)'], return: ['Devolución', G.ret, 'var(--neg)'], payout: ['Al banco', G.cash, 'var(--accent)'], other: ['Otro', G.dots, 'var(--ink3)'] };
 function mailSheet() {
   const l = S.mailin.filter(m => m.done).sort((a, b) => String(b.date).localeCompare(String(a.date))), rv = l.filter(m => m.review);
   const row = m => { const [t, g, c] = MAIL_K[m.kind] || MAIL_K.other, [col, id] = String(m.ref || '/').split('/');

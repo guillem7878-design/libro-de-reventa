@@ -19,6 +19,7 @@
     const s = (m.subject || '') + ' ' + (m.text || '').slice(0, 1500);
     if (/has vendido un art/i.test(m.subject) || /ha comprado[\s\S]{0,400}transferiremos el pago/i.test(m.text || '')) return 'sale';
     if (/transacci[oó]n se ha completado/i.test(s)) return 'paid';
+    if (/etiqueta de env[ií]o/i.test(m.subject || '')) return 'label';
     if (/factura de art[ií]culos destacados/i.test(s) || /has destacado/i.test(s)) return 'feat';
     if (/tu recibo de/i.test(m.subject) || /se ha recibido tu pago/i.test(s)) return 'buy';
     if (/inpost|vinted go|nos encargamos del resto|listo para ser enviado|hemos recogido el paquete/i.test(s)) return 'ship';
@@ -72,6 +73,18 @@
       await db.doc('sales/' + cand[0].s.id).update({ paidAt: date });
       return { kind, ref: 'sales/' + cand[0].s.id, note: cand[0].s.name + ' · cobrada' };
     }
+    if (kind === 'label') {   // «Etiqueta de envío para X. Utilizar antes del 28/09/2026»
+      const title = clean((/etiqueta de env[ií]o para\s+(.+?)\.\s*utilizar/i.exec(m.subject || '') || /pedido\s*:?\s*\n?\s*([^\n]+)/i.exec(text) || [])[1] || '');
+      const carrier = /seur/i.test(text) ? 'seur' : /correos/i.test(text) ? 'correos' : /inpost/i.test(text) ? 'inpost' : /vinted go|mondial|relay/i.test(text) ? 'vintedgo' : '';
+      const dl = /(\d{2})\/(\d{2})\/(\d{4})/.exec(m.subject || '') || /fecha l[ií]mite[^\d]{0,30}(\d{2})\/(\d{2})\/(\d{4})/i.exec(text);
+      const deadline = dl ? dl[3] + '-' + dl[2] + '-' + dl[1] : '';
+      const cand = S.sales.filter(s => s.status !== 'devuelta' && !s.shippedAt && (!acc || s.account === acc.id)).map(s => ({ s, sc: titleScore(title, s.mailTitle || s.name) })).filter(x => x.sc >= .5).sort((a, b) => b.sc - a.sc || (b.s.date || '').localeCompare(a.s.date || ''));
+      if (!cand.length) return { kind, review: true, note: 'etiqueta de «' + title + '», pero no encuentro la venta' };
+      // SEUR y Correos no avisan cuando lo envías: se da por enviado a la semana (o en la fecha límite, si es antes)
+      const week = addDays(date, 7), shipBy = carrier === 'seur' || carrier === 'correos' ? (deadline && deadline < week ? deadline : week) : '';
+      await db.doc('sales/' + cand[0].s.id).update({ labelAt: date, carrier, shipDeadline: deadline, shipBy });
+      return { kind, ref: 'sales/' + cand[0].s.id, note: cand[0].s.name + ' · etiqueta' + (carrier ? ' ' + carrier.toUpperCase() : '') + (shipBy ? ' · enviado el ' + shipBy.slice(8) + '/' + shipBy.slice(5, 7) : '') };
+    }
     if (kind === 'feat') {
       if (S.expenses.some(e => e.id === ref)) return { ...res, note: 'ya estaba' };
       const tot = /total[^\d€]{0,40}(\d{1,4}[.,]\d{2})/i.exec(text), all = [...text.matchAll(/(\d{1,4}[.,]\d{2})\s*€/g)].map(x => num(x[1]));
@@ -99,6 +112,7 @@
   let busy = false;
   async function run() {
     if (busy || typeof S === 'undefined' || !loadedAll() || !db) return;
+    for (const s of S.sales.filter(s => s.shipBy && !s.shippedAt && s.shipBy <= today() && s.status !== 'devuelta')) { try { await db.doc('sales/' + s.id).update({ ship: 'sent', shippedAt: s.shipBy }); } catch (e) {} }
     const todo = (S.mailin || []).filter(m => !m.done).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     if (!todo.length) return;
     busy = true;
@@ -108,7 +122,7 @@
         const cur = (S.mailin || []).find(x => x.id === m.id); if (!cur || cur.done) continue;
         let r; try { r = await handle(m); } catch (e) { r = { kind: kindOf(m), review: true, note: 'no se pudo leer: ' + (e && e.message || e) }; }
         await db.doc('mailin/' + docId(m)).update({ done: true, kind: r.kind, ref: r.ref || '', review: !!r.review, note: r.note || '', doneAt: Date.now() });
-        if (r.kind !== 'other' && r.note !== 'ya estaba') toast({ sale: 'Venta desde Vinted', paid: 'Cobro', feat: 'Destacado', buy: 'Compra', ship: 'Envío' }[r.kind] + ' · ' + r.note);
+        if (r.kind !== 'other' && r.note !== 'ya estaba') toast({ sale: 'Venta desde Vinted', paid: 'Cobro', feat: 'Destacado', buy: 'Compra', ship: 'Envío', label: 'Etiqueta' }[r.kind] + ' · ' + r.note);
       }
     } finally { busy = false; }
     if ((S.mailin || []).some(m => !m.done)) setTimeout(run, 1500);   // si han llegado más mientras tanto

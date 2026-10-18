@@ -1100,7 +1100,7 @@ function letterSheet() {
       </div></div>`);
   store.set('letterRead', w.start); setTimeout(() => { if (S.tab === 'panel') render(); }, 500);
 }
-const MAIL_K = { sale: ['Venta', G.sell, 'var(--pos)'], paid: ['Cobro', G.coin, 'var(--accent)'], feat: ['Destacado', G.zap, 'var(--warn)'], buy: ['Compra', G.cart, 'var(--warn)'], ship: ['Envío', G.truck, 'var(--ink2)'], other: ['Otro', G.dots, 'var(--ink3)'] };
+const MAIL_K = { sale: ['Venta', G.sell, 'var(--pos)'], paid: ['Cobro', G.coin, 'var(--accent)'], feat: ['Destacado', G.zap, 'var(--warn)'], buy: ['Compra', G.cart, 'var(--warn)'], ship: ['Envío', G.truck, 'var(--ink2)'], label: ['Etiqueta', G.tag, 'var(--ink2)'], other: ['Otro', G.dots, 'var(--ink3)'] };
 function mailSheet() {
   const l = S.mailin.filter(m => m.done).sort((a, b) => String(b.date).localeCompare(String(a.date))), rv = l.filter(m => m.review);
   const row = m => { const [t, g, c] = MAIL_K[m.kind] || MAIL_K.other, [col, id] = String(m.ref || '/').split('/');
@@ -1852,6 +1852,7 @@ function saleDetail(id) {
     <div class="facts"><div class="fact"><span>Móvil</span><b>${esc(accName(s.account, s.accountName))}</b></div>${a && a.iban ? `<div class="fact"><span>IBAN</span><b class="iban">${ibanShort(a.iban)}</b></div>` : ''}
       ${dev ? '' : `<div class="fact"><span>Cobro</span><b>${s.paidAt ? 'Cobrada el ' + fmtDate(s.paidAt) : isFree(s) ? 'En el saldo desde el ' + fmtDate(freeOn(s)) : 'Al saldo el ' + fmtDate(freeOn(s)) + ' (' + inDays(freeOn(s)) + ')'}</b></div>`}
       ${dev ? '' : `<div class="fact"><span>Envío</span><b>${s.ship === 'pend' && (s.date || '') >= today() ? (window.almPackedIds && almPackedIds().has(s.id) ? 'En la vagoneta' : 'Por preparar') : s.shippedAt ? 'Enviada el ' + fmtDate(s.shippedAt) : 'Enviada'}</b></div>`}
+      ${s.carrier || s.labelAt ? `<div class="fact"><span>Etiqueta</span><b>${s.carrier ? esc(s.carrier.toUpperCase()) + ' · ' : ''}${fmtDate(s.labelAt)}${s.shipDeadline ? ' · enviar antes del ' + fmtDate(s.shipDeadline) : ''}</b></div>` : ''}
       ${s.cost ? `<div class="fact"><span>Ganas con esta venta</span><b class="pos">+${money(s.price - s.cost)}</b></div>` : ""}</div>
     <div class="btns"><button class="btn btn-soft" data-action="editSale" data-id="${s.id}" ${dev ? 'disabled' : ''}>Editar</button>${dev ? `<button class="btn btn-soft" data-action="unreturn" data-id="${s.id}">Anular devolución</button>` : `<button class="btn btn-soft" data-action="returnSale" data-id="${s.id}">${G.ret}Devolución</button>`}</div>
     

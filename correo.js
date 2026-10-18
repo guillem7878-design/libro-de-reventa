@@ -142,7 +142,7 @@
       if (kind === 'feat') {
         const p = it0.title ? matchProduct(it0.title) : null;   // si la factura dice qué artículo, se asocia (y sale su estrella en el almacén)
         await db.doc('expenses/' + base).set({ concept: 'Destacado' + (p ? ' · ' + p.name : ''), amount, category: 'destacado', account: acc ? acc.id : '', date, units: 0, productId: p ? p.id : '', note: '', source: 'mail', createdAt: Date.now() });
-        return { kind, ref: 'expenses/' + base, review: !amount || !acc, note: 'Destacado' + (p ? ' · ' + p.name : '') + ' · ' + money(amount) };
+        return { kind, ref: 'expenses/' + base, review: !amount || !acc || !p, note: 'Destacado' + (p ? ' · ' + p.name : '') + ' · ' + money(amount) + (p ? '' : ' · elige qué par es') };
       }
       const what = it0.title || 'Compra en Vinted';
       await db.doc('expenses/' + base).set({ concept: what, amount, category: 'compra', account: acc ? acc.id : '', date, units: 0, source: 'mail', createdAt: Date.now() });

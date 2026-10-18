@@ -1286,12 +1286,26 @@ function whenLoaded(title, fn) {
   openSheet(title, '<p class="hint" style="margin:0">Cargando tus móviles y tu stock…</p><div class="skel"></div><div class="skel"></div>');
   const t = setInterval(() => { if (!$('#sheet').classList.contains('show')) return clearInterval(t); if (loadedAll()) { clearInterval(t); fn(); } }, 120);
 }
+/* cada destacado va con una unidad concreta del stock (artículo + talla). Cuando esa unidad se vende, el destacado
+   deja de estar activo y lo que costó se resta de lo que ganas con esa venta (en el beneficio total ya cuenta como gasto). */
+function featLinks() {
+  const bySale = {}, byFeat = {}, used = new Set();
+  const feats = S.expenses.filter(e => e.category === 'destacado' && e.productId).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
+  const sales = S.sales.filter(s => s.status !== 'devuelta' && s.productId).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
+  for (const f of feats) {
+    const ok = x => x.productId === f.productId && (!f.size || !x.size || String(x.size) === String(f.size)) && (x.date || '') >= (f.date || '');
+    const s = sales.find(x => ok(x) && !used.has(x.id)) || sales.find(ok);
+    if (s) { used.add(s.id); byFeat[f.id] = s; (bySale[s.id] = bySale[s.id] || []).push(f); }
+  }
+  return { bySale, byFeat };
+}
+const featCostOf = s => r2(sum(featLinks().bySale[s.id] || [], f => f.amount));
 function quickExpense(kind, e) {
   const feat = kind === 'destacado', isNew = !e; e = e || {};
   const what = feat ? (e.note != null ? e.note : e.productId ? '' : String(e.concept || '').replace(/^Destacado( · )?/, '')) : e.concept || '';
   openSheet(isNew ? (feat ? 'Destacado' : 'Nueva compra') : 'Editar', `<form class="f" id="qeF" novalidate>
     ${amountField('qe-amt', 'amount', feat ? 'Lo que te cuesta destacar' : 'Importe', e.amount || '')}
-    ${feat && S.products.some(p => units(p) > 0) ? `<div class="fld"><label for="qe-prod">Artículo de tu stock</label><select id="qe-prod" name="productId"><option value="">— Ninguno —</option>${S.products.filter(p => units(p) > 0 || p.id === e.productId).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}" ${e.productId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : ''}
+    ${feat ? `<div class="fld"><label for="qe-prod">¿Qué par destacas?</label><select id="qe-prod" name="unit"><option value="">— Elige la unidad de tu stock —</option>${S.products.filter(p => units(p) > 0 || p.id === e.productId).sort((a, b) => a.name.localeCompare(b.name)).flatMap(p => { const sz = (p.sizes || []).filter(x => x.q > 0 || (p.id === e.productId && String(x.s) === String(e.size || ''))); return (sz.length ? sz : [{ s: e.size || '', q: 0 }]).map(x => { const v = p.id + '|' + (x.s || ''); return `<option value="${esc(v)}" ${e.productId === p.id && String(e.size || '') === String(x.s || '') ? 'selected' : ''}>${esc(p.name)}${x.s && x.s !== 'Única' ? ' · talla ' + esc(x.s) : ''}${x.q ? ' (' + x.q + ' uds)' : ''}</option>`; }); }).join('')}</select><span class="hint">Cuando se venda esa unidad, el destacado se acaba y su coste se resta de lo que ganas con esa venta.</span></div>` : ''}
     <div class="fld"><label for="qe-what">${feat ? 'Nota (opcional)' : 'Qué has comprado'}</label><input id="qe-what" name="what" placeholder="${feat ? 'Samba Glitter Gold' : 'Escribe lo que has comprado'}" value="${esc(what)}" autocapitalize="sentences" autocomplete="off"></div>
     ${accounts().length ? `<div class="fld" id="qeAcc"><span class="lbl">¿En qué móvil?</span>${phoneChips(e.account || lastAcc())}</div>` : ''}
     <div class="fld"><label for="qe-date">Fecha</label><input id="qe-date" name="date" type="date" value="${esc(e.date || today())}"></div>
@@ -1302,8 +1316,9 @@ function quickExpense(kind, e) {
       if (!feat && !txt) return fieldErr('qe-what', 'Escribe qué has comprado');
       if (!account && accounts().length) return fieldErr('qeAcc', 'Elige el móvil');
       if (account) store.set('lastAcc', account);
-      const pid = feat ? fd.get('productId') || '' : '', pp = pid && prod(pid);
-      const data = { concept: feat ? 'Destacado' + (pp ? ' · ' + pp.name : txt ? ' · ' + txt : '') : txt, amount, category: kind, account, date: fd.get('date') || today(), units: 0, productId: pid, note: feat ? txt : '' };
+      const [pid, psize] = feat ? String(fd.get('unit') || '').split('|') : ['', ''], pp = pid && prod(pid);
+      if (feat && !pp) return fieldErr('qe-prod', 'Elige el par que destacas');
+      const data = { concept: feat ? 'Destacado' + (pp ? ' · ' + pp.name : txt ? ' · ' + txt : '') : txt, amount, category: kind, account, date: fd.get('date') || today(), units: 0, productId: pid || '', size: feat ? psize || '' : '', note: feat ? txt : '' };
       const ok = await write(() => isNew ? db.collection('expenses').add({ ...data, createdAt: Date.now() }) : db.doc('expenses/' + e.id).update(data), isNew ? (feat ? 'Destacado apuntado' : 'Compra apuntada') + ' · −' + money(amount) : 'Guardado');
       if (ok) closeSheet();
     }, () => { fitAmounts(); setTimeout(() => { const i = $('#qe-amt'); if (i && isNew) i.focus(); }, 350); });
@@ -1520,7 +1535,7 @@ function shipSteps(s) {
   const st = shipStage(s), n = { sold: 0, label: 1, sent: 2, paid: 3 }[st];
   const step = (i, t, d) => `<li class="${i < n || (i === n && i === 3) ? 'ok' : i === n ? 'on' : ''}"><i></i><b>${t}</b><span>${d || ''}</span></li>`;
   const lab = s.labelAt ? fmtDate(s.labelAt) + (s.carrier ? ' · ' + esc(s.carrier.toUpperCase()) : '') : n === 0 ? (mailOn(s.account) ? 'Esperando el correo' : '') : '';
-  const sent = n >= 2 ? fmtDate(shipWhen(s)) : s.shipBy ? 'Sale sola el ' + fmtDate(s.shipBy) : s.shipDeadline ? 'Antes del ' + fmtDate(s.shipDeadline) : window.almPackedIds && almPackedIds().has(s.id) ? 'En la vagoneta' : '';
+  const sent = n >= 2 ? fmtDate(shipWhen(s)) : s.shipBy ? 'Sale sola el ' + fmtDate(s.shipBy) : s.shipDeadline ? 'Antes del ' + fmtDate(s.shipDeadline) : window.almPackedIds && almPackedIds().has(s.id) ? ((s.date || '') === today() ? 'En la vagoneta' : 'En la carretilla') : '';
   return `<ol class="steps">${step(0, 'Vendida', fmtDate(s.date))}${step(1, 'Etiqueta', lab)}${step(2, 'Enviada', sent)}${step(3, 'Cobrada', s.paidAt ? fmtDate(s.paidAt) : isFree(s) ? 'En el saldo' : 'El ' + fmtDate(freeOn(s)))}</ol>`;
 }
 const inDays = d => { const n = days(today(), d); return n === 0 ? 'hoy' : n === 1 ? 'mañana' : 'en ' + n + ' días'; };
@@ -1918,7 +1933,8 @@ function saleDetail(id) {
       ${dev ? '' : `<div class="fact"><span>Cobro</span><b>${s.paidAt ? 'Cobrada el ' + fmtDate(s.paidAt) : isFree(s) ? 'En el saldo desde el ' + fmtDate(freeOn(s)) : 'Al saldo el ' + fmtDate(freeOn(s)) + ' (' + inDays(freeOn(s)) + ')'}</b></div>`}
       ${s.shipDeadline && shipOpen(s) ? `<div class="fact"><span>Enviar antes del</span><b${s.shipDeadline <= addDays(today(), 1) ? ' style="color:var(--warn)"' : ''}>${fmtDate(s.shipDeadline)} (${inDays(s.shipDeadline)})</b></div>` : ''}
       ${s.source === 'mail' ? `<div class="fact"><span>Apuntada</span><b>Sola, por correo${s.mailTitle && s.mailTitle !== s.name ? ' · «' + esc(s.mailTitle) + '»' : ''}</b></div>` : ''}
-      ${s.cost ? `<div class="fact"><span>Ganas con esta venta</span><b class="pos">+${money(s.price - s.cost)}</b></div>` : ""}</div>
+      ${featCostOf(s) ? `<div class="fact"><span>Destacado</span><b>−${money(featCostOf(s))}</b></div>` : ''}
+      ${s.cost || featCostOf(s) ? `<div class="fact"><span>Ganas con esta venta</span><b class="${s.price - (s.cost || 0) - featCostOf(s) >= 0 ? 'pos' : 'neg'}">${s.price - (s.cost || 0) - featCostOf(s) >= 0 ? '+' : ''}${money(s.price - (s.cost || 0) - featCostOf(s))}</b></div>` : ""}</div>
     <div class="btns"><button class="btn btn-soft" data-action="editSale" data-id="${s.id}" ${dev ? 'disabled' : ''}>Editar</button>${dev ? `<button class="btn btn-soft" data-action="unreturn" data-id="${s.id}">Anular devolución</button>` : `<button class="btn btn-soft" data-action="returnSale" data-id="${s.id}">${G.ret}Devolución</button>`}</div>
     
     ${dev ? '' : s.paidAt ? `<button class="btn btn-soft btn-block" data-action="saleUnpaid" data-id="${s.id}">Quitar «cobrada»</button>` : !isFree(s) ? `<button class="btn btn-soft btn-block" data-action="salePaid" data-id="${s.id}">Ya me ha llegado el dinero</button>` : ''}
@@ -2160,6 +2176,7 @@ function expenseDetail(id, justCreated) {
   const per = e.units ? r2(e.amount / e.units) : 0;
   openSheet(justCreated ? 'Pedido apuntado' : isOrder(e) ? 'Pedido' : 'Gasto', `<div class="dh"><span class="th" style="${tint(e.category === 'pedido' ? 'var(--warn)' : 'var(--ink2)')}">${EXP_ICON[e.category] || G.coin}</span><div style="min-width:0"><h3>${esc(e.concept)}</h3><p>${EXP_ALL[e.category] || 'Otros'} · ${fmtDate(e.date)}</p></div></div>
     <div class="bigv">−${splitC(money(e.amount))}</div>
+    ${e.category === 'destacado' ? `<div class="facts"><div class="fact"><span>Par destacado</span>${prod(e.productId) ? `<b>${esc(prod(e.productId).name)}${e.size && e.size !== 'Única' ? ' · talla ' + esc(e.size) : ''}</b>` : '<b class="missing">Sin elegir · toca Editar</b>'}</div><div class="fact"><span>Estado</span><b>${featLinks().byFeat[e.id] ? 'Vendido el ' + fmtDate(featLinks().byFeat[e.id].date) + ' · restado de esa venta' : 'Activo hasta que se venda'}</b></div></div>` : ''}
     ${e.account ? `<div class="facts"><div class="fact"><span>Cuenta</span><b>${esc(accName(e.account))}</b></div>${e.fromSaldo ? '<div class="fact"><span>Pagado con</span><b>Saldo de Vinted</b></div>' : ''}</div>` : ''}
     ${e.category === 'pedido' ? `<div class="facts"><div class="fact"><span>Estado</span><b>${orderState(e)[0]}</b></div>${e.units ? `<div class="fact"><span>Unidades</span><b>${e.units} · ${money(per)}/ud</b></div>` : ''}<div class="fact"><span>Productos en stock</span><b>${ps.length}</b></div><div class="fact"><span>Recuperado vendiendo</span><b class="${back >= e.amount ? 'pos' : ''}">${money(back)} · ${Math.round(back / e.amount * 100)}%</b></div></div>
       ${e.invoice ? `<div class="btns"><a class="btn btn-main" href="${esc(invoiceUrl(e))}" target="_blank" rel="noopener">${G.receipt}Ver factura</a><button class="btn btn-soft" data-action="invoice" data-id="${e.id}">Cambiar</button></div>` : `<button class="btn btn-soft btn-block" data-action="invoice" data-id="${e.id}">${G.receipt}Añadir factura (PDF o foto)</button>`}

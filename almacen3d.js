@@ -475,7 +475,7 @@ export function createWorld(opts) {
   /* tele de destacados: pantalla en directo con todo lo gastado en destacar */
   const tvC = document.createElement('canvas'); tvC.width = 640; tvC.height = 360; const tvX = tvC.getContext('2d');
   const tvT = new THREE.CanvasTexture(tvC); tvT.colorSpace = THREE.SRGBColorSpace; tvT.anisotropy = 4;
-  const tvG = new THREE.Group(); tvG.userData.zone = 'feat'; tvG.userData.tip = 'Destacados'; tvG.position.set(8.7, 1.72, 0); world.add(tvG);
+  const tvG = new THREE.Group(); tvG.visible = false;   // (la tele de destacados ya no está)
   block(1.56, .9, .05, M.dark, -.78, -.45, .002, tvG); block(1.6, .04, .06, mat('#1A1B1F'), -.8, -.47, 0, tvG);
   const tvS = new THREE.Mesh(new THREE.PlaneGeometry(1.46, .82), new THREE.MeshBasicMaterial({ map: tvT, toneMapped: false })); tvS.position.set(0, 0, .056); tvG.add(tvS);
   block(.2, .02, .08, M.dark, -.1, -.5, .02, tvG);   // soporte
@@ -839,7 +839,7 @@ export function createWorld(opts) {
       if (a.mail) block(.014, .006, .009, mailLed, DESK[0] + .133 + i * .11, .804, DESK[1] + .6005, g); });   // lucecita verde: su correo llega a la app
     vanMode = d.vanMode; planeOn = !!d.plane; letterOn = !!d.letter; drawWeek(d.weekUnits || 0);
     labeled.seed(d.pend.filter(s => !s.mail || s.labelAt).map(s => s.id)); shipSeen.seed((d.shipped || []).map(s => s.id)); paidSeen.seed((d.paid || []).map(s => s.id)); paySeen.seed((d.payouts || []).map(p => p.id)); starSeen.seed((d.feats || []).map(f => f.id)); retSeen.seed((d.restock || []).map(s => s.id));
-    drawFeats((d.feats || []).filter(f => starSeen.has(f.id))); drawBoard(d.chain); buildOffice(d.accounts || []); drawBoards(d); jarTo = Math.min(1, (d.saldo || 0) / 800); if (d.featTV) tvData = d.featTV;
+     drawBoard(d.chain); buildOffice(d.accounts || []); drawBoards(d); jarTo = Math.min(1, (d.saldo || 0) / 800); if (d.featTV) tvData = d.featTV;
     pins = d.alerts; for (const id of [...packed]) if (!d.pend.some(s => s.id === id)) packed.delete(id); savePacked(); drawTub(); plan();
   }
 
@@ -886,7 +886,8 @@ export function createWorld(opts) {
     return kinds.map((k, i) => { let c = 0; for (let j = 1; j < 4; j++) if (hgt[j] < hgt[c] - .001) c = j; const h = BAG[k][1], y = .18 + hgt[c] + h / 2; hgt[c] += h; return { x: cells[c][0], y, z: cells[c][1], r: ((i * 37) % 7 - 3) * .01 }; });
   }
   let tubBag = {};
-  const readyList = () => (D ? D.pend : []).filter(s => packed.has(s.id));
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const readyList = () => (D ? D.pend : []).filter(s => packed.has(s.id) && (!s.date || s.date === todayStr()));
   function drawTub() {
     clear(outItems); tubBag = {}; const ready = readyList(), lay = tubLayout(ready.map(s => kindOf(s.cat)));
     ready.slice(0, 40).forEach((s, i) => { const b = bagMesh(kindOf(s.cat)), L = lay[i]; b.position.set(L.x, L.y, L.z); b.rotation.y = L.r; b.userData.tip = s.tip + (s.mail && !labeled.has(s.id) ? ' · esperando la etiqueta' : ''); tubBag[s.id] = b;
@@ -1059,7 +1060,6 @@ export function createWorld(opts) {
     if ((x = D.pend.find(s => s.mail && s.labelAt && packed.has(s.id) && !labeled.has(s.id)))) return labelJob(x);
     if ((x = (D.shipped || []).find(s => !shipSeen.has(s.id)))) return shipJob(x);
     if ((x = (D.paid || []).find(s => !paidSeen.has(s.id)))) return paidJob(x);
-    if ((x = (D.feats || []).find(f => !starSeen.has(f.id)))) return starJob(x);
     if ((x = (D.restock || []).find(s => !retSeen.has(s.id)))) return restockJob(x);
     if ((x = (D.payouts || []).find(p => !paySeen.has(p.id)))) return payoutJob(x);
     if ((x = hungriest()) && energy(x.a.id) < .3) return feedJob(x);   // con hambre: antes que lo demás
@@ -1265,7 +1265,6 @@ export function createWorld(opts) {
     phones.children.forEach(g => { g.position.x = g.userData.buzz && Math.sin(clock2 * 2.2) > .55 ? Math.sin(clock2 * 70) * .006 : 0; });   // el móvil al que acaba de llegar un correo vibra
     letterM.visible = letterOn; flag.rotation.z = letterOn ? 0 : -1.5; if (letterOn) letterM.position.y = 1.1 + Math.sin(clock2 * 2) * .015;
     featG.children.forEach(g => { g.rotation.y = clock2 * 1.6 + g.userData.ph; g.position.y = g.userData.y + Math.sin(clock2 * 2.2 + g.userData.ph) * .05; const s = 1 + Math.sin(clock2 * 3 + g.userData.ph) * .06; g.scale.setScalar(s); });
-    tvTick += dt; if (tvTick > 1 / 24) { tvTick = 0; drawTV(clock2); }
     tickNight(dt, clock2); placeCam(dt); sky.position.copy(cam.position); sky.quaternion.copy(cam.quaternion); sky.scale.setScalar(1 / zoom);
     renderer.clear(); renderer.clippingPlanes = []; renderer.render(skyScene, cam); renderer.clearDepth(); renderer.clippingPlanes = []; renderer.render(scene, cam);
     if (opts.onFrame) opts.onFrame({
@@ -1290,9 +1289,7 @@ export function createWorld(opts) {
       if (k === 'chain') {               // de frente a la pizarra de la cadena
         flight = null; front = true; lookTo.set(2.5, 1.8, .1); azTo = 0; elTo = .14; nearTo = R - 1.6; zoomTo = VIEW / 2.0; idle = 0; return;
       }
-      if (k === 'feat') {                // de frente a la tele de destacados
-        flight = null; front = true; lookTo.set(8.7, 1.62, .1); azTo = 0; elTo = .14; nearTo = R - 1.6; zoomTo = VIEW / 1.9; idle = 0; return;
-      }
+      if (k === 'feat') k = 'shop';      // los destacados se ven en su panel (sin tele)
       front = false; elTo = EL; nearTo = 10;
       if (String(k).startsWith('acc:')) { const sp = stationPos[k.slice(4)]; if (sp) goTo([sp[0] + .9, .8, sp[2] - .9], 2.8); return; }
       const s = SIGNS[k]; const Zn = ZONES[k] || (s && { at: [s[0] + .6, .7, s[2]], zoom: 2.3 }); if (!Zn) return; goTo(Zn.at, Zn.zoom); },

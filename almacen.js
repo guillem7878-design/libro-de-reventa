@@ -327,7 +327,8 @@
   const FEAT_DAYS = 3;   // un destacado de Vinted dura 3 días
   const featsAll = () => S.expenses.filter(e => e.category === 'destacado').sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const featLeft = e => FEAT_DAYS - (days(e.date, today()) || 0);
-  const featsActive = () => featsAll().filter(e => featLeft(e) > 0);
+  const featSold = e => typeof featLinks === 'function' && !!featLinks().byFeat[e.id];
+  const featsActive = () => featsAll().filter(e => featLeft(e) > 0 && !featSold(e));   // se acaba a los 3 días o cuando se vende su par
   // lo que alimenta las acciones de la cadena en el almacén (solo lo de los últimos días: lo antiguo no se repite)
   function chain3d() {
     const it = s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), carrier: s.carrier || '', tip: s.name + (s.size ? ' · ' + s.size : '') });
@@ -350,11 +351,11 @@
     return {
       products: S.products.filter(p => units(p) > 0 || pend().some(s => s.productId === p.id)).sort((a, b) => CAT_ORDER.indexOf(zoneOf(a)) - CAT_ORDER.indexOf(zoneOf(b)) || units(b) - units(a)).map(p => ({ id: p.id, name: p.name, cat: zoneOf(p), units: units(p), size: ((p.sizes || []).find(s => s.q > 0) || {}).s || '', unitSizes: (p.sizes || []).slice().sort((a, b) => String(a.s).localeCompare(String(b.s), 'es', { numeric: true })).flatMap(s => Array(Math.max(0, s.q | 0)).fill(String(s.s || ''))), tip: p.name })),
       accounts: accounts().map(x => ({ id: x.id, name: x.name, saldo: money(balance(x.id).saldo), pend: money(balance(x.id).pend), toShip: S.sales.filter(s => s.account === x.id && shipOpen(s)).length, month: S.sales.filter(s => s.account === x.id && s.status !== 'devuelta' && (s.date || '').slice(0, 7) === today().slice(0, 7)).length, warm: !!x.warm, mail: !!x.email, buzz: !!x.email && (S.mailin || []).some(m => (m.createdAt || 0) > Date.now() - 6e5 && String(m.to || '').toLowerCase().includes(String(x.email).toLowerCase())), tip: x.name + ' · saldo ' + money(balance(x.id).saldo) + (x.email ? ' · correo conectado' : '') })),
-      pend: pend().map(s => ({ id: s.id, name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), mail: mailOn(s.account), labelAt: s.labelAt || '', carrier: s.carrier || '', tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
+      pend: pend().map(s => ({ id: s.id, date: s.date || '', name: s.name, size: s.size || '', productId: s.productId, cat: zoneOf(prod(s.productId) || s), mail: mailOn(s.account), labelAt: s.labelAt || '', carrier: s.carrier || '', tip: s.name + (s.size ? ' · ' + s.size : '') + ' · ' + accName(s.account, s.accountName) })),
       letter: loadedAll() && letterUnread(), weekUnits: sum(weekSales(), s => s.qty || 1), featTV: (() => { const all = featsAll(), wk = weekStart(), mo = today().slice(0, 7);
         const ends = e => (e.createdAt ? e.createdAt : new Date(e.date + 'T00:00:00').getTime()) + FEAT_DAYS * 864e5;
         return { total: sum(all, e => e.amount), week: sum(all.filter(e => (e.date || '') >= wk), e => e.amount), month: sum(all.filter(e => (e.date || '').slice(0, 7) === mo), e => e.amount),
-          active: all.filter(e => ends(e) > Date.now()).map(e => ({ name: (prod(e.productId) || {}).name || String(e.concept || 'Destacado').replace(/^Destacado( · )?/, '') || 'Destacado', ends: ends(e) })),
+          active: all.filter(e => ends(e) > Date.now() && !featSold(e)).map(e => ({ name: (prod(e.productId) || {}).name || String(e.concept || 'Destacado').replace(/^Destacado( · )?/, '') || 'Destacado', ends: ends(e) })),
           last7: [6, 5, 4, 3, 2, 1, 0].map(n => sum(all.filter(e => e.date === addDays(today(), -n)), e => e.amount)) }; })(), feats: featsActive().filter(e => e.productId && prod(e.productId)).map(e => ({ id: e.id, cat: zoneOf(prod(e.productId)), productId: e.productId, tip: 'Destacado · ' + (prod(e.productId) || {}).name + ' · quedan ' + featLeft(e) + (featLeft(e) === 1 ? ' día' : ' días') })), incoming: incoming().length, ...chain3d(), rets: rets().length, sent: sentWeek().length, alerts: alerts(), ...shipping()
     };
   }
@@ -380,13 +381,13 @@
         `<div class="ap-l">${k === 'stock' ? 'Stock por zonas' : 'Zonas'}</div><div class="ap-list">${racksRows}${extra}</div>`;
     }
     if (k === 'prep') {
-      const l = pend(), pk = packedIds(), todo = l.filter(s => !pk.has(s.id)), tub = l.filter(s => pk.has(s.id));
+      const l = pend(), pk = packedIds(), todo = l.filter(s => !pk.has(s.id)), tub = l.filter(s => pk.has(s.id) && (s.date || '') === today()), cart = l.filter(s => pk.has(s.id) && (s.date || '') !== today());
       const info = s => [esc(accName(s.account, s.accountName)), s.labelAt ? 'Etiqueta' + (s.carrier ? ' ' + esc(s.carrier.toUpperCase()) : '') : mailOn(s.account) ? 'Sin etiqueta aún' : '', s.shipBy ? 'sale sola el ' + fmtDate(s.shipBy) : s.shipDeadline ? 'antes del ' + fmtDate(s.shipDeadline) : '', money(s.price)].filter(Boolean).join(' · ');
       const late = s => s.shipDeadline && s.shipDeadline <= addDays(today(), 1);
       const row = (s, chip) => `<div class="ap-row"><button class="ap-rm" data-action="sale" data-id="${s.id}"><b>${esc(s.name)}${s.size ? ' · ' + esc(s.size) : ''}</b><span>${info(s)}</span></button>${late(s) ? '<span class="ap-chip lo">' + (s.shipDeadline <= today() ? 'Hoy' : 'Mañana') + '</span>' : chip}</div>`;
-      return pHead('Preparación', 'Ventas por enviar', 'Salen solas cuando Vinted avisa del envío', [['Por preparar', todo.length], ['En la vagoneta', tub.length], ['Con etiqueta', l.filter(s => s.labelAt).length], ['Importe', money(sum(l, s => s.price))]]) +
+      return pHead('Preparación', 'Ventas por enviar', 'Salen solas cuando Vinted avisa del envío', [['Por preparar', todo.length], ['En la vagoneta (hoy)', tub.length], ['Con etiqueta', l.filter(s => s.labelAt).length], ['Importe', money(sum(l, s => s.price))]]) +
         `<div class="ap-l">Por preparar</div><div class="ap-list">${todo.length ? todo.map(s => row(s, '<span class="ap-chip">' + (s.labelAt ? 'Etiqueta lista' : 'Preparando') + '</span>')).join('') : '<p class="ap-empty">Mesa libre: no hay nada por preparar.</p>'}</div>
-        <div class="ap-l">En la vagoneta</div><div class="ap-list">${tub.length ? tub.map(s => row(s, '<span class="ap-chip ok">En la vagoneta</span>')).join('') : '<p class="ap-empty">La vagoneta está vacía.</p>'}</div>`;
+        <div class="ap-l">En la vagoneta</div><div class="ap-list">${tub.length ? tub.map(s => row(s, '<span class="ap-chip ok">En la vagoneta</span>')).join('') : '<p class="ap-empty">La vagoneta está vacía.</p>'}</div>${cart.length ? `<div class="ap-l">En la carretilla · empaquetados otros días</div><div class="ap-list">${cart.map(s => row(s, '<span class="ap-chip">En la carretilla</span>')).join('')}</div>` : ''}`;
     }
     // la oficina de los móviles: cada móvil es un agente con su puesto
     const accInfo = x => { const B = balance(x.id), mine = S.sales.filter(s => s.account === x.id && s.status !== 'devuelta'), mo = today().slice(0, 7);

@@ -340,6 +340,8 @@
       payouts: l.flatMap(a => (a.payouts || []).filter(p => (p.date || '') >= d2).map(p => ({ id: p.id || (a.id + p.date + p.amount), tip: a.name + ' · ' + money(p.amount) }))),
       restock: S.sales.filter(s => s.status === 'devuelta' && s.restocked && s.productId && prod(s.productId) && (s.returnedAt || '') >= d2).map(it),
       saldo: r2(sum(l, x => balance(x.id).saldo)),
+      postInfo: { ready: pend().filter(s => s.labelAt).length, sent: sentWeek().length },
+      bankInfo: { saldo: money(r2(sum(l, x => balance(x.id).saldo))), pend: money(r2(sum(l, x => balance(x.id).pend))), month: money(sum(l.flatMap(x => x.payouts || []).filter(p => (p.date || '').slice(0, 7) === today().slice(0, 7)), p => p.amount)) },
       chain: { sold: pend().filter(s => !s.labelAt).map(lbl), label: pend().filter(s => s.labelAt).map(lbl), sent: ok.filter(s => !shipOpen(s) && !(s.paidAt || isFree(s)) && shipWhen(s) >= daysAgo(13)).map(lbl),
         paid: ok.filter(s => (s.paidAt || '') >= daysAgo(6)).map(lbl), on: l.filter(a => a.email).length, total: l.length, last: ml ? fmtDate(ml) : '' }
     };

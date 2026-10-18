@@ -2138,9 +2138,10 @@ function accountForm(a) {
     <div class="fld"><span class="lbl">Estado de la cuenta</span><div class="chips" role="radiogroup" aria-label="Estado"><label><input type="radio" name="warm" value="1" ${a.warm ? 'checked' : ''}><span>Calentada</span></label><label><input type="radio" name="warm" value="0" ${a.warm ? '' : 'checked'}><span>Sin calentar</span></label></div></div>
     <div class="fld"><label for="a-iban">IBAN donde cobra</label><input id="a-iban" name="iban" class="mono" placeholder="ES00 0000 0000 0000 0000 0000" value="${esc(ibanFmt(a.iban))}" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
     <div class="fld"><label for="a-phone">Teléfono (opcional)</label><input id="a-phone" name="phone" type="tel" placeholder="600 000 000" value="${esc(a.phone)}"></div>
+    <div class="fld"><label for="a-mail">Correo de su cuenta de Vinted</label><input id="a-mail" name="email" type="email" inputmode="email" placeholder="cuenta@gmail.com" value="${esc(a.email)}" autocomplete="off" autocapitalize="off" spellcheck="false"><span class="hint">Para apuntar solas las ventas que te lleguen por correo.</span></div>
     <button class="btn btn-main btn-block">${isNew ? 'Añadir móvil' : 'Guardar'}</button></form>`,
     async fd => {
-      const iban = String(fd.get('iban') || '').replace(/\s/g, '').toUpperCase(), data = { name: fd.get('name').trim(), iban, phone: fd.get('phone').trim(), warm: fd.get('warm') === '1' };
+      const iban = String(fd.get('iban') || '').replace(/\s/g, '').toUpperCase(), data = { name: fd.get('name').trim(), iban, phone: fd.get('phone').trim(), email: String(fd.get('email') || '').trim().toLowerCase(), warm: fd.get('warm') === '1' };
       if (!data.name) return fieldErr('a-name', 'Ponle un nombre');
       if (iban && !/^[A-Z]{2}\d{2}[A-Z0-9]{8,30}$/.test(iban)) return fieldErr('a-iban', 'Ese IBAN no parece correcto. Revisa que empiece por ES y los números.');
       if (isNew) { if (await write(() => db.collection('accounts').add({ ...data, order: Math.max(0, ...S.accounts.map(x => x.order || 0)) + 1, createdAt: Date.now() }), 'Móvil añadido')) { closeSheet(); go('moviles'); } }
